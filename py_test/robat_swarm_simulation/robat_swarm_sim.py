@@ -55,7 +55,7 @@ room = pv.Box((-2,2,-2,2,0,2)) # m
 room.extract_geometry().triangulate().save(f'room.stl')
 
 
-source_idx = 0 # index of source robot
+source_idx = 3 # index of source robot
 mic_oneset = mic_posns + robo_centers[source_idx][:2]
 mic_oneset = np.column_stack((mic_oneset, np.tile(sources[source_idx][2], mic_oneset.shape[0])))
 
