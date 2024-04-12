@@ -1,0 +1,8 @@
+pyqtgraph
+pyside6
+pyopengl
+numpy
+scipy
+sounddevice
+soundfile
+
