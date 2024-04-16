@@ -44,6 +44,14 @@ from pyqtgraph.Qt import QtCore
 from scipy import signal 
 import sounddevice as sd
 
+import argparse
+import time
+import math
+
+# thymio
+from thymiodirect import Connection 
+from thymiodirect import Thymio
+
 #%%
 def calc_rms(in_sig):
     '''
@@ -91,9 +99,20 @@ def calc_multich_delays(multich_audio, ba_filt,fs):
     nchannels = multich_audio.shape[1]
     delay_set = []
     for each in range(1, nchannels):
-        
         delay_set.append(calc_delay(multich_audio[:,[0,each]],ba_filt,fs))
     return np.array(delay_set)
+
+def avar_angle(delay_set,nchannels,mic_spacing):
+    '''
+    calculates the mean angle of arrival to the array
+    with channel 1 as reference
+    '''
+    theta = []
+    for each in range(0, nchannels-2):
+        theta[each] = np.rad2deg(np.arcsin((delay_set[each]*343)/(each+1*mic_spacing)))
+    
+    avar_theta = np.mean(np.rad2deg(theta))
+    return avar_theta
 
 app = pg.mkQApp("Realtime angle-of-arrival plot")
 w = gl.GLViewWidget()
@@ -104,17 +123,19 @@ w.setCameraPosition(distance=25)
 g = gl.GLGridItem()
 w.addItem(g)
 
-
 mypos = np.random.normal(0,1,size=(20,3))*5
 mypos[:,2] = np.abs(mypos[:,2])
 sp_my = gl.GLScatterPlotItem(pos=mypos, color=(1,1,1,1), size=10)
 w.addItem(sp_my)
+
 
 #%% Set up the audio-stream of the laptop, along with how the 
 # incoming audio buffers will be processed and thresholded.
 fs = 192000
 # block_size = 4096
 block_size = 8176
+channels = 5
+mic_spacing = 0.0175 #m
 
 bp_freq = np.array([100,80000.0]) # the min and max frequencies
 # to be 'allowed' in Hz.
@@ -123,7 +144,7 @@ ba_filt = signal.butter(2, bp_freq/float(fs*0.5),'bandpass')
 
 #%%
 # define the input signals features
-S = sd.InputStream(samplerate=fs,blocksize=block_size,channels=5, latency='low')
+S = sd.InputStream(samplerate=fs,blocksize=block_size,channels=channels, latency='low')
 
 S.start()
 
@@ -150,6 +171,9 @@ def update():
         
         # Filter input signal
         delay_crossch = calc_multich_delays(in_sig,ba_filt,fs)
+
+        # calculate aavarage angle
+        avar_theta = avar_angle(delay_crossch,channels,mic_spacing)
 
         # Calculate RMS
         rms_sig = calc_rms(in_sig[:,0])
@@ -187,4 +211,56 @@ t.start(5)
 if __name__ == '__main__':
     print('Remember to switch off any sound enhancement options in your OS!!')
     pg.exec()
-# %%
+# %%------------------------------------------------------
+
+def main(use_sim=False, ip='localhost', port=2001):
+    ''' Main function '''
+
+    try:
+        # Configure Interface to Thymio robot
+        # simulation
+        if use_sim:
+            th = Thymio(use_tcp=True, host=ip, tcp_port=port, 
+                        on_connect=lambda node_id: print(f' Thymio {node_id} is connected'))
+        # real robot
+        else:
+            port = Connection.serial_default_port()
+            th = Thymio(serial_port=port, 
+                        on_connect=lambda node_id: print(f'Thymio {node_id} is connected'))
+
+        # Connect to Robot
+        th.connect()
+        robot = th[th.first_node()]
+
+        # Delay to allow robot initialization of all variables
+        time.sleep(1)
+                
+        # b) print all variables
+        # Main loop
+        robot['motor.left.target'] = 200
+        robot['motor.right.target'] = 150
+
+        # c) print sensor values
+            
+            # d) set motor values
+            
+    except Exception as err:
+        # Stop robot
+        robot['motor.left.target'] = 0
+        robot['motor.right.target'] = 0 
+        print(err)
+
+
+if __name__ == '__main__':
+    # Parse commandline arguments to cofigure the interface for a simulation (default = real robot)
+    parser = argparse.ArgumentParser(description='Configure optional arguments to run the code with simulated Thymio. '
+                                                    'If no arguments are given, the code will run with a real Thymio.')
+    
+    # Add optional arguments
+    parser.add_argument('-s', '--sim', action='store_true', help='set this flag to use simulation')
+    parser.add_argument('-i', '--ip', help='set the TCP host ip for simulation. default=localhost', default='localhost')
+    parser.add_argument('-p', '--port', type=int, help='set the TCP port for simulation. default=2001', default=2001)
+
+    # Parse arguments and pass them to main function
+    args = parser.parse_args()
+    main(args.sim, args.ip, args.port)
