@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Live stream angle of arrival with 2 laptop microphones
+Live stream angle of arrival with 2 laptop microphones or externl audio usb card with more mics
 ======================================================
 The script calculates the inter-mic delay and gives an idea of the
 angle of arrival of sound.
@@ -84,7 +84,6 @@ def calc_delay(two_ch,ba_filt,fs):
     cc = np.correlate(two_ch[:,0],two_ch[:,1],'same')
     midpoint = cc.size/2.0
     delay = np.argmax(cc) - midpoint
-
     # convert delay to seconds
     delay *= 1/float(fs)
 
@@ -101,18 +100,6 @@ def calc_multich_delays(multich_audio, ba_filt,fs):
     for each in range(1, nchannels):
         delay_set.append(calc_delay(multich_audio[:,[0,each]],ba_filt,fs))
     return np.array(delay_set)
-
-def avar_angle(delay_set,nchannels,mic_spacing):
-    '''
-    calculates the mean angle of arrival to the array
-    with channel 1 as reference
-    '''
-    theta = []
-    for each in range(0, nchannels-2):
-        theta[each] = np.rad2deg(np.arcsin((delay_set[each]*343)/(each+1*mic_spacing)))
-    
-    avar_theta = np.mean(np.rad2deg(theta))
-    return avar_theta
 
 app = pg.mkQApp("Realtime angle-of-arrival plot")
 w = gl.GLViewWidget()
@@ -133,9 +120,8 @@ w.addItem(sp_my)
 # incoming audio buffers will be processed and thresholded.
 fs = 192000
 # block_size = 4096
-block_size = 8176
+block_size = 8192
 channels = 5
-mic_spacing = 0.0175 #m
 
 bp_freq = np.array([100,80000.0]) # the min and max frequencies
 # to be 'allowed' in Hz.
@@ -150,7 +136,7 @@ S.start()
 
 # creation the guide vector x values
 all_xs = np.linspace(-10,10,S.blocksize)
-print('all_xs',all_xs.shape)
+# print('all_xs',all_xs.shape)
 threshold = 1e-5
 
 # creation of the guide matrix [blocksize * 3] with x = all_xs, y = 0 , z = 0 values 
@@ -172,22 +158,18 @@ def update():
         # Filter input signal
         delay_crossch = calc_multich_delays(in_sig,ba_filt,fs)
 
-        # calculate aavarage angle
-        avar_theta = avar_angle(delay_crossch,channels,mic_spacing)
-
         # Calculate RMS
         rms_sig = calc_rms(in_sig[:,0])
          
         if rms_sig > threshold:
             
             # Scale movement
-            movement_amp_factor = 4e4
+            movement_amp_factor = 5e4
             all_zs = np.tile(rms_sig*movement_amp_factor*1e-3, S.blocksize)
             
-            # Scale delay
-            all_delay = np.tile(-delay_crossch[0]*movement_amp_factor,
-                                 S.blocksize)
-                                 
+            # Scale delay (delay_crossch[3] gives the best central accuracy w.r.t the center of the array )
+            all_delay = np.tile(-delay_crossch[3]*movement_amp_factor, S.blocksize)
+
             # Add delay to signal            
             all_ys = in_sig[:,0]+all_delay[0]
             xyz = np.column_stack((all_xs,all_ys,all_zs))
@@ -211,56 +193,3 @@ t.start(5)
 if __name__ == '__main__':
     print('Remember to switch off any sound enhancement options in your OS!!')
     pg.exec()
-# %%------------------------------------------------------
-
-def main(use_sim=False, ip='localhost', port=2001):
-    ''' Main function '''
-
-    try:
-        # Configure Interface to Thymio robot
-        # simulation
-        if use_sim:
-            th = Thymio(use_tcp=True, host=ip, tcp_port=port, 
-                        on_connect=lambda node_id: print(f' Thymio {node_id} is connected'))
-        # real robot
-        else:
-            port = Connection.serial_default_port()
-            th = Thymio(serial_port=port, 
-                        on_connect=lambda node_id: print(f'Thymio {node_id} is connected'))
-
-        # Connect to Robot
-        th.connect()
-        robot = th[th.first_node()]
-
-        # Delay to allow robot initialization of all variables
-        time.sleep(1)
-                
-        # b) print all variables
-        # Main loop
-        robot['motor.left.target'] = 200
-        robot['motor.right.target'] = 150
-
-        # c) print sensor values
-            
-            # d) set motor values
-            
-    except Exception as err:
-        # Stop robot
-        robot['motor.left.target'] = 0
-        robot['motor.right.target'] = 0 
-        print(err)
-
-
-if __name__ == '__main__':
-    # Parse commandline arguments to cofigure the interface for a simulation (default = real robot)
-    parser = argparse.ArgumentParser(description='Configure optional arguments to run the code with simulated Thymio. '
-                                                    'If no arguments are given, the code will run with a real Thymio.')
-    
-    # Add optional arguments
-    parser.add_argument('-s', '--sim', action='store_true', help='set this flag to use simulation')
-    parser.add_argument('-i', '--ip', help='set the TCP host ip for simulation. default=localhost', default='localhost')
-    parser.add_argument('-p', '--port', type=int, help='set the TCP port for simulation. default=2001', default=2001)
-
-    # Parse arguments and pass them to main function
-    args = parser.parse_args()
-    main(args.sim, args.ip, args.port)
