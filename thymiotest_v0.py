@@ -1,12 +1,12 @@
-pip install matplotlib
-pip install PyQt5
-pip install matplotlib
-pip install sounddevice
-pip install argparse
-pip install time
-pip install math
+import subprocess
 
+print('install libraries...')
+subprocess.run(
+    'pip install sounddevice matplotlib PyQt5 matplotlib sounddevice argparse time math',shell=True)
+
+print('libraries installed')
 print('import libraries...')
+
 import numpy as np
 import pyqtgraph as pg
 import pyqtgraph.opengl as gl
@@ -267,7 +267,7 @@ def main(use_sim=False, ip='localhost', port=2001):
         # b) print all variables
         # Main loop
             # Calculate multichannel delays
-            
+
         def update():
             global sp_my, all_xs, threshold, S, ba_filt
             
