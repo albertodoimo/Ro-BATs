@@ -4,9 +4,6 @@ print('install libraries...')
 
 subprocess.run(
     'pip install sounddevice',shell=True)
-print('install libraries...')
-subprocess.run(
-    'pip install sounddevice matplotlib PyQt5 matplotlib sounddevice argparse time math',shell=True)
 
 print('libraries installed')
 
