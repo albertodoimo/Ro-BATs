@@ -1,21 +1,21 @@
 import subprocess
 
-print('install libraries...')
-subprocess.run(
-    'pip install sounddevice matplotlib PyQt5 matplotlib sounddevice argparse time math',shell=True)
-
-print('libraries installed')
-print('import libraries...')
-
+# print('install libraries...')
+# subprocess.run(
+#     'pip install thymiodirect sounddevice numpy scipy argparse',shell=True)
+# 
+# print('libraries installed')
+# print('import libraries...')
+# 
 import numpy as np
-import pyqtgraph as pg
-import pyqtgraph.opengl as gl
-from pyqtgraph.Qt import QtCore
+# import pyqtgraph as pg
+# import pyqtgraph.opengl as gl
+# from pyqtgraph.Qt import QtCore
 from scipy import signal 
 import sounddevice as sd
 
-import matplotlib.pyplot as plt
-from matplotlib.animation import FuncAnimation
+# import matplotlib.pyplot as plt
+# from matplotlib.animation import FuncAnimation
 
 import argparse
 import time
@@ -92,21 +92,22 @@ def avar_angle(delay_set,nchannels,mic_spacing):
     avar_theta = np.mean(theta)
     return avar_theta
 
-app = pg.mkQApp("Realtime angle-of-arrival plot")
-w = gl.GLViewWidget()
-w.show()
-w.setWindowTitle('Realtime angle-of-arrival plot')
-w.setCameraPosition(distance=25)
+# app = pg.mkQApp("Realtime angle-of-arrival plot")
+# w = gl.GLViewWidget()
+# w.show()
+# w.setWindowTitle('Realtime angle-of-arrival plot')
+# w.setCameraPosition(distance=25)
+# 
+# g = gl.GLGridItem()
+# w.addItem(g)
+# 
+# mypos = np.random.normal(0,1,size=(20,3))*5
+# mypos[:,2] = np.abs(mypos[:,2])
+# sp_my = gl.GLScatterPlotItem(pos=mypos, color=(1,1,1,1), size=10)
+# w.addItem(sp_my)
 
-g = gl.GLGridItem()
-w.addItem(g)
+print('functions loaded')
 
-mypos = np.random.normal(0,1,size=(20,3))*5
-mypos[:,2] = np.abs(mypos[:,2])
-sp_my = gl.GLScatterPlotItem(pos=mypos, color=(1,1,1,1), size=10)
-w.addItem(sp_my)
-
-print('functions created')
 print('initializating audio stream...')
 #%% Set up the audio-stream of the laptop, along with how the 
 # incoming audio buffers will be processed and thresholded.
@@ -136,106 +137,106 @@ threshold = 1e-5
 guidepos = np.column_stack((all_xs, np.zeros(S.blocksize), np.zeros(S.blocksize)))
 # creation of the line in the 3d space
 
-guideline = gl.GLScatterPlotItem(pos=guidepos, color=(1,0,1,1), size=10) # Guideline color is purple
-
-w.addItem(guideline)
+# guideline = gl.GLScatterPlotItem(pos=guidepos, color=(1,0,1,1), size=10) # Guideline color is purple
+# 
+# w.addItem(guideline)
 
 print('audio stream initialized')
 #%%
 
-# LINE PLOT
-# Calculate multichannel delays
-def update():
-    global sp_my, all_xs, threshold, S, ba_filt
-    
-    try:
-        in_sig,status = S.read(S.blocksize)
-        
-        # Filter input signal
-        delay_crossch = calc_multich_delays(in_sig,ba_filt,fs)
-        # print('delay',delay_crossch)
-        # calculate aavarage angle
-
-        avar_theta = avar_angle(delay_crossch,channels,mic_spacing)
-        # print('avarage theta rad',avar_theta)
-        # print('avarage theta deg',np.rad2deg(avar_theta))
-
-        # Calculate RMS
-        rms_sig = calc_rms(in_sig[:,0])
-         
-        if rms_sig > threshold:
-            
-            # Scale movement
-            movement_amp_factor = 5e4
-            all_zs = np.tile(rms_sig*movement_amp_factor*1e-3, S.blocksize)
-            
-            # Scale delay (delay_crossch[3] gives the best central accuracy w.r.t the center of the array )
-            all_delay = np.tile(-delay_crossch[3]*movement_amp_factor, S.blocksize)
-            # print(all_delay)
-            # all_delay = np.tile(avar_theta*movement_amp_factor, S.blocksize)
-            # print(all_delay)
-            
-            # Add delay to signal            
-            all_ys = in_sig[:,0]+all_delay[0]
-            xyz = np.column_stack((all_xs,all_ys,all_zs))
-            
-        else:
-            # when there's no/low signal at the mics
-            # Set y values to 0
-            y = np.zeros(S.blocksize)
-            z= y.copy()
-            xyz = np.column_stack((all_xs,y,z))
-      
-        sp_my.setData(pos=xyz)
-        
-    except KeyboardInterrupt:
-        S.stop()
-        
-t = QtCore.QTimer()
-t.timeout.connect(update)
-t.start(5)
-
-
-# POLAR PLOT
-
-# Function to update the polar plot
-def update_polar(frame):
-    # Your streaming data source logic goes here
-
-    in_sig,status = S.read(S.blocksize)
-    
-    # Filter input signal
-    delay_crossch = calc_multich_delays(in_sig,ba_filt,fs)
-    # print('delay',delay_crossch)
-    # calculate aavarage angle
-
-    avar_theta = avar_angle(delay_crossch,channels,mic_spacing)
-    # print('avarage theta rad',avar_theta)
-    # print('avarage theta deg',np.rad2deg(avar_theta))
-
-    values = np.zeros(180)
-    for i in range(len(values)):
-        if round(np.rad2deg(avar_theta)+90) == i:
-            values[i] = 1
-        else:
-            values[i] = 0
-
-    # Update the polar plot
-    line.set_ydata(values)
-    return line,
-
-# Set up the polar plot
-fig, ax = plt.subplots(subplot_kw={'projection': 'polar'})
-theta = np.linspace(-np.pi/2, np.pi/2, 180)
-values = np.random.rand(180)
-line, = ax.plot(theta, values)
-ax.set_thetamin(90)
-ax.set_thetamax(-90)
-
-# Set up the animation
-ani = FuncAnimation(fig, update_polar, frames=range(180), blit=True)
-
-plt.show()
+# # LINE PLOT
+# # Calculate multichannel delays
+# def update():
+#     global sp_my, all_xs, threshold, S, ba_filt
+#     
+#     try:
+#         in_sig,status = S.read(S.blocksize)
+#         
+#         # Filter input signal
+#         delay_crossch = calc_multich_delays(in_sig,ba_filt,fs)
+#         # print('delay',delay_crossch)
+#         # calculate aavarage angle
+# 
+#         avar_theta = avar_angle(delay_crossch,channels,mic_spacing)
+#         # print('avarage theta rad',avar_theta)
+#         # print('avarage theta deg',np.rad2deg(avar_theta))
+# 
+#         # Calculate RMS
+#         rms_sig = calc_rms(in_sig[:,0])
+#          
+#         if rms_sig > threshold:
+#             
+#             # Scale movement
+#             movement_amp_factor = 5e4
+#             all_zs = np.tile(rms_sig*movement_amp_factor*1e-3, S.blocksize)
+#             
+#             # Scale delay (delay_crossch[3] gives the best central accuracy w.r.t the center of the array )
+#             all_delay = np.tile(-delay_crossch[3]*movement_amp_factor, S.blocksize)
+#             # print(all_delay)
+#             # all_delay = np.tile(avar_theta*movement_amp_factor, S.blocksize)
+#             # print(all_delay)
+#             
+#             # Add delay to signal            
+#             all_ys = in_sig[:,0]+all_delay[0]
+#             xyz = np.column_stack((all_xs,all_ys,all_zs))
+#             
+#         else:
+#             # when there's no/low signal at the mics
+#             # Set y values to 0
+#             y = np.zeros(S.blocksize)
+#             z= y.copy()
+#             xyz = np.column_stack((all_xs,y,z))
+#       
+#         sp_my.setData(pos=xyz)
+#         
+#     except KeyboardInterrupt:
+#         S.stop()
+#         
+# t = QtCore.QTimer()
+# t.timeout.connect(update)
+# t.start(5)
+# 
+# 
+# # POLAR PLOT
+# 
+# # Function to update the polar plot
+# def update_polar(frame):
+#     # Your streaming data source logic goes here
+# 
+#     in_sig,status = S.read(S.blocksize)
+#     
+#     # Filter input signal
+#     delay_crossch = calc_multich_delays(in_sig,ba_filt,fs)
+#     # print('delay',delay_crossch)
+#     # calculate aavarage angle
+# 
+#     avar_theta = avar_angle(delay_crossch,channels,mic_spacing)
+#     # print('avarage theta rad',avar_theta)
+#     # print('avarage theta deg',np.rad2deg(avar_theta))
+# 
+#     values = np.zeros(180)
+#     for i in range(len(values)):
+#         if round(np.rad2deg(avar_theta)+90) == i:
+#             values[i] = 1
+#         else:
+#             values[i] = 0
+# 
+#     # Update the polar plot
+#     line.set_ydata(values)
+#     return line,
+# 
+# # Set up the polar plot
+# fig, ax = plt.subplots(subplot_kw={'projection': 'polar'})
+# theta = np.linspace(-np.pi/2, np.pi/2, 180)
+# values = np.random.rand(180)
+# line, = ax.plot(theta, values)
+# ax.set_thetamin(90)
+# ax.set_thetamax(-90)
+# 
+# # Set up the animation
+# ani = FuncAnimation(fig, update_polar, frames=range(180), blit=True)
+# 
+# plt.show()
 
 
 
@@ -270,7 +271,7 @@ def main(use_sim=False, ip='localhost', port=2001):
 
         def update():
             global sp_my, all_xs, threshold, S, ba_filt
-            
+            print('thymio update cycle started...')
             try:
                 in_sig,status = S.read(S.blocksize)
                 
@@ -280,16 +281,28 @@ def main(use_sim=False, ip='localhost', port=2001):
                 # calculate aavarage angle
 
                 avar_theta = avar_angle(delay_crossch,channels,mic_spacing)
-                print('avarage theta rad',avar_theta)
-                print('avarage theta deg',np.rad2deg(avar_theta))
+                avar_theta_deg = np.rad2deg(avar_theta)
+                #print('avarage theta rad',avar_theta)
+                print('avarage theta deg',avar_theta_deg)
+
+                 # get lights turn on based on proximity sensors
+                if avar_theta_deg <-40:
+                    robot["leds.top"] = [0, 0, 255]
+                if avar_theta_deg >= -40 and avar_theta_deg<-10:
+                    robot["leds.top"] = [0, 255, 255]
+                if avar_theta_deg <=10 and avar_theta >=-10:
+                    robot["leds.top"] = [255, 255, 255]
+                if avar_theta_deg <= 40 and avar_theta_deg>10:
+                    robot["leds.top"] = [255,255,0]
+                if avar_theta_deg >40 :
+                    robot["leds.top"] = [255, 0, 0]   
+                else:
+                    robot["leds.top"] = [0,0,0]
                 
             except KeyboardInterrupt:
                 S.stop()
-            robot['leds.prox.h.led0'] = 1
-            robot['motor.left.target'] = 0
-            robot['motor.right.target'] = 150
+            print('thymio update cycle interrupted')
 
-            
     except Exception as err:
         # Stop robot
         robot['motor.left.target'] = 0
