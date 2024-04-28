@@ -111,6 +111,22 @@ print('functions loaded')
 print('initializating audio stream...')
 #%% Set up the audio-stream of the laptop, along with how the 
 # incoming audio buffers will be processed and thresholded.
+import queue
+
+# np.random.seed(78464)
+
+input_audio_queue = queue.Queue()
+
+def get_card(device_list):
+    for i, each in enumerate(device_list):
+        dev_name = each['name']
+        asio_in_name = 'ASIO' in dev_name
+        usb_in_name = 'USB' in dev_name
+        if asio_in_name and usb_in_name:
+            return i
+
+usb_fireface_index = get_card(sd.query_devices())
+
 fs = 192000
 # block_size = 4096
 block_size = 8192
@@ -124,7 +140,7 @@ ba_filt = signal.butter(2, bp_freq/float(fs*0.5),'bandpass')
 
 #%%
 # define the input signals features
-S = sd.InputStream(samplerate=fs,blocksize=block_size,channels=channels, latency='low')
+S = sd.InputStream(samplerate=fs,blocksize=block_size, device=usb_fireface_index, channels=channels, latency='low')
 
 S.start()
 
