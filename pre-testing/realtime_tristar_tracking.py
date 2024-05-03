@@ -24,9 +24,9 @@ input_audio_queue = queue.Queue()
 def get_RME_USB(device_list):
     for i, each in enumerate(device_list):
         dev_name = each['name']
-        asio_in_name = 'ASIO' in dev_name
-        usb_in_name = 'USB' in dev_name
-        if asio_in_name and usb_in_name:
+        asio_in_name = 'MCHStreamer' in dev_name
+        #usb_in_name = 'USB' in dev_name
+        if asio_in_name:
             return i
 def get_60cm_2D_tristar_xyz():
     R = 0.6

@@ -80,6 +80,19 @@ def calc_multich_delays(multich_audio, ba_filt,fs):
     # print(delay_set)
     return np.array(delay_set)
 
+def calc_multich_delays_polar(multich_audio, ba_filt,fs):
+    '''s
+    Calculates peak delay based with reference of 
+    channel 1. 
+    '''
+    multich_audio = multich_audio[:,[2,3,4,5]]
+    nchannels = multich_audio.shape[1]
+    delay_set = []
+    for each in range(1, nchannels):
+        delay_set.append(calc_delay(multich_audio[:,[0,each]],ba_filt,fs))
+    # print(delay_set)
+    return np.array(delay_set)
+
 def avar_angle(delay_set,nchannels,mic_spacing):
     '''
     calculates the mean angle of arrival to the array
@@ -142,7 +155,11 @@ ba_filt = signal.butter(2, bp_freq/float(fs*0.5),'bandpass')
 #%%
 # define the input signals features
 S = sd.InputStream(samplerate=fs,blocksize=block_size, device=usb_fireface_index, channels=channels, latency='low')
-
+print('fs = ', S.samplerate)
+print('blocksize = ', S.blocksize)
+print('channels = ', S.channels)
+print('latency = ', S.latency)
+print('devinfo = ', S.device)
 S.start()
 
 # creation the guide vector x values
@@ -170,13 +187,13 @@ def update():
         in_sig,status = S.read(S.blocksize)
         
         # Filter input signal
-        delay_crossch = calc_multich_delays(in_sig,ba_filt,fs)
-        
+        # delay_crossch = calc_multich_delays(in_sig,ba_filt,fs)
+        delay_crossch = calc_multich_delays(in_sig[:,[2,3,4,5]],ba_filt,fs)
 
         # print('delay',delay_crossch)
         # calculate aavarage angle
 
-        avar_theta = avar_angle(delay_crossch,channels,mic_spacing)
+        avar_theta = avar_angle(delay_crossch,channels-2,mic_spacing)
         # print('avarage theta rad',avar_theta)
         # print('avarage theta deg',np.rad2deg(avar_theta))
 
@@ -229,11 +246,11 @@ def update_polar(frame):
     in_sig,status = S.read(S.blocksize)
     
     # Filter input signal
-    delay_crossch = calc_multich_delays(in_sig,ba_filt,fs)
+    delay_crossch = calc_multich_delays_polar(in_sig,ba_filt,fs)
     # print('delay',delay_crossch)
-    # calculate aavarage angle
+    # calculate avarage angle
 
-    avar_theta = avar_angle(delay_crossch,channels,mic_spacing)
+    avar_theta = avar_angle(delay_crossch,channels-2,mic_spacing)
     # print('avarage theta rad',avar_theta)
     # print('avarage theta deg',np.rad2deg(avar_theta))
 
@@ -260,7 +277,6 @@ ax.set_thetamax(90)
 ani = FuncAnimation(fig, update_polar, frames=range(180), blit=True)
 
 plt.show()
-
 
 
 # # Thymio 

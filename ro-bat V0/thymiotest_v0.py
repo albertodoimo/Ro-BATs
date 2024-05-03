@@ -1,25 +1,35 @@
 import subprocess
 
-# print('install libraries...')
-# subprocess.run(
-#     'pip install thymiodirect sounddevice numpy scipy argparse',shell=True)
-# 
-# print('libraries installed')
-# print('import libraries...')
-# 
-import numpy as np
-# import pyqtgraph as pg
-# import pyqtgraph.opengl as gl
-# from pyqtgraph.Qt import QtCore
-from scipy import signal 
-import sounddevice as sd
+# import os
+# print("PYTHONPATH:", os.environ.get('PYTHONPATH'))
+# print("PATH:", os.environ.get('PATH'))
 
-# import matplotlib.pyplot as plt
-# from matplotlib.animation import FuncAnimation
+#print('install libraries...')
+# subprocess.run(
+#     'pip3 install thymiodirect sounddevice scipy argparse',shell=True)
+#subprocess.run(
+#    'sudo apt-get install libatlas-base-dev',shell=True)
+#subprocess.run(
+#   'apt install python3-numpy',shell=True)
+#subprocess.run(
+#    'python -m pip install numpy', shell=True)
+
+
+print('libraries installed')
+print('import libraries...')
 
 import argparse
 import time
 import math
+
+# import pyqtgraph as pg
+# import pyqtgraph.opengl as gl
+# from pyqtgraph.Qt import QtCore
+import sounddevice as sd
+import numpy as np
+from scipy import signal
+# import matplotlib.pyplot as plt
+# from matplotlib.animation import FuncAnimation
 
 # thymio
 from thymiodirect import Connection 
@@ -74,6 +84,7 @@ def calc_multich_delays(multich_audio, ba_filt,fs):
     channel 1. 
     '''
     nchannels = multich_audio.shape[1]
+    print('nchannels=',nchannels)
     delay_set = []
     for each in range(1, nchannels):
         delay_set.append(calc_delay(multich_audio[:,[0,each]],ba_filt,fs))
@@ -111,38 +122,33 @@ print('functions loaded')
 print('initializating audio stream...')
 #%% Set up the audio-stream of the laptop, along with how the 
 # incoming audio buffers will be processed and thresholded.
-# -----------------------------------------------------------------------------
 import queue
-
-# np.random.seed(78464)
-
 input_audio_queue = queue.Queue()
 
 def get_card(device_list):
     for i, each in enumerate(device_list):
         dev_name = each['name']
-        asio_in_name = 'ASIO' in dev_name
-        usb_in_name = 'USB' in dev_name
-        if asio_in_name and usb_in_name:
+        asio_in_name = 'MCHStreamer' in dev_name
+        if asio_in_name:
             return i
 
 usb_fireface_index = get_card(sd.query_devices())
-
-# -----------------------------------------------------------------------------
-fs = 192000
+print('usb_fireface_index=',usb_fireface_index)
+fs = 96000
 # block_size = 4096
 block_size = 8192
-channels = 5
+channels = 4
 mic_spacing = 0.018 #m
 
-bp_freq = np.array([100,90000.0]) # the min and max frequencies
+bp_freq = np.array([100,45000.0]) # the min and max frequencies
 # to be 'allowed' in Hz.
 
 ba_filt = signal.butter(2, bp_freq/float(fs*0.5),'bandpass')
 
 #%%
 # define the input signals features
-S = sd.InputStream(samplerate=fs,blocksize=block_size, device=usb_fireface_index, channels=channels, latency='low')
+S = sd.InputStream(samplerate=fs,blocksize=block_size,channels=channels, latency='low')
+print('devinfo = ', S.device)
 
 S.start()
 
@@ -282,13 +288,15 @@ def main(use_sim=False, ip='localhost', port=2001):
 
         # Delay to allow robot initialization of all variables
         time.sleep(1)
-                
+        print('1')      
         # b) print all variables
         # Main loop
             # Calculate multichannel delays
 
         def update():
+            
             global sp_my, all_xs, threshold, S, ba_filt
+            print('2')
             print('thymio update cycle started...')
             try:
                 in_sig,status = S.read(S.blocksize)
