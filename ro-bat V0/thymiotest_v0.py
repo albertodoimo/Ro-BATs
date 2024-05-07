@@ -1,19 +1,3 @@
-import subprocess
-
-# import os
-# print("PYTHONPATH:", os.environ.get('PYTHONPATH'))
-# print("PATH:", os.environ.get('PATH'))
-
-#print('install libraries...')
-# subprocess.run(
-#     'pip3 install thymiodirect sounddevice scipy argparse',shell=True)
-#subprocess.run(
-#    'sudo apt-get install libatlas-base-dev',shell=True)
-#subprocess.run(
-#   'apt install python3-numpy',shell=True)
-#subprocess.run(
-#    'python -m pip install numpy', shell=True)
-
 
 print('libraries installed')
 print('import libraries...')
@@ -22,9 +6,9 @@ import argparse
 import time
 import math
 
-# import pyqtgraph as pg
-# import pyqtgraph.opengl as gl
-# from pyqtgraph.Qt import QtCore
+# import pyqtgraph as pg
+# import pyqtgraph.opengl as gl
+# from pyqtgraph.Qt import QtCore
 import sounddevice as sd
 import numpy as np
 from scipy import signal
@@ -39,15 +23,15 @@ print('libraries imported')
 
 print('loading functions...')
 #%%
-def calc_rms(in_sig):
-    '''
-    
-    '''
-    rms_sig = np.sqrt(np.mean(in_sig**2))
-    return(rms_sig)
+# def calc_rms(in_sig):
+#     '''
+#     
+#     '''
+#     rms_sig = np.sqrt(np.mean(in_sig**2))
+#     return(rms_sig)
+# 
 
-
-def calc_delay(two_ch,ba_filt,fs):
+def calc_delay(two_ch,fs):
     '''
     Parameters
     ----------
@@ -65,7 +49,7 @@ def calc_delay(two_ch,ba_filt,fs):
         channels. 
     '''
     for each_column in range(2):
-        two_ch[:,each_column] = signal.lfilter(ba_filt[0],ba_filt[1],two_ch[:,each_column])
+        two_ch[:,each_column] = two_ch[:,each_column]
 
     cc = np.correlate(two_ch[:,0],two_ch[:,1],'same')
     midpoint = cc.size/2.0
@@ -78,16 +62,15 @@ def calc_delay(two_ch,ba_filt,fs):
     #     delay = delay
     return delay
 
-def calc_multich_delays(multich_audio, ba_filt,fs):
+def calc_multich_delays(multich_audio,fs):
     '''s
     Calculates peak delay based with reference of 
     channel 1. 
     '''
     nchannels = multich_audio.shape[1]
-    print('nchannels=',nchannels)
     delay_set = []
     for each in range(1, nchannels):
-        delay_set.append(calc_delay(multich_audio[:,[0,each]],ba_filt,fs))
+        delay_set.append(calc_delay(multich_audio[:,[0,each]],fs))
     # print(delay_set)
     return np.array(delay_set)
 
@@ -99,23 +82,9 @@ def avar_angle(delay_set,nchannels,mic_spacing):
     theta = []
     for each in range(0, nchannels-1):
         theta.append(np.arcsin((delay_set[each]*343)/((each+1)*mic_spacing))) # rad
-    print('theta=',theta)
+    # print('theta=',theta)
     avar_theta = np.mean(theta)
     return avar_theta
-
-# app = pg.mkQApp("Realtime angle-of-arrival plot")
-# w = gl.GLViewWidget()
-# w.show()
-# w.setWindowTitle('Realtime angle-of-arrival plot')
-# w.setCameraPosition(distance=25)
-# 
-# g = gl.GLGridItem()
-# w.addItem(g)
-# 
-# mypos = np.random.normal(0,1,size=(20,3))*5
-# mypos[:,2] = np.abs(mypos[:,2])
-# sp_my = gl.GLScatterPlotItem(pos=mypos, color=(1,1,1,1), size=10)
-# w.addItem(sp_my)
 
 print('functions loaded')
 
@@ -135,134 +104,90 @@ def get_card(device_list):
 usb_fireface_index = get_card(sd.query_devices())
 print('usb_fireface_index=',usb_fireface_index)
 fs = 96000
-# block_size = 4096
-block_size = 8192
-channels = 4
+block_size = 4096
+# block_size = 1024*2
+#block_size = 8192
+channels = 6
 mic_spacing = 0.018 #m
 
 bp_freq = np.array([100,45000.0]) # the min and max frequencies
 # to be 'allowed' in Hz.
 
-ba_filt = signal.butter(2, bp_freq/float(fs*0.5),'bandpass')
+# ba_filt = signal.butter(2, bp_freq/float(fs*0.5),'bandpass')
 
 #%%
 # define the input signals features
 S = sd.InputStream(samplerate=fs,blocksize=block_size,channels=channels, latency='low')
+print('fs = ', S.samplerate)
+print('blocksize = ', S.blocksize)
+print('channels = ', S.channels)
+print('latency = ', S.latency)
 print('devinfo = ', S.device)
-
 S.start()
 
 # creation the guide vector x values
-all_xs = np.linspace(-10,10,S.blocksize)
+# all_xs = np.linspace(-10,10,S.blocksize)
 # print('all_xs',all_xs.shape)
-threshold = 1e-5
-
-# creation of the guide matrix [blocksize * 3] with x = all_xs, y = 0 , z = 0 values 
-guidepos = np.column_stack((all_xs, np.zeros(S.blocksize), np.zeros(S.blocksize)))
-# creation of the line in the 3d space
-
-# guideline = gl.GLScatterPlotItem(pos=guidepos, color=(1,0,1,1), size=10) # Guideline color is purple
-# 
-# w.addItem(guideline)
+# threshold = 1e-5
 
 print('audio stream initialized')
-#%%
 
-# # LINE PLOT
-# # Calculate multichannel delays
-# def update():
-#     global sp_my, all_xs, threshold, S, ba_filt
-#     
-#     try:
-#         in_sig,status = S.read(S.blocksize)
-#         
-#         # Filter input signal
-#         delay_crossch = calc_multich_delays(in_sig,ba_filt,fs)
-#         # print('delay',delay_crossch)
-#         # calculate aavarage angle
-# 
-#         avar_theta = avar_angle(delay_crossch,channels,mic_spacing)
-#         # print('avarage theta rad',avar_theta)
-#         # print('avarage theta deg',np.rad2deg(avar_theta))
-# 
-#         # Calculate RMS
-#         rms_sig = calc_rms(in_sig[:,0])
-#          
-#         if rms_sig > threshold:
-#             
-#             # Scale movement
-#             movement_amp_factor = 5e4
-#             all_zs = np.tile(rms_sig*movement_amp_factor*1e-3, S.blocksize)
-#             
-#             # Scale delay (delay_crossch[3] gives the best central accuracy w.r.t the center of the array )
-#             all_delay = np.tile(-delay_crossch[3]*movement_amp_factor, S.blocksize)
-#             # print(all_delay)
-#             # all_delay = np.tile(avar_theta*movement_amp_factor, S.blocksize)
-#             # print(all_delay)
-#             
-#             # Add delay to signal            
-#             all_ys = in_sig[:,0]+all_delay[0]
-#             xyz = np.column_stack((all_xs,all_ys,all_zs))
-#             
-#         else:
-#             # when there's no/low signal at the mics
-#             # Set y values to 0
-#             y = np.zeros(S.blocksize)
-#             z= y.copy()
-#             xyz = np.column_stack((all_xs,y,z))
-#       
-#         sp_my.setData(pos=xyz)
-#         
-#     except KeyboardInterrupt:
-#         S.stop()
-#         
-# t = QtCore.QTimer()
-# t.timeout.connect(update)
-# t.start(5)
-# 
-# 
-# # POLAR PLOT
-# 
-# # Function to update the polar plot
-# def update_polar(frame):
-#     # Your streaming data source logic goes here
-# 
-#     in_sig,status = S.read(S.blocksize)
-#     
-#     # Filter input signal
-#     delay_crossch = calc_multich_delays(in_sig,ba_filt,fs)
-#     # print('delay',delay_crossch)
-#     # calculate aavarage angle
-# 
-#     avar_theta = avar_angle(delay_crossch,channels,mic_spacing)
-#     # print('avarage theta rad',avar_theta)
-#     # print('avarage theta deg',np.rad2deg(avar_theta))
-# 
-#     values = np.zeros(180)
-#     for i in range(len(values)):
-#         if round(np.rad2deg(avar_theta)+90) == i:
-#             values[i] = 1
-#         else:
-#             values[i] = 0
-# 
-#     # Update the polar plot
-#     line.set_ydata(values)
-#     return line,
-# 
-# # Set up the polar plot
-# fig, ax = plt.subplots(subplot_kw={'projection': 'polar'})
-# theta = np.linspace(-np.pi/2, np.pi/2, 180)
-# values = np.random.rand(180)
-# line, = ax.plot(theta, values)
-# ax.set_thetamin(90)
-# ax.set_thetamax(-90)
-# 
-# # Set up the animation
-# ani = FuncAnimation(fig, update_polar, frames=range(180), blit=True)
-# 
-# plt.show()
+def update():
+    #global sp_my, all_xs, threshold, S, ba_filt
+    try:
+        in_sig,status = S.read(S.blocksize)
+        
+        # Filter input signal
+        # delay_crossch = calc_multich_delays(in_sig,ba_filt,fs)
+        # delay_crossch = calc_multich_delays(in_sig[:,[2,3,4,5]],ba_filt,fs)
+        delay_crossch = calc_multich_delays(in_sig[:,[2,3,4,5]],fs)
 
+        # print('delay',delay_crossch)
+        # calculate aavarage angle
 
+        avar_theta = avar_angle(delay_crossch,channels-2,mic_spacing)
+        # print('avarage theta rad',avar_theta)
+        # print('avarage theta deg',np.rad2deg(avar_theta))
+
+        # Calculate RMS
+        # rms_sig = calc_rms(in_sig[:,0])
+#        rms_sig = calc_rms(in_sig[:,2])
+#         
+#        if rms_sig > threshold:
+#            
+#            # Scale movement
+#            movement_amp_factor = 5e4
+#            all_zs = np.tile(rms_sig*movement_amp_factor*1e-3, S.blocksize)
+#            
+#            # Scale delay (delay_crossch[3] gives the best central accuracy w.r.t the center of the array )
+#
+#            #all_delay = np.tile(-delay_crossch[3]*movement_amp_factor, S.blocksize)
+#            all_delay = np.tile(-delay_crossch[2]*movement_amp_factor, S.blocksize) 
+#
+#            # print(all_delay)
+#            # all_delay = np.tile(avar_theta*movement_amp_factor, S.blocksize)
+#            # print(all_delay)
+#            
+#            # Add delay to signal            
+#            all_ys = in_sig[:,0]+all_delay[0]
+#            xyz = np.column_stack((all_xs,all_ys,all_zs))
+#            
+#        else:
+#            # when there's no/low signal at the mics
+#            # Set y values to 0
+#            y = np.zeros(S.blocksize)
+#            z= y.copy()
+#            xyz = np.column_stack((all_xs,y,z))
+#      
+#        #sp_my.setData(pos=xyz)
+#        
+    except KeyboardInterrupt:
+        S.stop()
+    return np.rad2deg(avar_theta)
+
+# t = QtCore.QTimer()
+# t.timeout.connect(update)
+# t.start(5)
 
 # Thymio 
 # # %%------------------------------------------------------
@@ -287,54 +212,113 @@ def main(use_sim=False, ip='localhost', port=2001):
         robot = th[th.first_node()]
 
         # Delay to allow robot initialization of all variables
-        time.sleep(1)
-        print('1')      
-        # b) print all variables
-        # Main loop
-            # Calculate multichannel delays
+        #time.sleep(1)
 
-        def update():
-            
-            global sp_my, all_xs, threshold, S, ba_filt
-            print('2')
-            print('thymio update cycle started...')
-            try:
-                in_sig,status = S.read(S.blocksize)
-                
-                # Filter input signal
-                delay_crossch = calc_multich_delays(in_sig,ba_filt,fs)
-                # print('delay',delay_crossch)
-                # calculate aavarage angle
+        
+#         try: 
+#             while True:
+#                     avar_theta_deg = update()
+#                     detectsCollision = max([robot['prox.horizontal'][i] > 1200 for i in range(5)])
+#                     #print('avarage theta rad',avar_theta)
+#                     print('avarage theta deg',avar_theta_deg)
+#                     # print(robot['prox.horizontal'])
+#                      # get lights turn on based on proximity sensors
+#                     if detectsCollision:
+#                         robot['motor.left.target'] = 0
+#                         robot['motor.right.target'] = 0
+#                         robot["leds.top"] = [0, 0, 0]
+#                         print('obstacle detected')
+#                         time.sleep(1)
+#                     if avar_theta_deg <-30:
+#                         robot["leds.top"] = [0, 0, 255]
+#                         time.sleep(0.005)
+#                         robot['motor.left.target'] = 50
+#                         robot['motor.right.target'] = 600
+#                         time.sleep(0.005)
+#                     if avar_theta_deg >= -30 and avar_theta_deg<-5:
+#                         robot["leds.top"] = [0, 255, 255]
+#                         time.sleep(0.005)
+#                         robot['motor.left.target'] = 200
+#                         robot['motor.right.target'] = 500
+#                         time.sleep(0.005)
+#                     if avar_theta_deg <=5 and avar_theta_deg >=-5:
+#                         robot["leds.top"] = [255, 255, 255]
+#                         time.sleep(0.005)
+#                         robot['motor.left.target'] = 50
+#                         robot['motor.right.target'] = 50
+#                         time.sleep(0.005)
+#                     if avar_theta_deg <= 30 and avar_theta_deg>5:
+#                         robot["leds.top"] = [255,255,0]
+#                         time.sleep(0.005)
+#                         robot['motor.right.target'] = 200
+#                         robot['motor.left.target'] = 500
+#                         time.sleep(0.005)
+#                     if avar_theta_deg >30 :
+#                         robot["leds.top"] = [255, 0, 0] 
+#                         time.sleep(0.005)
+#                         robot['motor.right.target'] = 50
+#                         robot['motor.left.target'] = 600 
+#                         time.sleep(0.005)
+#           except KeyboardInterrupt:
+#               S.stop()
 
-                avar_theta = avar_angle(delay_crossch,channels,mic_spacing)
-                avar_theta_deg = np.rad2deg(avar_theta)
-                #print('avarage theta rad',avar_theta)
-                print('avarage theta deg',avar_theta_deg)
-
-                 # get lights turn on based on proximity sensors
-                if avar_theta_deg <-40:
+        while True:
+            avar_theta_deg = update()
+            detectsCollision = max([robot['prox.horizontal'][i] > 1200 for i in range(5)])
+            print('avarage theta deg', avar_theta_deg)
+    
+#             if detectsCollision:
+#                 robot['motor.left.target'] = 0
+#                 robot['motor.right.target'] = 0
+#                 robot["leds.top"] = [0, 0, 0]
+#                 print('obstacle detected')
+#                 time.sleep(1)
+#             else:
+            match avar_theta_deg:
+                case theta if theta < -30:
                     robot["leds.top"] = [0, 0, 255]
-                if avar_theta_deg >= -40 and avar_theta_deg<-10:
+                    time.sleep(0.005)
+                    robot['motor.left.target'] = 50
+                    robot['motor.right.target'] = 600
+                    time.sleep(0.005)
+                case theta if -30 <= theta < -5:
                     robot["leds.top"] = [0, 255, 255]
-                if avar_theta_deg <=10 and avar_theta >=-10:
+                    time.sleep(0.005)
+                    robot['motor.left.target'] = 200
+                    robot['motor.right.target'] = 500
+                    time.sleep(0.005)
+                case theta if -5 <= theta <= 5:
                     robot["leds.top"] = [255, 255, 255]
-                if avar_theta_deg <= 40 and avar_theta_deg>10:
-                    robot["leds.top"] = [255,255,0]
-                if avar_theta_deg >40 :
-                    robot["leds.top"] = [255, 0, 0]   
-                else:
-                    robot["leds.top"] = [0,0,0]
-                
-            except KeyboardInterrupt:
-                S.stop()
-            print('thymio update cycle interrupted')
-
+                    time.sleep(0.005)
+                    robot['motor.left.target'] = 50
+                    robot['motor.right.target'] = 50
+                    time.sleep(0.005)
+                case theta if 5 < theta <= 30:
+                    robot["leds.top"] = [255, 255, 0]
+                    time.sleep(0.005)
+                    robot['motor.right.target'] = 200
+                    robot['motor.left.target'] = 500
+                    time.sleep(0.005)
+                case theta if theta > 30:
+                    robot["leds.top"] = [255, 0, 0]
+                    time.sleep(0.005)
+                    robot['motor.right.target'] = 50
+                    robot['motor.left.target'] = 600
+                    time.sleep(0.005)
+                case _:
+                    pass
+    
     except Exception as err:
         # Stop robot
         robot['motor.left.target'] = 0
         robot['motor.right.target'] = 0 
+        robot["leds.top"] = [0,0,0]
         print(err)
-
+    except KeyboardInterrupt:
+        robot['motor.left.target'] = 0
+        robot['motor.right.target'] = 0
+        robot["leds.top"] = [0,0,0]
+        print("Press Ctrl-C again to end the program")
 
 if __name__ == '__main__':
     # Parse commandline arguments to cofigure the interface for a simulation (default = real robot)
@@ -349,4 +333,3 @@ if __name__ == '__main__':
     # Parse arguments and pass them to main function
     args = parser.parse_args()
     main(args.sim, args.ip, args.port)
-# %%
