@@ -266,13 +266,13 @@ def update_polar(frame):
     line.set_ydata(values)
     return line,
 
-# Set up the polar plot
 fig, ax = plt.subplots(subplot_kw={'projection': 'polar'})
+ax.set_theta_offset(np.pi/2)
 theta = np.linspace(-np.pi/2, np.pi/2, 180)
 values = np.random.rand(180)
 line, = ax.plot(theta, values)
-ax.set_thetamin(-90)
-ax.set_thetamax(90)
+ax.set_thetamin(90)
+ax.set_thetamax(-90)
 
 # Set up the animation
 ani = FuncAnimation(fig, update_polar, frames=range(180), blit=True)

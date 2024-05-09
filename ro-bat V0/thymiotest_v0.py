@@ -279,7 +279,7 @@ def main(use_sim=False, ip='localhost', port=2001):
                     robot["leds.top"] = [0, 0, 255]
                     time.sleep(0.005)
                     robot['motor.left.target'] = 50
-                    robot['motor.right.target'] = 600
+                    robot['motor.right.target'] = 500
                     time.sleep(0.005)
                 case theta if -30 <= theta < -5:
                     robot["leds.top"] = [0, 255, 255]
@@ -303,7 +303,7 @@ def main(use_sim=False, ip='localhost', port=2001):
                     robot["leds.top"] = [255, 0, 0]
                     time.sleep(0.005)
                     robot['motor.right.target'] = 50
-                    robot['motor.left.target'] = 600
+                    robot['motor.left.target'] = 500
                     time.sleep(0.005)
                 case _:
                     pass
