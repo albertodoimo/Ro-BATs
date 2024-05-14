@@ -1,27 +1,31 @@
 
-print('libraries installed')
 print('import libraries...')
+print('...')
 
 import argparse
+import threading
 import time
 import math
 
 # import pyqtgraph as pg
 # import pyqtgraph.opengl as gl
-# from pyqtgraph.Qt import QtCore
+from pyqtgraph.Qt import QtCore
 import sounddevice as sd
+import soundfile as sf
 import numpy as np
 from scipy import signal
-# import matplotlib.pyplot as plt
-# from matplotlib.animation import FuncAnimation
+import matplotlib.pyplot as plt
+from matplotlib.animation import FuncAnimation
 
 # thymio
 from thymiodirect import Connection 
 from thymiodirect import Thymio
 
-print('libraries imported')
+print('libraries imported\n')
+
 
 print('loading functions...') 
+print('...')
 
 def calc_delay(two_ch,fs):
     for each_column in range(2):
@@ -50,9 +54,11 @@ def avar_angle(delay_set,nchannels,mic_spacing):
     avar_theta = np.mean(theta)
     return avar_theta
 
-print('functions loaded')
+print('functions loaded\n')
+
 
 print('initializating audio stream...')
+print('...')
 #%% Set up the audio-stream of the laptop, along with how the 
 # incoming audio buffers will be processed and thresholded.
 import queue
@@ -86,7 +92,9 @@ print('Sin channels = ', Sin.channels)
 print('Sin latency = ', Sin.latency)
 print('Sin devinfo = ', Sin.device)
 Sin.start()
-print('in stream initialized')
+print('in stream initialized\n')
+
+
 Sout = sd.OutputStream(samplerate=fs, blocksize=block_size,channels=1, device=usb_fireface_index)
 print('Sout fs = ',Sout.samplerate)
 print('Sout blocksize = ', Sout.blocksize)
@@ -94,101 +102,174 @@ print('Sout channels = ', Sout.channels)
 print('Sout latency = ', Sout.latency)
 print('Sout devinfo = ', Sout.device)
 Sout.start()
-print('out stream initialized')
+print('out stream initialized\n')
 
-def update():
+global outdata, frames, status
+
+# --------------------------------------------- FROM PARSER ---------------------------------------------------
+def int_or_str(text):
+    """Helper function for argument parsing."""
     try:
-        
+        return int(text)
+    except ValueError:
+        return text
+
+
+parser = argparse.ArgumentParser(add_help=False)
+parser.add_argument(
+    '-l', '--list-devices', action='store_true',
+    help='show list of audio devices and exit')
+args, remaining = parser.parse_known_args()
+if args.list_devices:
+    print(sd.query_devices())
+    parser.exit(0)
+parser = argparse.ArgumentParser(
+    description=__doc__,
+    formatter_class=argparse.RawDescriptionHelpFormatter,
+    parents=[parser])
+# parser.add_argument(
+#     'filename', metavar='FILENAME',
+#     help='audio file to be played back')
+parser.add_argument(
+    '-d', '--device', type=int_or_str,
+    help='output device (numeric ID or substring)')
+args = parser.parse_args(remaining)
+
+event = threading.Event()
+
+def play(outdata, frames, time, status):
+    try:
+        data, fs = sf.read('2sec_sweep.wav', always_2d=True)
+
+        current_frame = 0
+
+        def callback(outdata, frames, time, status):
+            global current_frame
+            if status:
+                print(status)
+            chunksize = min(len(data) - current_frame, frames)
+            outdata[:chunksize] = data[current_frame:current_frame + chunksize]
+            if chunksize < frames:
+                outdata[chunksize:] = 0
+                raise sd.CallbackStop()
+            current_frame += chunksize
+
+        stream = sd.OutputStream(
+            samplerate=fs, device=args.device, channels=data.shape[1],
+            callback=callback(), finished_callback=event.set)
+        with stream:
+            event.wait()  # Wait until playback is finished
+    except KeyboardInterrupt:
+        parser.exit('\nInterrupted by user')
+    except Exception as e:
+        parser.exit(type(e).__name__ + ': ' + str(e))
+
+#-------------------------------------------------------------------------------------------------------------
+# data, fs = sf.read('2sec_sweep.wav', always_2d=True)
+def update():
+    global data, fs
+    try:
+        data, fs = sf.read('2sec_sweep.wav', always_2d=True)
+        sd.play(data, fs)
+        sd.wait()
         in_sig,status = Sin.read(Sin.blocksize)
+        
 
         delay_crossch = calc_multich_delays(in_sig[:,[2,3,4,5]],fs)
         avar_theta = avar_angle(delay_crossch,channels-2,mic_spacing)
-
+        print('angle = ',np.rad2deg(avar_theta))
     except KeyboardInterrupt:
         Sin.stop()
-    return np.rad2deg(avar_theta)
+
+# t = QtCore.QTimer()
+# t.timeout.connect(update)
+# t.start(5)
+
+update()
 
 
-def main(use_sim=False, ip='localhost', port=2001):
-    ''' Main function '''
+# THYMIO
 
-    try:
-        # Configure Interface to Thymio robot
-        # simulation
-        if use_sim:
-            th = Thymio(use_tcp=True, host=ip, tcp_port=port, 
-                        on_connect=lambda node_id: print(f' Thymio {node_id} is connected'))
-        # real robot
-        else:
-            port = Connection.serial_default_port()
-            th = Thymio(serial_port=port, 
-                        on_connect=lambda node_id: print(f'Thymio {node_id} is connected'))
-
-        # Connect to Robot
-        th.connect()
-        robot = th[th.first_node()]  
-
-        while True:
-            avar_theta_deg = update()
-            detectsCollision = max([robot['prox.horizontal'][i] > 1200 for i in range(5)])
-            print('avarage theta deg', avar_theta_deg)
-
-            match avar_theta_deg:
-                case theta if theta < -30:
-                    robot["leds.top"] = [0, 0, 255]
-                    time.sleep(0.005)
-                    robot['motor.left.target'] = 50
-                    robot['motor.right.target'] = 600
-                    time.sleep(0.005)
-                case theta if -30 <= theta < -5:
-                    robot["leds.top"] = [0, 255, 255]
-                    time.sleep(0.005)
-                    robot['motor.left.target'] = 200
-                    robot['motor.right.target'] = 500
-                    time.sleep(0.005)
-                case theta if -5 <= theta <= 5:
-                    robot["leds.top"] = [255, 255, 255]
-                    time.sleep(0.005)
-                    robot['motor.left.target'] = 50
-                    robot['motor.right.target'] = 50
-                    time.sleep(0.005)
-                case theta if 5 < theta <= 30:
-                    robot["leds.top"] = [255, 255, 0]
-                    time.sleep(0.005)
-                    robot['motor.right.target'] = 200
-                    robot['motor.left.target'] = 500
-                    time.sleep(0.005)
-                case theta if theta > 30:
-                    robot["leds.top"] = [255, 0, 0]
-                    time.sleep(0.005)
-                    robot['motor.right.target'] = 50
-                    robot['motor.left.target'] = 600
-                    time.sleep(0.005)
-                case _:
-                    pass
-    
-    except Exception as err:
-        # Stop robot
-        robot['motor.left.target'] = 0
-        robot['motor.right.target'] = 0 
-        robot["leds.top"] = [0,0,0]
-        print(err)
-    except KeyboardInterrupt:
-        robot['motor.left.target'] = 0
-        robot['motor.right.target'] = 0
-        robot["leds.top"] = [0,0,0]
-        print("Press Ctrl-C again to end the program")
-
-if __name__ == '__main__':
-    # Parse commandline arguments to cofigure the interface for a simulation (default = real robot)
-    parser = argparse.ArgumentParser(description='Configure optional arguments to run the code with simulated Thymio. '
-                                                    'If no arguments are given, the code will run with a real Thymio.')
-    
-    # Add optional arguments
-    parser.add_argument('-s', '--sim', action='store_true', help='set this flag to use simulation')
-    parser.add_argument('-i', '--ip', help='set the TCP host ip for simulation. default=localhost', default='localhost')
-    parser.add_argument('-p', '--port', type=int, help='set the TCP port for simulation. default=2001', default=2001)
-
-    # Parse arguments and pass them to main function
-    args = parser.parse_args()
-    main(args.sim, args.ip, args.port)
+# def main(use_sim=False, ip='localhost', port=2001):
+#     ''' Main function '''
+# 
+#     try:
+#         # Configure Interface to Thymio robot
+#         # simulation
+#         if use_sim:
+#             th = Thymio(use_tcp=True, host=ip, tcp_port=port, 
+#                         on_connect=lambda node_id: print(f' Thymio {node_id} is connected'))
+#         # real robot
+#         else:
+#             port = Connection.serial_default_port()
+#             th = Thymio(serial_port=port, 
+#                         on_connect=lambda node_id: print(f'Thymio {node_id} is connected'))
+# 
+#         # Connect to Robot
+#         th.connect()
+#         robot = th[th.first_node()]  
+# 
+#         while True:
+#             avar_theta_deg = update()
+#             detectsCollision = max([robot['prox.horizontal'][i] > 1200 for i in range(5)])
+#             print('avarage theta deg', avar_theta_deg)
+# 
+#             match avar_theta_deg:
+#                 case theta if theta < -30:
+#                     robot["leds.top"] = [0, 0, 255]
+#                     time.sleep(0.005)
+#                     robot['motor.left.target'] = 50
+#                     robot['motor.right.target'] = 600
+#                     time.sleep(0.005)
+#                 case theta if -30 <= theta < -5:
+#                     robot["leds.top"] = [0, 255, 255]
+#                     time.sleep(0.005)
+#                     robot['motor.left.target'] = 200
+#                     robot['motor.right.target'] = 500
+#                     time.sleep(0.005)
+#                 case theta if -5 <= theta <= 5:
+#                     robot["leds.top"] = [255, 255, 255]
+#                     time.sleep(0.005)
+#                     robot['motor.left.target'] = 50
+#                     robot['motor.right.target'] = 50
+#                     time.sleep(0.005)
+#                 case theta if 5 < theta <= 30:
+#                     robot["leds.top"] = [255, 255, 0]
+#                     time.sleep(0.005)
+#                     robot['motor.right.target'] = 200
+#                     robot['motor.left.target'] = 500
+#                     time.sleep(0.005)
+#                 case theta if theta > 30:
+#                     robot["leds.top"] = [255, 0, 0]
+#                     time.sleep(0.005)
+#                     robot['motor.right.target'] = 50
+#                     robot['motor.left.target'] = 600
+#                     time.sleep(0.005)
+#                 case _:
+#                     pass
+#     
+#     except Exception as err:
+#         # Stop robot
+#         robot['motor.left.target'] = 0
+#         robot['motor.right.target'] = 0 
+#         robot["leds.top"] = [0,0,0]
+#         print(err)
+#     except KeyboardInterrupt:
+#         robot['motor.left.target'] = 0
+#         robot['motor.right.target'] = 0
+#         robot["leds.top"] = [0,0,0]
+#         print("Press Ctrl-C again to end the program")
+# 
+# if __name__ == '__main__':
+#     # Parse commandline arguments to cofigure the interface for a simulation (default = real robot)
+#     parser = argparse.ArgumentParser(description='Configure optional arguments to run the code with simulated Thymio. '
+#                                                     'If no arguments are given, the code will run with a real Thymio.')
+#     
+#     # Add optional arguments
+#     parser.add_argument('-s', '--sim', action='store_true', help='set this flag to use simulation')
+#     parser.add_argument('-i', '--ip', help='set the TCP host ip for simulation. default=localhost', default='localhost')
+#     parser.add_argument('-p', '--port', type=int, help='set the TCP port for simulation. default=2001', default=2001)
+# 
+#     # Parse arguments and pass them to main function
+#     args = parser.parse_args()
+#     main(args.sim, args.ip, args.port)

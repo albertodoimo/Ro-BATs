@@ -1,8 +1,8 @@
 import subprocess
 
 print('install libraries...')
-subprocess.run(
-    'pip install thymiodirect sounddevice numpy scipy argparse',shell=True)
+#subprocess.run(
+#    'pip install thymiodirect sounddevice numpy scipy argparse',shell=True)
 
 print('libraries installed')
 print('import libraries...')
@@ -102,7 +102,8 @@ def avar_angle(delay_set,nchannels,mic_spacing):
     for each in range(0, nchannels-1):
         theta.append(np.arcsin((delay_set[each]*343)/((each+1)*mic_spacing))) # rad
     print('theta=',theta)
-    avar_theta = np.mean(theta)
+    avar_theta = np.median(theta)
+    # avar_theta = np.mean(theta)
     return avar_theta
 
 app = pg.mkQApp("Realtime angle-of-arrival plot")
