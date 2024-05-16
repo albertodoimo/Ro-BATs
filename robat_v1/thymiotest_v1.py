@@ -56,7 +56,6 @@ def avar_angle(delay_set,nchannels,mic_spacing):
 
 print('functions loaded\n')
 
-
 print('initializating audio stream...')
 print('...')
 #%% Set up the audio-stream of the laptop, along with how the 
@@ -91,22 +90,20 @@ print('Sin blocksize = ', Sin.blocksize)
 print('Sin channels = ', Sin.channels)
 print('Sin latency = ', Sin.latency)
 print('Sin devinfo = ', Sin.device)
-Sin.start()
+#Sin.start()
 print('in stream initialized\n')
 
 
-Sout = sd.OutputStream(samplerate=fs, blocksize=block_size,channels=1, device=usb_fireface_index)
-print('Sout fs = ',Sout.samplerate)
-print('Sout blocksize = ', Sout.blocksize)
-print('Sout channels = ', Sout.channels)
-print('Sout latency = ', Sout.latency)
-print('Sout devinfo = ', Sout.device)
-Sout.start()
-print('out stream initialized\n')
+# Sout = sd.OutputStream(samplerate=fs, blocksize=block_size,channels=1, device=usb_fireface_index)
+# print('Sout fs = ',Sout.samplerate)
+# print('Sout blocksize = ', Sout.blocksize)
+# print('Sout channels = ', Sout.channels)
+# print('Sout latency = ', Sout.latency)
+# print('Sout devinfo = ', Sout.device)
+# Sout.start()
+# print('out stream initialized\n')
 
-global outdata, frames, status
-
-# --------------------------------------------- FROM PARSER ---------------------------------------------------
+#---------------------------- FROM PARSER ---------------------------------------------------
 def int_or_str(text):
     """Helper function for argument parsing."""
     try:
@@ -137,57 +134,97 @@ args = parser.parse_args(remaining)
 
 event = threading.Event()
 
-def play(outdata, frames, time, status):
-    try:
-        data, fs = sf.read('2sec_sweep.wav', always_2d=True)
-
-        current_frame = 0
-
-        def callback(outdata, frames, time, status):
-            global current_frame
-            if status:
-                print(status)
-            chunksize = min(len(data) - current_frame, frames)
-            outdata[:chunksize] = data[current_frame:current_frame + chunksize]
-            if chunksize < frames:
-                outdata[chunksize:] = 0
-                raise sd.CallbackStop()
-            current_frame += chunksize
-
-        stream = sd.OutputStream(
-            samplerate=fs, device=args.device, channels=data.shape[1],
-            callback=callback(), finished_callback=event.set)
-        with stream:
-            event.wait()  # Wait until playback is finished
-    except KeyboardInterrupt:
-        parser.exit('\nInterrupted by user')
-    except Exception as e:
-        parser.exit(type(e).__name__ + ': ' + str(e))
-
-#-------------------------------------------------------------------------------------------------------------
-# data, fs = sf.read('2sec_sweep.wav', always_2d=True)
+# try:
+#     data, fs = sf.read('30-40k_3ms.wav', always_2d=True)
+# 
+#     current_frame = 0
+# 
+#     def callback(outdata, frames, time, status):
+#         global current_frame
+#         if status:
+#             print(status)
+#         chunksize = min(len(data) - current_frame, frames)
+#         outdata[:chunksize] = data[current_frame:current_frame + chunksize]
+#         if chunksize < frames:
+#             outdata[chunksize:] = 0
+#             raise sd.CallbackStop()
+#         current_frame += chunksize
+# 
+#     stream = sd.OutputStream(
+#         samplerate=fs, device=args.device, channels=data.shape[1],
+#         callback=callback, finished_callback=event.set)
+#     
+#     with stream:
+#         event.wait()  # Wait until playback is finished
+# 
+#     Sin.start()
+#     in_sig,status = Sin.read(Sin.blocksize)
+#     # 
+#     delay_crossch = calc_multich_delays(in_sig[:,[2,3,4,5]],fs)
+#     avar_theta = avar_angle(delay_crossch,channels-2,mic_spacing)
+#     print('angle = ',np.rad2deg(avar_theta))
+# 
+# except KeyboardInterrupt:
+#     parser.exit('\nInterrupted by user')
+#     Sin.stop()
+# except Exception as e:
+#     parser.exit(type(e).__name__ + ': ' + str(e))
+    
+# -------------------------------------------------------------------------------------------------------------
+# data, fs = sf.read('2sec_sweep.wav', always_2d=True)
 def update():
-    global data, fs
     try:
+        # data, fs = sf.read('30-40k_3ms.wav', always_2d=True)
         data, fs = sf.read('2sec_sweep.wav', always_2d=True)
+        # data, fs = sf.read('1-80k_3ms.wav', always_2d=True)
         sd.play(data, fs)
-        sd.wait()
-        in_sig,status = Sin.read(Sin.blocksize)
-        
 
-        delay_crossch = calc_multich_delays(in_sig[:,[2,3,4,5]],fs)
-        avar_theta = avar_angle(delay_crossch,channels-2,mic_spacing)
-        print('angle = ',np.rad2deg(avar_theta))
+        Sin.start()
+        in_sig = Sin.read(7000)
+        # print(in_sig)
+        #delay_crossch = calc_multich_delays(in_sig[:,[2,3,4,5]],fs)
+        #print('delay_crossch = ', delay_crossch)
+        #avar_theta = avar_angle(delay_crossch,channels-2,mic_spacing)
+        #print('angle = ',np.rad2deg(avar_theta))
+        sd.wait()
     except KeyboardInterrupt:
         Sin.stop()
+    return in_sig
 
 # t = QtCore.QTimer()
 # t.timeout.connect(update)
 # t.start(5)
 
-update()
+rec = update()
+rec = rec[0]
+print(rec)
+print(np.shape(rec))
+print(np.shape(rec[:,2]))
+print('\n')
+# #data = sf.read('30-40k_3ms.wav', always_2d=True)
+# data = sf.read('1-80k_3ms.wav', always_2d=True)
+# # data = sf.read('2sec_sweep.wav', always_2d=True)
+# data = data[0]
+# print(np.transpose(data))
+# data = np.pad(np.transpose(data), (0, block_size*2 - len(data)), mode='constant')
+# print(data[0,:])
+# data = data[0,:]
+# print(np.shape(data))
+# print('\n')
+# cc = np.correlate(rec[:,2],data,'same')
+# # midpoint = cc.size/2.0
+# delay = np.argmax(cc) 
+# # convert delay to seconds
+# # delay *= 1/float(fs)
+# print('delay = ',delay)
 
+fig, ax = plt.subplots()
+ax.plot(rec[:,2])
+plt.show()
 
+delay = 6500
+delay *= 1/float(fs)
+print(delay)
 # THYMIO
 
 # def main(use_sim=False, ip='localhost', port=2001):
