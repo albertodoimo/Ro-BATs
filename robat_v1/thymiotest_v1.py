@@ -9,7 +9,7 @@ import math
 
 # import pyqtgraph as pg
 # import pyqtgraph.opengl as gl
-from pyqtgraph.Qt import QtCore
+# from pyqtgraph.Qt import QtCore
 import sounddevice as sd
 import soundfile as sf
 import numpy as np
@@ -84,56 +84,71 @@ bp_freq = np.array([100,45000.0]) # the min and max frequencies
 
 #%%
 # define the input signals features
-Sin = sd.InputStream(samplerate=fs,blocksize=block_size,channels=channels, latency='low',device=usb_fireface_index)
-print('Sin fs = ', Sin.samplerate)
-print('Sin blocksize = ', Sin.blocksize)
-print('Sin channels = ', Sin.channels)
-print('Sin latency = ', Sin.latency)
-print('Sin devinfo = ', Sin.device)
-#Sin.start()
-print('in stream initialized\n')
+Sin = sd.InputStream (blocksize=block_size,channels=channels, latency='low',device=usb_fireface_index)
+# print('Sin fs = ', Sin.samplerate)
+# print('Sin blocksize = ', Sin.blocksize)
+# print('Sin channels = ', Sin.channels)
+# print('Sin latency = ', Sin.latency)
+# print('Sin devinfo = ', Sin.device)
+# #Sin.start()
+# print('in stream initialized\n')
 
+# fs = Sin.samplerate
 
-# Sout = sd.OutputStream(samplerate=fs, blocksize=block_size,channels=1, device=usb_fireface_index)
-# print('Sout fs = ',Sout.samplerate)
-# print('Sout blocksize = ', Sout.blocksize)
-# print('Sout channels = ', Sout.channels)
-# print('Sout latency = ', Sout.latency)
-# print('Sout devinfo = ', Sout.device)
-# Sout.start()
-# print('out stream initialized\n')
+Sout = sd.OutputStream(samplerate=fs, blocksize=block_size,channels=1, device=usb_fireface_index)
+print('Sout fs = ',Sout.samplerate)
+print('Sout blocksize = ', Sout.blocksize)
+print('Sout channels = ', Sout.channels)
+print('Sout latency = ', Sout.latency)
+print('Sout devinfo = ', Sout.device)
+# Sout.start()
+print('out stream initialized\n')
 
-#---------------------------- FROM PARSER ---------------------------------------------------
-def int_or_str(text):
-    """Helper function for argument parsing."""
-    try:
-        return int(text)
-    except ValueError:
-        return text
+tone_durn = 50e-3 # seconds
+t_tone = np.linspace(0, tone_durn, int(fs*tone_durn))
+chirp = signal.chirp(t_tone, 18e3, t_tone[-1], 0.5e3)
+chirp *= signal.windows.hann(chirp.size)
+output_chirp = np.concatenate((chirp, np.zeros((int(fs*0.2)))))
+output_tone_stereo = np.float32(np.column_stack((output_chirp, output_chirp)))
+#print(np.shape(output_tone_stereo))
 
+all_input_data = queue.Queue()
+i = 0
+def callback_sine(indata, outdata, frames, time, status):
+    outdata[:] = output_tone_stereo
+    all_input_data.put(indata)
 
-parser = argparse.ArgumentParser(add_help=False)
-parser.add_argument(
-    '-l', '--list-devices', action='store_true',
-    help='show list of audio devices and exit')
-args, remaining = parser.parse_known_args()
-if args.list_devices:
-    print(sd.query_devices())
-    parser.exit(0)
-parser = argparse.ArgumentParser(
-    description=__doc__,
-    formatter_class=argparse.RawDescriptionHelpFormatter,
-    parents=[parser])
+#----------------------- FROM PARSER ---------------------------------------------------
+# def int_or_str(text):
+#     """Helper function for argument parsing."""
+#     try:
+#         return int(text)
+#     except ValueError:
+#         return text
+# 
+# 
+# parser = argparse.ArgumentParser(add_help=False)
 # parser.add_argument(
-#     'filename', metavar='FILENAME',
-#     help='audio file to be played back')
-parser.add_argument(
-    '-d', '--device', type=int_or_str,
-    help='output device (numeric ID or substring)')
-args = parser.parse_args(remaining)
-
-event = threading.Event()
-
+#     '-l', '--list-devices', action='store_true',
+#     help='show list of audio devices and exit')
+# args, remaining = parser.parse_known_args()
+# if args.list_devices:
+#     print(sd.query_devices())
+#     parser.exit(0)
+# parser = argparse.ArgumentParser(
+#     description=__doc__,
+#     formatter_class=argparse.RawDescriptionHelpFormatter,
+#     parents=[parser])
+# # parser.add_argument(
+# #     'filename', metavar='FILENAME',
+# #     help='audio file to be played back')
+# parser.add_argument(
+#     '-d', '--device', type=int_or_str,
+#     help='output device (numeric ID or substring)')
+# args = parser.parse_args(remaining)
+# 
+# event = threading.Event()
+# 
 # try:
 #     data, fs = sf.read('30-40k_3ms.wav', always_2d=True)
 # 
@@ -172,35 +187,46 @@ event = threading.Event()
     
 # -------------------------------------------------------------------------------------------------------------
 # data, fs = sf.read('2sec_sweep.wav', always_2d=True)
-def update():
-    try:
-        # data, fs = sf.read('30-40k_3ms.wav', always_2d=True)
-        data, fs = sf.read('2sec_sweep.wav', always_2d=True)
-        # data, fs = sf.read('1-80k_3ms.wav', always_2d=True)
-        sd.play(data, fs)
 
-        Sin.start()
-        in_sig = Sin.read(7000)
-        # print(in_sig)
-        #delay_crossch = calc_multich_delays(in_sig[:,[2,3,4,5]],fs)
-        #print('delay_crossch = ', delay_crossch)
-        #avar_theta = avar_angle(delay_crossch,channels-2,mic_spacing)
-        #print('angle = ',np.rad2deg(avar_theta))
-        sd.wait()
-    except KeyboardInterrupt:
-        Sin.stop()
-    return in_sig
+try:
+    # data, fs = sf.read('30-40k_3ms.wav', always_2d=True)
+    #data, fs = sf.read('2sec_sweep.wav', always_2d=True)
+    # print('data = ',data)
+    # print(np.shape(data))
+    # data, fs = sf.read('1-80k_3ms.wav', always_2d=True)
+    #sd.play(data, fs)
+    # stream_inout = sd.RaStream(samplerate=fs,
+    #                      blocksize=output_chirp.shape[0],
+    #                      device=(usb_fireface_index,usb_fireface_index),
+    #                      #channels=(1,2),
+    #                      channels=(6,2),
+    #                      callback=callback_sine)
+    # print('latencies: ', stream_inout.latencies)
+    sd.play(output_tone_stereo, fs)
+    #print(stream_inout.time)
+    Sin.start()
+    #print(stream_inout.time)
+    in_sig = Sin.read(Sin.blocksize)
+    # print(in_sig)
+    #delay_crossch = calc_multich_delays(in_sig[:,[2,3,4,5]],fs)
+    #print('delay_crossch = ', delay_crossch)
+    #avar_theta = avar_angle(delay_crossch,channels-2,mic_spacing)
+    #print('angle = ',np.rad2deg(avar_theta))
+    # sd.wait()
+except KeyboardInterrupt:
+    Sin.stop()
 
 # t = QtCore.QTimer()
 # t.timeout.connect(update)
 # t.start(5)
 
-rec = update()
+# rec = update()
+rec = in_sig
 rec = rec[0]
-print(rec)
-print(np.shape(rec))
-print(np.shape(rec[:,2]))
-print('\n')
+#print(rec)
+#print('rec shape = ',np.shape(rec))
+#print(np.shape(rec[:,2]))
+#print('\n')
 # #data = sf.read('30-40k_3ms.wav', always_2d=True)
 # data = sf.read('1-80k_3ms.wav', always_2d=True)
 # # data = sf.read('2sec_sweep.wav', always_2d=True)
@@ -222,10 +248,24 @@ fig, ax = plt.subplots()
 ax.plot(rec[:,2])
 plt.show()
 
-delay = 6500
-delay *= 1/float(fs)
-print(delay)
-# THYMIO
+plt.figure()
+aa = plt.subplot(311)
+# plt.specgram(input_audio[:,0], Fs=fs, NFFT=1024, noverlap=512)   
+plt.specgram(rec[:,2], Fs=fs, NFFT=1024, noverlap=512)    
+plt.subplot(312, sharex=aa)
+t_audio = np.linspace(0, rec.shape[0]/fs, rec.shape[0])
+# plt.plot(t_audio, input_audio[:,0])
+plt.plot(t_audio, rec[:,2])
+plt.subplot(313)
+plt.plot(rec[:,2])
+plt.show()
+
+# delay = 6500
+# delay *= 1/float(fs)
+# print(delay)
+
+
+# THYMIO -----------------------------------------------------------------------------------
 
 # def main(use_sim=False, ip='localhost', port=2001):
 #     ''' Main function '''
