@@ -59,11 +59,12 @@ stream_inout = sd.Stream(samplerate=fs,
                          callback=callback_sine)
 
 # start the stream 
-all_input_data = queue.Queue()
+all_input_data = queue.Queue() # Creates a queue object to store input data
 start_time = stream_inout.time
 
 # run the stream for <= 2 seconds
-with stream_inout:
+with stream_inout:  # This opens a context manager for the stream_inout object
+    # This loop runs for 1 second after the stream is started
     while (stream_inout.time - start_time) <=1:
         pass
 

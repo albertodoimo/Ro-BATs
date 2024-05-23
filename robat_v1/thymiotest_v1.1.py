@@ -60,8 +60,10 @@ output_tone_stereo = np.float32(np.column_stack((output_chirp, output_chirp)))
 #print(np.shape(output_tone_stereo))
 
 
+# for raspberry longest delay:
+# Sin.start()
+sd.play(output_chirp, fs)
 Sin.start()
-sd.play(output_tone_stereo, fs)
 
 in_sig = Sin.read(Sin.blocksize*2)
 
