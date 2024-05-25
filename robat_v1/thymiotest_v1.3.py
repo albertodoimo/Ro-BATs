@@ -5,11 +5,13 @@ from scipy import signal
 import sounddevice as sd
 
 # Parameters
-sample_rate =96000  # Sample rate in Hz
-duration = 10e-3  # Duration of the sine sweep in seconds. max = blocksize/fs
-num_repeats = 5 # Number of buffer/blocks to repeat
-channels = (6,1)  # in/out
-block_size = 4096  # Block size for the stream
+sample_rate = 96000  # Sample rate in Hz
+fs = sample_rate
+duration = 15.33e-3  # Duration of the sine sweep in seconds. max = blocksize/fs
+num_repeats = 100  # Number of buffer/blocks to repeat
+nchannels = 7
+channels = (nchannels,1)  # in/out
+block_size = 1024  # Block size for the stream
 
 def get_card(device_list):
     for i, each in enumerate(device_list):
@@ -31,14 +33,14 @@ def generate_sine_sweep(duration, fs):
     # plt.show()
     # return sweep
     t_tone = np.linspace(0, duration, int(fs*duration))
-    chirp = signal.chirp(t_tone, 40e3, t_tone[-1], 40e3)
+    chirp = signal.chirp(t_tone, 30e3, t_tone[-1], 30e3)
     chirp *= signal.windows.hann(chirp.size)
     print(np.shape(chirp))
     # plt.plot(chirp)
     # plt.show()
-    # output_chirp = np.concatenate((chirp, np.zeros((int(fs*0.2)))))
-    output_chirp = np.pad(np.transpose(chirp), (0, block_size - len(chirp)), mode='constant')
-    output_tone_stereo = np.float32(np.column_stack((output_chirp, output_chirp)))
+    output_chirp = np.concatenate((chirp*0.05, np.zeros((int(fs*0.2)))))
+    # output_chirp = np.pad(np.transpose(chirp), (0, block_size - len(chirp)), mode='constant')
+    # output_tone_stereo = np.float32(np.column_stack((output_chirp, output_chirp)))
     # plt.plot(output_chirp)
     # plt.title('in data')
     # plt.show()
@@ -86,26 +88,26 @@ t_audio = np.linspace(0, input_audio.shape[0]/sample_rate, input_audio.shape[0])
 # Plot the input and output audio
 plt.figure(figsize=(10, 8))
 plt.subplot(2, 1, 1)
-plt.plot(t_audio, input_audio)
-#plt.legend(input_audio)
+plt.plot(t_audio, input_audio[:,[2,3,4,5,6]])
+# plt.legend(input_audio)
 plt.title('Input Audio Waveform')
-plt.xlabel('Sample')
+plt.xlabel('sec')
 plt.ylabel('Amplitude')
 plt.subplot(2, 1, 2)
 plt.plot(t_audio, output_audio)
 # plt.legend(output_audio)
 plt.title('Output Audio Waveform')
-plt.xlabel('Sample')
+plt.xlabel('sec')
 plt.ylabel('Amplitude')
 
 # Plot the spectrograms
 plt.figure()
 aa = plt.subplot(211)
 # plt.specgram(input_audio[:,0], Fs=fs, NFFT=1024, noverlap=512)   
-plt.specgram(input_audio[:,2], Fs=sample_rate, NFFT=1024, noverlap=512)    
+plt.specgram(input_audio[:,3], Fs=sample_rate, NFFT=1024, noverlap=512)    
 plt.subplot(212, sharex=aa)
 t_audio = np.linspace(0, input_audio.shape[0]/sample_rate, input_audio.shape[0])
 # plt.plot(t_audio, input_audio[:,0])
-plt.plot(t_audio, input_audio[:,2])
+plt.plot(t_audio, input_audio[:,3])
 plt.show()
 
