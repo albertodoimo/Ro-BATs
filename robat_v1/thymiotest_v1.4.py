@@ -7,13 +7,13 @@ import sounddevice as sd
 # Parameters
 sample_rate = 96000  # Sample rate in Hz
 fs = sample_rate
-duration = 100e-3  # Duration of the sine sweep in seconds. max = blocksize/fs
-num_repeats = 10  # Number of buffer/blocks to repeat
+duration = 10e-3  # Duration of the sine sweep in seconds. max = blocksize/fs
+num_repeats = 1  # Number of buffer/blocks to repeat
 nchannels = 7
 channels = (nchannels,1)  # in/out
-block_size = 4096  # Block size for the stream
-mic_spacing = 0.018 #m
-
+block_size = 2048  # Block size for the stream
+mic_spacing = 0.018 
+initial_delay = 120 # ms
 
 print('loading functions...')
 #%%
@@ -102,9 +102,9 @@ def generate_sine_sweep(duration, fs):
     # plt.show()
     # return sweep
     t_tone = np.linspace(0, duration, int(fs*duration))
-    chirp = signal.chirp(t_tone, 3e3, t_tone[-1], 10e3)
+    chirp = signal.chirp(t_tone, 18e3, t_tone[-1], 1e3)
     chirp *= signal.windows.hann(chirp.size)
-    print(np.shape(chirp))
+    print('chirp len = ',np.shape(chirp))
     # plt.plot(chirp)
     # plt.show()
     output_chirp = np.concatenate((chirp, np.zeros((int(fs*0.2)))))
@@ -113,7 +113,7 @@ def generate_sine_sweep(duration, fs):
     # plt.plot(output_chirp)
     # plt.title('in data')
     # plt.show()
-    print(np.shape(output_chirp))
+    print('output chirp shape',np.shape(output_chirp))
     return output_chirp
 
 sine_sweep = generate_sine_sweep(duration, sample_rate)
@@ -121,12 +121,14 @@ sine_sweep = generate_sine_sweep(duration, sample_rate)
 # Initialize buffers for recording
 input_buffer = []
 output_buffer = []
-
+j = 0
 # Callback function
 def audio_callback(indata, outdata, frames, time, status):
     if status:
         print(f"Status: {status}", flush=True)
     outdata[:] = sine_sweep[:frames].reshape(-1, 1)  # Play the sine sweep
+    print('indata buffer=', np.shape(indata))
+    j +=1
     input_buffer.append(indata.copy())
     output_buffer.append(outdata.copy())
 
@@ -139,8 +141,8 @@ def update():
                     device=(usb_fireface_index,usb_fireface_index),
                     channels=channels):
             for _ in range(num_repeats):
-                sd.sleep(int((block_size/sample_rate)*1000))
-                print(int((block_size/sample_rate)*1000))  # Wait for the duration of the sweep
+                sd.sleep(int((block_size/sample_rate)*1000)+initial_delay)
+                print(int((block_size/sample_rate)*1000)+initial_delay)  # Wait for the duration of the sweep
             print("Sine sweep playback finished")
 
     except KeyboardInterrupt:
@@ -149,8 +151,14 @@ def update():
         print(f"An error occurred: {e}")
 
     # Convert buffers to numpy arrays
+    print('input buffer shape =', np.shape(input_buffer))
+    # print(input_buffer)
+    # input_audio = []
+    # for jj in range(j):
+
     input_audio = np.concatenate(input_buffer)
-    print('input audio = ', np.shape(input_audio))
+    print('input audio shape = ', np.shape(input_audio))
+    output_audio = np.concatenate(output_buffer)
         
     # Filter input signal
     # delay_crossch = calc_multich_delays(in_sig,ba_filt,fs)
@@ -159,42 +167,45 @@ def update():
 
     # calculate avarage angle
     avar_theta = avar_angle(delay_crossch,nchannels-2,mic_spacing)
-    print(avar_theta)
+    # print('avarage theta rad',avar_theta)
+    print('avarage theta deg',np.rad2deg(avar_theta))
 
+for i in range (3):
+    update()
+    i+=1
 
-update()
 #  # PLOTS
 
-#  # Convert buffers to numpy arrays
-#  input_audio = np.concatenate(input_buffer)
-#  print('input audio = ', np.shape(input_audio))
-#  output_audio = np.concatenate(output_buffer)
-#  
-#  t_audio = np.linspace(0, input_audio.shape[0]/sample_rate, input_audio.shape[0])
-#  
-#  # Plot the input and output audio
-#  plt.figure(figsize=(10, 8))
-#  plt.subplot(2, 1, 1)
-#  plt.plot(t_audio, input_audio[:,[2,3,4,5,6]])
-#  # plt.legend(input_audio)
-#  plt.title('Input Audio Waveform')
-#  plt.xlabel('sec')
-#  plt.ylabel('Amplitude')
-#  plt.subplot(2, 1, 2)
-#  plt.plot(t_audio, output_audio)
-#  # plt.legend(output_audio)
-#  plt.title('Output Audio Waveform')
-#  plt.xlabel('sec')
-#  plt.ylabel('Amplitude')
-#  
-#  # Plot the spectrograms
-#  plt.figure()
-#  aa = plt.subplot(211)
-#  # plt.specgram(input_audio[:,0], Fs=fs, NFFT=1024, noverlap=512)   
-#  plt.specgram(input_audio[:,4], Fs=sample_rate, NFFT=1024, noverlap=512)    
-#  plt.subplot(212, sharex=aa)
-#  t_audio = np.linspace(0, input_audio.shape[0]/sample_rate, input_audio.shape[0])
-#  # plt.plot(t_audio, input_audio[:,0])
-#  plt.plot(t_audio, input_audio[:,4])
-#  plt.show()
-#  
+# Convert buffers to numpy arrays
+input_audio = np.concatenate(input_buffer)
+print('input audio = ', np.shape(input_audio))
+output_audio = np.concatenate(output_buffer)
+
+t_audio = np.linspace(0, input_audio.shape[0]/sample_rate, input_audio.shape[0])
+
+# Plot the input and output audio
+plt.figure(figsize=(10, 8))
+plt.subplot(2, 1, 1)
+plt.plot(t_audio, input_audio[:,[2,3,4,5,6]])
+# plt.legend(input_audio)
+plt.title('Input Audio Waveform')
+plt.xlabel('sec')
+plt.ylabel('Amplitude')
+plt.subplot(2, 1, 2)
+plt.plot(t_audio, output_audio)
+# plt.legend(output_audio)
+plt.title('Output Audio Waveform')
+plt.xlabel('sec')
+plt.ylabel('Amplitude')
+
+# Plot the spectrograms
+plt.figure()
+aa = plt.subplot(211)
+# plt.specgram(input_audio[:,0], Fs=fs, NFFT=1024, noverlap=512)   
+plt.specgram(input_audio[:,4], Fs=sample_rate, NFFT=1024, noverlap=512)    
+plt.subplot(212, sharex=aa)
+t_audio = np.linspace(0, input_audio.shape[0]/sample_rate, input_audio.shape[0])
+# plt.plot(t_audio, input_audio[:,0])
+plt.plot(t_audio, input_audio[:,4])
+plt.show()
+
