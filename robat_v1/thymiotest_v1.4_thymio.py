@@ -9,9 +9,9 @@ sample_rate = 96000  # Sample rate in Hz
 fs = sample_rate
 duration = 1e-3  # Duration of the sine sweep in seconds. max = blocksize/fs
 num_repeats = 1  # Number of buffer/blocks to repeat
-nchannels = 7
+nchannels = 5
 channels = (nchannels,1)  # in/out
-block_size = 2048  # Block size for the streamß
+block_size = 1024  # Block size for the streamß
 mic_spacing = 0.018 
 # initial_delay = 110 # ms
 central_mic = 4
@@ -45,7 +45,7 @@ def calc_delay(two_ch,fs):
     '''
     for each_column in range(2):
         two_ch[:,each_column] = two_ch[:,each_column]
-
+    # print('two_ch[:,0] = ',two_ch[:,0])
     cc = np.correlate(two_ch[:,0],two_ch[:,1],'same')
     midpoint = cc.size/2.0
     delay = np.argmax(cc) - midpoint
@@ -173,7 +173,7 @@ def update():
     # print('j= ',j)
 
     # print(input_buffer)
-    input_audio = np.zeros((block_size*6, 7))
+    input_audio = np.zeros((int(initial_delay*sample_rate)+block_size, nchannels))
     # print('input audio = ', input_audio)
     print('input audio shape = ', np.shape(input_audio))
     jj = 5
@@ -184,7 +184,8 @@ def update():
     print(jj)
     print(jj*block_size)
     print(block_size*(jj+1))
-    input_audio = input_buffer_int[jj*block_size:block_size*(jj+1),:]
+    input_audio = input_buffer_int[int(initial_delay*sample_rate):int(initial_delay*sample_rate)+block_size,:]
+    # print(int(initial_delay*sample_rate)+block_size)
     # plt.plot(input_audio)
     # plt.show()
     # print('input audio = ', input_audio)
@@ -194,7 +195,7 @@ def update():
     # Filter input signal
     # delay_crossch = calc_multich_delays(in_sig,ba_filt,fs)
     # delay_crossch = calc_multich_delays(in_sig[:,[2,3,4,5]],ba_filt,fs)
-    delay_crossch = calc_multich_delays(input_audio[:,[2,3,4,5,6]],fs)
+    delay_crossch = calc_multich_delays(input_audio[:,[2,3,4]],fs)
 
     # calculate avarage angle
     avar_theta = avar_angle(delay_crossch,nchannels-2,mic_spacing)
@@ -224,7 +225,7 @@ for sample in range(20000):
 input_buffer = []
 output_buffer = []
 
-for i in range (1):
+for i in range (2):
     update()
     i+=1
 
@@ -240,7 +241,7 @@ t_audio = np.linspace(0, input_audio.shape[0]/sample_rate, input_audio.shape[0])
 # Plot the input and output audio
 plt.figure(figsize=(10, 8))
 plt.subplot(2, 1, 1)
-plt.plot(t_audio, input_audio[:,[2,3,4,5,6]])
+plt.plot(t_audio, input_audio[:,[2,3,4]])
 # plt.legend(input_audio)
 plt.title('Input Audio Waveform')
 plt.xlabel('sec')
