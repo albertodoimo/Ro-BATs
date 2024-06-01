@@ -8,6 +8,15 @@ import matplotlib.pyplot as plt
 import IPython
 import pyroomacoustics as pra
 import scipy.signal as signal 
+from pyroomacoustics.directivities import (
+    DirectivityPattern,
+    DirectionVector,
+    CardioidFamily,
+)
+dir_obj = CardioidFamily(
+    orientation=DirectionVector(azimuth=-90, colatitude=90, degrees=True),
+    pattern_enum=DirectivityPattern.CARDIOID,
+)
 
 ## Direction of Arrival
 
@@ -17,28 +26,29 @@ import scipy.signal as signal
 
 #Let's perform DOA for two sources.
 # Location of sources
-azimuth = np.array([125.]) / 180. * np.pi
-distance = 2.  # meters
+azimuth = np.array([90.]) / 180. * np.pi
+distance = 10e-1  # meters
 
 #A few constants and parameters for the algorithm such as the FFT size and the frequency range over which to perform DOA.
 c = 343.    # speed of sound
 fs = 96000  # sampling frequency
-nfft = 256//2  # FFT size
-freq_range = [30000, 50000]
+nfft = 256  # FFT size
+freq_range = [39000, 41000]
 
 #Let's build a 2D room where we will perform our simulation.
-snr_db = 1.    # signal-to-noise ratio
+snr_db = 1.    # signalxto-noise ratio
 sigma2 = 10**(-snr_db / 10) / (4. * np.pi * distance)**2
 
 # Create an anechoic room
 room_dim = np.r_[8.,5.]
-aroom = pra.ShoeBox(room_dim, fs=fs, max_order=0, sigma2_awgn=sigma2)
+aroom = pra.ShoeBox(room_dim, fs=fs, max_order=1, sigma2_awgn=sigma2)
 
 # fig, ax = aroom.plot()
 # ax.set_xlim([-1, room_dim[0]+1])
 # ax.set_ylim([-1, room_dim[1]+1])
 
-echo = pra.linear_2D_array(center=room_dim/2, M=5, phi=0, d=0.0018)
+echo = pra.linear_2D_array(center=room_dim/2, M=8, phi=0, d=0.003)
+# echo = pra.linear_2D_array(center=room_dim/2, M=5, phi=0, d=0.018)
 echo = np.concatenate((echo, np.array(room_dim/2, ndmin=2).T), axis=1)
 aroom.add_microphone_array(pra.MicrophoneArray(echo, aroom.fs))
 
@@ -48,9 +58,9 @@ aroom.add_microphone_array(pra.MicrophoneArray(echo, aroom.fs))
 
 tone_durn = 1000e-3 # seconds
 t_tone = np.linspace(0, tone_durn, int(fs*tone_durn))
-chirp = signal.chirp(t_tone, 30e3, t_tone[-1], 40e3)
+chirp = signal.chirp(t_tone, 40e3, t_tone[-1], 40e3)
 chirp *= signal.windows.hann(chirp.size)
-output_chirp = np.concatenate((chirp, np.zeros((int(fs*0.2)))))
+# output_chirp = np.concatenate((chirp, np.zeros((int(fs*0.2)))))
 
 # We'll create two synthetic signals and add them to the room at the specified locations with respect to the array.
 # Add sources of 1 second duration
@@ -59,8 +69,9 @@ duration_samples = int(fs)
 
 for ang in azimuth:
     source_location = room_dim/2  + distance * np.r_[np.cos(ang), np.sin(ang)]
-    source_signal = output_chirp
-    aroom.add_source(source_location, signal=source_signal,)
+    source_signal = chirp
+    # source_signal = rng.randn(duration_samples)
+    aroom.add_source(source_location, source_signal, directivity=dir_obj)
     
 # Run the simulation
 aroom.simulate()
