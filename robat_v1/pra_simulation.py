@@ -14,7 +14,7 @@ from pyroomacoustics.directivities import (
     CardioidFamily,
 )
 dir_obj = CardioidFamily(
-    orientation=DirectionVector(azimuth=-90, colatitude=90, degrees=True),
+    orientation = DirectionVector(azimuth=90, colatitude=90, degrees=True),
     pattern_enum=DirectivityPattern.CARDIOID,
 )
 
@@ -32,7 +32,7 @@ distance = 10e-1  # meters
 #A few constants and parameters for the algorithm such as the FFT size and the frequency range over which to perform DOA.
 c = 343.    # speed of sound
 fs = 96000  # sampling frequency
-nfft = 256  # FFT size
+nfft = 256//2  # FFT size
 freq_range = [39000, 41000]
 
 #Let's build a 2D room where we will perform our simulation.
@@ -47,8 +47,8 @@ aroom = pra.ShoeBox(room_dim, fs=fs, max_order=1, sigma2_awgn=sigma2)
 # ax.set_xlim([-1, room_dim[0]+1])
 # ax.set_ylim([-1, room_dim[1]+1])
 
-echo = pra.linear_2D_array(center=room_dim/2, M=8, phi=0, d=0.003)
-# echo = pra.linear_2D_array(center=room_dim/2, M=5, phi=0, d=0.018)
+# echo = pra.linear_2D_array(center=room_dim/2, M=8, phi=0, d=0.003)
+echo = pra.linear_2D_array(center=room_dim/2, M=5, phi=0, d=0.018)
 echo = np.concatenate((echo, np.array(room_dim/2, ndmin=2).T), axis=1)
 aroom.add_microphone_array(pra.MicrophoneArray(echo, aroom.fs))
 
