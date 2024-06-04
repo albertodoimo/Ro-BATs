@@ -23,13 +23,13 @@ dir_obj = CardioidFamily(
 #PARAMS
 
 case = 'audible' # ultra or audible
-output_sig = 'noise' # noise or sweep
+output_sig = 'sweep' # noise or sweep
 
 # room reflections order
 order = 0 
 
 # source locations
-locations = [0]
+locations = [90]
 
 # radius distnace of the source from array
 distance = 20e-1  # meters
@@ -72,7 +72,8 @@ aroom = pra.ShoeBox(room_dim, fs=fs, max_order=order, sigma2_awgn=sigma2)
 if case == 'ultra':
     echo = pra.linear_2D_array(center=room_dim/2, M=7, phi=0, d=0.003)
 elif case == 'audible':
-    echo = pra.linear_2D_array(center=room_dim/2, M=5, phi=0, d=0.018)
+    # echo = pra.linear_2D_array(center=room_dim/2, M=5, phi=0, d=0.018)
+    echo = pra.circular_2D_array(center=room_dim/2, M=8, phi0=0, radius=0.04)
 else:
     print('select a case')
 
@@ -159,47 +160,43 @@ base = 1.
 height = 10.
 true_col = [0, 0, 0]
 
-# # loop through algos
-# phi_plt = doa.grid.azimuth
-# i = 1
-# fig = plt.figure(figsize=(14, 7))
-# for algo_name in algo_names:
-#     # plot
-#     ax = fig.add_subplot(230 + i, projection='polar')
-#     c_phi_plt = np.r_[phi_plt, phi_plt[0]]
-#     c_dirty_img = np.r_[spatial_resp[algo_name], spatial_resp[algo_name][0]]
-#     ax.plot(c_phi_plt, base + height * c_dirty_img, linewidth=2,
-#             alpha=0.55, linestyle='-', 
-#             label="spatial \n spectrum")
-#     plt.title(algo_name, fontdict={'fontsize': 15}, loc='left')
-#     
-#     # plot true loc
-#     for angle in azimuth:
-#         ax.plot([angle, angle], [base, base + height], linewidth=2, linestyle='--',
-#             color=true_col, alpha=0.6)
-#     K = len(azimuth)
-#     ax.scatter(azimuth, base + height*np.ones(K), c=np.tile(true_col,
-#                (K, 1)), s=500, alpha=0.75, marker='*',
-#                linewidths=0,
-#                label='true \n locations')
-# 
-#     plt.legend()
-#     handles, labels = ax.get_legend_handles_labels()
-#     ax.legend(handles, labels, fontsize=8, bbox_to_anchor=(1.5, 0.6))
-#     # ax.legend(handles, labels, framealpha=0.5,
-#     #           scatterpoints=1, loc='upper center', fontsize=10,
-#     #           ncol=1, bbox_to_anchor=(1.6, 0.5),
-#     #           handletextpad=.2, columnspacing=1.7, labelspacing=0.1)
-# 
-#     ax.set_xticks(np.linspace(0, 2 * np.pi, num=12, endpoint=False))
-#     ax.xaxis.set_label_coords(0.5, -0.11)
-#     ax.set_yticks(np.linspace(0, 1, 2))
-#     # ax.xaxis.grid(b=True, color=[0.3, 0.3, 0.3], linestyle=':')
-#     # ax.yaxis.grid(b=True, color=[0.3, 0.3, 0.3], linestyle='--')
-#     ax.set_ylim([0, 1.05 * (base + height)])
-#     i+=1
-# plt.show()   
-# 
+# loop through algos
+phi_plt = doa.grid.azimuth
+i = 1
+fig = plt.figure(figsize=(14, 7))
+for algo_name in algo_names:
+    # plot
+    ax = fig.add_subplot(230 + i, projection='polar')
+    c_phi_plt = np.r_[phi_plt, phi_plt[0]]
+    c_dirty_img = np.r_[spatial_resp[algo_name], spatial_resp[algo_name][0]]
+    ax.plot(c_phi_plt, base + height * c_dirty_img, linewidth=2,
+            alpha=0.55, linestyle='-', 
+            label="spatial \n spectrum")
+    plt.title(algo_name, fontdict={'fontsize': 15}, loc='left')
+    
+    # plot true loc
+    for angle in azimuth:
+        ax.plot([angle, angle], [base, base + height], linewidth=2, linestyle='--',
+            color=true_col, alpha=0.6)
+    K = len(azimuth)
+    ax.scatter(azimuth, base + height*np.ones(K), c=np.tile(true_col,
+               (K, 1)), s=500, alpha=0.75, marker='*',
+               linewidths=0,
+               label='true \n locations')
+
+    plt.legend()
+    handles, labels = ax.get_legend_handles_labels()
+    ax.legend(handles, labels, fontsize=8, bbox_to_anchor=(1.5, 0.6))
+
+    ax.set_xticks(np.linspace(0, 2 * np.pi, num=12, endpoint=False))
+    ax.xaxis.set_label_coords(0.5, -0.11)
+    ax.set_yticks(np.linspace(0, 1, 2))
+    # ax.xaxis.grid(b=True, color=[0.3, 0.3, 0.3], linestyle=':')
+    # ax.yaxis.grid(b=True, color=[0.3, 0.3, 0.3], linestyle='--')
+    ax.set_ylim([0, 1.05 * (base + height)])
+    i+=1
+plt.show()   
+
 # music
 
 phi_plt = doa.grid.azimuth
@@ -240,25 +237,27 @@ ax.set_yticks(np.linspace(0, 1, 2))
 # ax.yaxis.grid(b=True, color=[0.3, 0.3, 0.3], linestyle='--')
 ax.set_ylim([0, 1.05 * (base + height)])
 
-# save only one configuration 
-plt.show(block = False)
-plt.savefig(f'fig/{algo_name}_{locations[0]}_deg.png', dpi=300, bbox_inches='tight')
-
-
-import os
-import imageio
-
-images = []
-import os
-from natsort import natsorted
-
-images = []
-filenames = os.listdir('fig') 
-filenames = natsorted(filenames)
-
-for filename in filenames:
-    if filename.endswith('.png'):
-        images.append(imageio.imread(os.path.join('fig', filename)))
-
-imageio.mimsave('fig/animation.gif', images, duration=3)
-
+# 
+# # save only one configuration 
+# plt.show(block = False)
+# plt.savefig(f'fig/{algo_name}_{locations[0]}_deg.png', dpi=300, bbox_inches='tight')
+# 
+# 
+# import os
+# import imageio
+# 
+# images = []
+# import os
+# from natsort import natsorted
+# 
+# images = []
+# filenames = os.listdir('fig') 
+# filenames = natsorted(filenames)
+# 
+# for filename in filenames:
+#     if filename.endswith('.png'):
+#         images.append(imageio.imread(os.path.join('fig', filename)))
+# 
+# imageio.mimsave('fig/animation.gif', images, duration=3)
+# 
+# 
