@@ -278,19 +278,19 @@ def code(locations):
         filenames = os.listdir('fig_ultra')
     filenames = natsorted(filenames)
     
-    for filename in filenames:
-        if filename.endswith('.png'):
-            if case == 'audible':
-                images.append(imageio.imread(os.path.join('fig_audible', filename)))
-                imageio.mimsave('fig_audible/animation_audible.gif', images, duration=3)
-            elif case == 'ultra':
-                images.append(imageio.imread(os.path.join('fig_ultra', filename)))
-                imageio.mimsave('fig_ultra/animation_ultra.gif', images, duration=3)
+    # for filename in filenames:
+    #     if filename.endswith('.png'):
+    #         if case == 'audible':
+    #             images.append(imageio.imread(os.path.join('fig_audible', filename)))
+    #             imageio.mimsave('fig_audible/animation_audible.gif', images, duration=3)
+    #         elif case == 'ultra':
+    #             images.append(imageio.imread(os.path.join('fig_ultra', filename)))
+    #             imageio.mimsave('fig_ultra/animation_ultra.gif', images, duration=3)
     # 
 
 # source locations
-locations = [91]
-#locations = np.arange(105,115,5)
+# locations = [91]
+locations = np.arange(0,180,5)
 locations = np.array(locations)
 for i in range(len(locations)):
     code(locations[i])
