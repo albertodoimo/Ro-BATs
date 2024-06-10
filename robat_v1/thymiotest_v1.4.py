@@ -210,19 +210,20 @@ input_audio_av = np.transpose(input_buf_av)
 print('\n input av shape = ',np.shape(input_audio_av))
 mean = np.mean(input_audio_av[central_mic])
 print('mean = ', mean)
-thr = 0.003
+thr = 0.001
 initial_delay = 0
-for sample in range(20000):
-    k = 10
-    # print('sample = ',sample)
-    # print(np.abs(input_buf_av[sample,central_mic]))
+print('popopo')
+for sample in range(40000):
+    k = 5
+    print('sample = ',sample)
+    print(np.abs(input_buf_av[sample,central_mic]))
     if np.abs(input_buf_av[sample,central_mic]) > np.abs(mean) + thr and np.abs(input_buf_av[sample+k,central_mic]) > np.abs(mean) + thr:
         initial_delay = sample/sample_rate
         print('initial delay = ', initial_delay)
         break
 
-input_buffer = []
-output_buffer = []
+#input_buffer = []
+#output_buffer = []
 
 for i in range (1):
     update()

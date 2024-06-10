@@ -22,8 +22,7 @@ import queue
 
 #%%
 tone_durn = 50e-3 # seconds
-# fs = 44100
-fs= 96000
+fs = 44100
 t_tone = np.linspace(0, tone_durn, int(fs*tone_durn))
 chirp = signal.chirp(t_tone, 18e3, t_tone[-1], 0.5e3)
 chirp *= signal.windows.hann(chirp.size)
@@ -41,19 +40,11 @@ def callback_sine(indata, outdata, frames, time, status):
 # device IDs, you'll need to check the device ID with sd.query_devices()
 # and give the input/output device numbers. 
 
-def get_card(device_list):
-    for i, each in enumerate(device_list):
-        dev_name = each['name']
-        asio_in_name = 'MCHStreamer' in dev_name
-        if asio_in_name:
-            return i
-
-usb_fireface_index = get_card(sd.query_devices())
 # create a stream, and set the blocksize to match that of the output signal
 stream_inout = sd.Stream(samplerate=fs,
                          blocksize=output_chirp.shape[0],
-                         device=(1,1),
-                         channels=(6,2),
+                         device=(4,6),
+                         channels=(2,2),
                          callback=callback_sine)
 
 # start the stream 

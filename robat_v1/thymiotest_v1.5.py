@@ -7,11 +7,11 @@ import sounddevice as sd
 # Parameters
 sample_rate = 96000  # Sample rate in Hz
 fs = sample_rate
-duration = 10e-4  # Duration of the sine sweep in seconds. max = blocksize/fs
+duration = 9e-4  # Duration of the sine sweep in seconds. max = blocksize/fs
 num_repeats = 1  # Number of buffer/blocks to repeat
 nchannels = 8
 channels = (nchannels,1)  # in/out
-block_size = 1024  # Block size for the streamß
+block_size = 2048  # Block size for the streamß
 mic_spacing = 0.003 
 # initial_delay = 110 # ms
 central_mic = 3
@@ -173,10 +173,10 @@ def update():
 #    j = np.shape(input_buffer[1])
     # print('j= ',j)
 
-    # print(input_buffer)
+    # print(input_buffer)
     jj = int(block_size/fs*1000)
     input_audio = np.zeros((block_size*jj, nchannels))
-    # print('input audio = ', input_audio)
+    print('input audio = ', input_audio)
     print('input audio shape = ', np.shape(input_audio))
     input_buffer_int = np.concatenate(input_buffer)
     # print('input buf int = ', input_buffer_int)
@@ -185,17 +185,17 @@ def update():
     print(jj)
     print(jj*block_size)
     print(block_size*(jj+1))
-    input_audio = input_buffer_int[jj*block_size:block_size*(jj+1),:]
+    input_audio_trim = input_buffer_int[jj*block_size:block_size*(jj+1),:]
     # plt.plot(input_audio)
     # plt.show()
     # print('input audio = ', input_audio)
-    print('input audio shape = ', np.shape(input_audio))
+    print('input audio trim shape = ', np.shape(input_audio_trim))
     output_audio = np.concatenate(output_buffer)
         
     # Filter input signal
     # delay_crossch = calc_multich_delays(in_sig,ba_filt,fs)
     # delay_crossch = calc_multich_delays(in_sig[:,[2,3,4,5]],ba_filt,fs)
-    delay_crossch = calc_multich_delays(input_audio[:,[0,1,2,3,4,5,6,7]],fs)
+    delay_crossch = calc_multich_delays(input_audio_trim[:,[0,1,2,3,4,5,6,7]],fs)
 
     # calculate avarage angle
     avar_theta = avar_angle(delay_crossch,nchannels-2,mic_spacing)
@@ -207,17 +207,21 @@ initialization()
 input_buf_av = np.concatenate(input_buffer)
 # print('\n input buf  shape = ',np.shape(input_buffer))
 input_audio_av = np.transpose(input_buf_av)
-# print('\n input av = ',input_audio_av)
+print('\n input av = ',input_audio_av)
+print('\n input av  = ',input_audio_av[0,:])
 print('\n input av shape = ',np.shape(input_audio_av))
-mean = np.mean(input_audio_av[central_mic])
-print('mean = ', mean)
-thr = 0.003
+
+mean = np.zeros(nchannels)
+for i in range(nchannels):
+    mean[i] = np.mean(input_audio_av[i,:])
+
+thr = 0.001
 initial_delay = 0
-for sample in range(20000):
+for sample in range(40000):
     k = 10
     # print('sample = ',sample)
     # print(np.abs(input_buf_av[sample,central_mic]))
-    if np.abs(input_buf_av[sample,central_mic]) > np.abs(mean) + thr and np.abs(input_buf_av[sample+k,central_mic]) > np.abs(mean) + thr:
+    if np.abs(input_buf_av[sample,central_mic]) > np.abs(mean[central_mic]) + thr and np.abs(input_buf_av[sample+k,central_mic]) > np.abs(mean[central_mic]) + thr:
         initial_delay = sample/sample_rate
         print('initial delay = ', initial_delay)
         break
@@ -226,6 +230,9 @@ input_buffer = []
 output_buffer = []
 
 for i in range (1):
+    initialization()
+    #input_buffer = []
+    # output_buffer = []
     update()
     i+=1
 
@@ -233,34 +240,46 @@ for i in range (1):
 
 # Convert buffers to numpy arrays
 input_audio = np.concatenate(input_buffer - mean)
-print('input audio plot = ', np.shape(input_audio))
+input_audio_trim = input_audio[0:int(initial_delay*sample_rate)+block_size,:]
+# print('input audio plot = ', np.shape(input_audio[0:int(initial_delay*sample_rate)+block_size,:]))
 output_audio = np.concatenate(output_buffer)
 
-t_audio = np.linspace(0, input_audio.shape[0]/sample_rate, input_audio.shape[0])
+t_audio = np.linspace(0, input_audio_trim.shape[0]/sample_rate, input_audio_trim.shape[0])
 
 # Plot the input and output audio
-plt.figure(figsize=(10, 8))
+fig, axs = plt.subplots(8, 1, figsize=(10, 12))
+for i in range(8):
+    axs[i].plot(t_audio, input_audio_trim[:,i])
+    axs[i].grid('minor')
+    axs = [ax for ax in axs if ax is not None]
+    for ax in axs:
+        ax.set_ylim([-max(input_audio_trim[:,central_mic]), max(input_audio_trim[:,central_mic])])
+    
+plt.tight_layout()
+
+plt.figure(figsize=(12, 8))
 plt.subplot(2, 1, 1)
-plt.plot(t_audio, input_audio[:,[0,1,2,3,4,5,6,7]])
+plt.plot(t_audio, input_audio_trim[:,[0,1,2,3,4,5,6,7]])
 # plt.legend(input_audio)
 plt.title('Input Audio Waveform')
 plt.xlabel('sec')
 plt.ylabel('Amplitude')
+plt.grid('minor')
 plt.subplot(2, 1, 2)
-plt.plot(t_audio, output_audio)
+plt.plot(t_audio, output_audio[0:int(initial_delay*sample_rate)+block_size,:])
 # plt.legend(output_audio)
 plt.title('Output Audio Waveform')
 plt.xlabel('sec')
 plt.ylabel('Amplitude')
 
 # Plot the spectrograms
-plt.figure()
+plt.figure(figsize=(10, 8))
 aa = plt.subplot(211)
 # plt.specgram(input_audio[:,0], Fs=fs, NFFT=1024, noverlap=512)   
-plt.specgram(input_audio[:,central_mic], Fs=sample_rate, NFFT=1024, noverlap=512)    
+plt.specgram(input_audio_trim[:,central_mic], Fs=sample_rate, NFFT=1024, noverlap=512)    
 plt.subplot(212, sharex=aa)
-t_audio = np.linspace(0, input_audio.shape[0]/sample_rate, input_audio.shape[0])
+t_audio = np.linspace(0, input_audio_trim.shape[0]/sample_rate, input_audio_trim.shape[0])
 # plt.plot(t_audio, input_audio[:,0])
-plt.plot(t_audio, input_audio[:,central_mic])
+plt.plot(t_audio, input_audio_trim[:,central_mic])
 plt.show()
 
