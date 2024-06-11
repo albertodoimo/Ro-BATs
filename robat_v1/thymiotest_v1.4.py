@@ -117,7 +117,7 @@ def generate_sine_sweep(duration, fs):
     print('output chirp shape',np.shape(output_chirp))
     return output_chirp
 
-sine_sweep = generate_sine_sweep(duration, 96000)
+sine_sweep = generate_sine_sweep(duration, fs)
 
 # Initialize buffers for recording
 input_buffer = []

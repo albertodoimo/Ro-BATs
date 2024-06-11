@@ -2,6 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy.signal import spectrogram
 from scipy import signal
+from scipy.signal import filtfilt, butter
 import sounddevice as sd
 
 # Parameters
@@ -118,7 +119,7 @@ def generate_sine_sweep(duration, fs):
     print('output chirp shape',np.shape(output_chirp))
     return output_chirp
 
-sine_sweep = generate_sine_sweep(duration, 96000)
+sine_sweep = generate_sine_sweep(duration, fs)
 
 # Initialize buffers for recording
 input_buffer = []
@@ -193,15 +194,13 @@ def update():
     output_audio = np.concatenate(output_buffer)
         
     # Filter input signal
-    # delay_crossch = calc_multich_delays(in_sig,ba_filt,fs)
-    # delay_crossch = calc_multich_delays(in_sig[:,[2,3,4,5]],ba_filt,fs)
-    delay_crossch = calc_multich_delays(input_audio_trim[:,[0,1,2,3,4,5,6,7]],fs)
+    # delay_crossch = calc_multich_delays(input_audio_trim[:,[0,1,2,3,4,5,6,7]],fs)
 
     # calculate avarage angle
-    avar_theta = avar_angle(delay_crossch,nchannels-2,mic_spacing)
+    # avar_theta = avar_angle(delay_crossch,nchannels-2,mic_spacing)
     # print('avarage theta rad',avar_theta)
-    print('\n avarage theta deg = ',np.rad2deg(avar_theta))
-    print()
+    #print('\n avarage theta deg = ',np.rad2deg(avar_theta))
+    #print()
 
 initialization()
 input_buf_av = np.concatenate(input_buffer)
@@ -216,7 +215,7 @@ for i in range(nchannels):
     mean[i] = np.mean(input_audio_av[i,:])
 
 thr = 0.001
-initial_delay = 0
+initial_delay = 0.11 # sec
 for sample in range(40000):
     k = 10
     # print('sample = ',sample)
@@ -239,41 +238,60 @@ for i in range (1):
 #  # PLOTS
 
 # Convert buffers to numpy arrays
-input_audio = np.concatenate(input_buffer - mean)
+
+input_audio = np.concatenate(input_buffer-mean)
+#plt.figure()
+#plt.plot(input_audio)
+# Add frequency band pass filter from 30 to 45 kHz
+#nyquist_freq = 0.5 * sample_rate
+#low = 30000 / nyquist_freq
+#high = 45000 / nyquist_freq
+#order = 4
+#norm_low = low / (sample_rate / 2)
+#norm_high = high / (sample_rate / 2)
+#b, a = butter(order, [norm_low, norm_high], btype='band', analog=False)
+#input_audio_filtered = filtfilt(b, a, input_buffer, axis=0)
+##input_audio = input_audio_filtered[0:int(initial_delay*sample_rate)+block_size,:] 
+#input_audio = np.concatenate(input_audio_filtered)
+
 input_audio_trim = input_audio[0:int(initial_delay*sample_rate)+block_size,:]
-# print('input audio plot = ', np.shape(input_audio[0:int(initial_delay*sample_rate)+block_size,:]))
-output_audio = np.concatenate(output_buffer)
+#plt.figure()
+#plt.plot(input_audio_trim)
+print('input audio plot = ', np.shape(input_audio_trim))
+print('input audio plot = ',input_audio_trim)
+output_audio = np.concatenate(output_buffer) # Concatenate the output buffer to create the output audio signal
 
 t_audio = np.linspace(0, input_audio_trim.shape[0]/sample_rate, input_audio_trim.shape[0])
+print('t audio shape = ', np.shape(t_audio))
 
 # Plot the input and output audio
-fig, axs = plt.subplots(8, 1, figsize=(10, 12))
+fig, axs = plt.subplots(8, 1, figsize=(12, 10))
 for i in range(8):
     axs[i].plot(t_audio, input_audio_trim[:,i])
     axs[i].grid('minor')
     axs = [ax for ax in axs if ax is not None]
     for ax in axs:
-        ax.set_ylim([-max(input_audio_trim[:,central_mic]), max(input_audio_trim[:,central_mic])])
+        ax.set_ylim([-max(input_audio_trim[:,central_mic+1]), max(input_audio_trim[:,central_mic+1])])
     
 plt.tight_layout()
 
-plt.figure(figsize=(12, 8))
+plt.figure(figsize=(12, 10))
 plt.subplot(2, 1, 1)
-plt.plot(t_audio, input_audio_trim[:,[0,1,2,3,4,5,6,7]])
+plt.plot(t_audio, input_audio_trim)
 # plt.legend(input_audio)
 plt.title('Input Audio Waveform')
 plt.xlabel('sec')
 plt.ylabel('Amplitude')
 plt.grid('minor')
 plt.subplot(2, 1, 2)
-plt.plot(t_audio, output_audio[0:int(initial_delay*sample_rate)+block_size,:])
+plt.plot(output_audio[0:int(initial_delay*sample_rate)+block_size,:])
 # plt.legend(output_audio)
 plt.title('Output Audio Waveform')
 plt.xlabel('sec')
 plt.ylabel('Amplitude')
 
 # Plot the spectrograms
-plt.figure(figsize=(10, 8))
+plt.figure(figsize=(12, 10))
 aa = plt.subplot(211)
 # plt.specgram(input_audio[:,0], Fs=fs, NFFT=1024, noverlap=512)   
 plt.specgram(input_audio_trim[:,central_mic], Fs=sample_rate, NFFT=1024, noverlap=512)    
