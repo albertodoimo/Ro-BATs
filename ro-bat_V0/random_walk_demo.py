@@ -43,20 +43,20 @@ def main(use_sim=False, ip='localhost', port=2001):
             #ground_sensors = ground_sensors_max - ground_sensors
             # Adjust these threshold values as needed
             ground_sensors = robot['prox.ground.reflected']
-            print('ground = ',robot['prox.ground.reflected'])
+            #print('ground = ',robot['prox.ground.reflected'])
             # Adjust these threshold values as needed
             left_sensor_threshold = 250
             right_sensor_threshold = 250
 
             #TODO: 4.3 random walk
             current_time = time.time()
-            detectsCollision = max([robot['prox.horizontal'][i] > 1200 for i in range(5)])
+            detectsCollision = max([robot['prox.horizontal'][i] > 800 for i in range(5)])
+            # print(robot['prox.horizontal'])
 
-            print(robot['prox.horizontal'])
             if detectsCollision > 0: 
                 robot['motor.left.target'] = -100
                 robot['motor.right.target'] = -100
-                print('obstacle detected')
+                #print('obstacle detected')
                 state = 'turn'
                 ts = current_time
             elif state == 'find':
@@ -75,22 +75,22 @@ def main(use_sim=False, ip='localhost', port=2001):
                     state = 'turn'
                 elif ground_sensors[0] < left_sensor_threshold and ground_sensors[1] > right_sensor_threshold:
                     # Only right sensor detects the line, turn left
-                    robot['motor.left.target'] = -100
+                    robot['motor.left.target'] = -120
                     robot['motor.right.target'] = 100
                     state = 'find'
                 elif ground_sensors[0] > left_sensor_threshold and ground_sensors[1] < right_sensor_threshold:
                     # Only left sensor detects the line, turn right
                     robot['motor.left.target'] = 100 
-                    robot['motor.right.target'] = -100               
+                    robot['motor.right.target'] = -120               
                     state = 'find'
             elif state == 'turn':
                 # Turn in a random direction for 1 second
                 if direction == 'left':
-                    robot['motor.left.target'] = -100
-                    robot['motor.right.target'] = 100
+                    robot['motor.left.target'] = -150
+                    robot['motor.right.target'] = 150
                 else:
-                    robot['motor.left.target'] = 100
-                    robot['motor.right.target'] = -100
+                    robot['motor.left.target'] = 150
+                    robot['motor.right.target'] = -150
                 if current_time - ts >= 1:
                     # Change state to find
                     state = 'find'

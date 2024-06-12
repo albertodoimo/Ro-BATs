@@ -5,6 +5,7 @@ print('import libraries...')
 import argparse
 import time
 import math
+import random
 
 # import pyqtgraph as pg
 # import pyqtgraph.opengl as gl
@@ -215,100 +216,87 @@ def main(use_sim=False, ip='localhost', port=2001):
         # Delay to allow robot initialization of all variables
         #time.sleep(1)
 
-        
-#         try: 
-#             while True:
-#                     avar_theta_deg = update()
-#                     detectsCollision = max([robot['prox.horizontal'][i] > 1200 for i in range(5)])
-#                     #print('avarage theta rad',avar_theta)
-#                     print('avarage theta deg',avar_theta_deg)
-#                     # print(robot['prox.horizontal'])
-#                      # get lights turn on based on proximity sensors
-#                     if detectsCollision:
-#                         robot['motor.left.target'] = 0
-#                         robot['motor.right.target'] = 0
-#                         robot["leds.top"] = [0, 0, 0]
-#                         print('obstacle detected')
-#                         time.sleep(1)
-#                     if avar_theta_deg <-30:
-#                         robot["leds.top"] = [0, 0, 255]
-#                         time.sleep(0.005)
-#                         robot['motor.left.target'] = 50
-#                         robot['motor.right.target'] = 600
-#                         time.sleep(0.005)
-#                     if avar_theta_deg >= -30 and avar_theta_deg<-5:
-#                         robot["leds.top"] = [0, 255, 255]
-#                         time.sleep(0.005)
-#                         robot['motor.left.target'] = 200
-#                         robot['motor.right.target'] = 500
-#                         time.sleep(0.005)
-#                     if avar_theta_deg <=5 and avar_theta_deg >=-5:
-#                         robot["leds.top"] = [255, 255, 255]
-#                         time.sleep(0.005)
-#                         robot['motor.left.target'] = 50
-#                         robot['motor.right.target'] = 50
-#                         time.sleep(0.005)
-#                     if avar_theta_deg <= 30 and avar_theta_deg>5:
-#                         robot["leds.top"] = [255,255,0]
-#                         time.sleep(0.005)
-#                         robot['motor.right.target'] = 200
-#                         robot['motor.left.target'] = 500
-#                         time.sleep(0.005)
-#                     if avar_theta_deg >30 :
-#                         robot["leds.top"] = [255, 0, 0] 
-#                         time.sleep(0.005)
-#                         robot['motor.right.target'] = 50
-#                         robot['motor.left.target'] = 600 
-#                         time.sleep(0.005)
-#           except KeyboardInterrupt:
-#               S.stop()
-
         while True:
             avar_theta_deg = update()
             avar_theta_deg = avar_theta_deg*1.25
             #detectsCollision = max([robot['prox.horizontal'][i] > 1200 for i in range(5)])
             print('avarage theta deg', avar_theta_deg)
-    
-#             if detectsCollision:
-#                 robot['motor.left.target'] = 0
-#                 robot['motor.right.target'] = 0
-#                 robot["leds.top"] = [0, 0, 0]
-#                 print('obstacle detected')
-#                 time.sleep(1)
-#             else:
-            match avar_theta_deg:
-                case theta if theta < -30:
-                    robot["leds.top"] = [0, 0, 255]
-                    time.sleep(wait)
-                    robot['motor.left.target'] = 600
-                    robot['motor.right.target'] = 50
-                    time.sleep(wait)
-                case theta if -30 <= theta < -5:
-                    robot["leds.top"] = [0, 255, 255]
-                    time.sleep(wait)
-                    robot['motor.left.target'] = 500
-                    robot['motor.right.target'] = 200
-                    time.sleep(wait)
-                case theta if -5 <= theta <= 5:
-                    robot["leds.top"] = [255, 255, 255]
-                    time.sleep(wait)
-                    robot['motor.left.target'] = 100
-                    robot['motor.right.target'] = 100
-                    time.sleep(wait)
-                case theta if 5 < theta <= 30:
-                    robot["leds.top"] = [255, 255, 0]
-                    time.sleep(wait)
-                    robot['motor.right.target'] = 500
-                    robot['motor.left.target'] = 200
-                    time.sleep(0.0)
-                case theta if theta > 30:
-                    robot["leds.top"] = [255, 0, 0]
-                    time.sleep(wait)
-                    robot['motor.right.target'] = 600
-                    robot['motor.left.target'] = 50
-                    time.sleep(wait)
-                case _:
-                    pass
+
+            ground_sensors = robot['prox.ground.reflected']
+            ground_sensors_max = 1000
+            # Adjust these threshold values as needed
+            ground_sensors = robot['prox.ground.reflected']
+            print('ground = ',robot['prox.ground.reflected'])
+            # Adjust these threshold values as needed
+            left_sensor_threshold = 250
+            right_sensor_threshold = 250
+            direction = random.choice(['left', 'right'])
+            if ground_sensors[0] > left_sensor_threshold  and ground_sensors[1]> right_sensor_threshold:
+                # Both sensors detect the line, turn left
+                if direction == 'left':
+                    robot['motor.left.target'] = -150
+                    robot['motor.right.target'] = 150
+                    time.sleep(0.5)
+                else:
+                    robot['motor.left.target'] = 150
+                    robot['motor.right.target'] = -150
+                    time.sleep(0.5)
+                # robot['motor.left.target'] = -50 + random.choice([, 100])
+                # robot['motor.right.target'] = -50 + random.choice([-100, 100])
+            elif ground_sensors[0] < left_sensor_threshold and ground_sensors[1] > right_sensor_threshold:
+                # Only right sensor detects the line, turn left
+                robot['motor.left.target'] = -200
+                robot['motor.right.target'] = 100
+            elif ground_sensors[0] > left_sensor_threshold and ground_sensors[1] < right_sensor_threshold:
+                # Only left sensor detects the line, turn right
+                robot['motor.left.target'] = 100 
+                robot['motor.right.target'] = -200 
+            else:       
+                match avar_theta_deg:
+                    case theta if theta < -30:
+                        robot["leds.top"] = [0, 0, 255]
+                        time.sleep(wait)
+                        robot['motor.left.target'] = 500
+                        robot['motor.right.target'] = 50
+                        time.sleep(wait)
+                    case theta if -30 <= theta < -5:
+                        robot["leds.top"] = [0, 255, 255]
+                        time.sleep(wait)
+                        robot['motor.left.target'] = 400
+                        robot['motor.right.target'] = 100
+                        time.sleep(wait)
+                    case theta if -5 <= theta <= 5:
+                        robot["leds.top"] = [255, 255, 255]
+                        time.sleep(wait)
+                        robot['motor.left.target'] = 100
+                        robot['motor.right.target'] = 100
+                        time.sleep(wait)
+                    case theta if 5 < theta <= 30:
+                        robot["leds.top"] = [255, 255, 0]
+                        time.sleep(wait)
+                        robot['motor.right.target'] = 400
+                        robot['motor.left.target'] = 100
+                        time.sleep(wait)
+                    case theta if theta > 30:
+                        robot["leds.top"] = [255, 0, 0]
+                        time.sleep(wait)
+                        robot['motor.right.target'] = 500
+                        robot['motor.left.target'] = 50
+                        time.sleep(wait)
+                    case _:
+                        pass
+                    # if ground_sensors[0] > left_sensor_threshold  and ground_sensors[1]> right_sensor_threshold:
+                    #     # Both sensors detect the line, turn left
+                    #     robot['motor.left.target'] = -100
+                    #     robot['motor.right.target'] = 100
+                    # elif ground_sensors[0] < left_sensor_threshold and ground_sensors[1] > right_sensor_threshold:
+                    #     # Only right sensor detects the line, turn left
+                    #     robot['motor.left.target'] = -100
+                    #     robot['motor.right.target'] = 100
+                    # elif ground_sensors[0] > left_sensor_threshold and ground_sensors[1] < right_sensor_threshold:
+                    #     # Only left sensor detects the line, turn right
+                    #     robot['motor.left.target'] = 100 
+                    #     robot['motor.right.target'] = -100  
     
     except Exception as err:
         # Stop robot
