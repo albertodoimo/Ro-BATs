@@ -1,0 +1,216 @@
+# variables for notes
+var notes[6]
+var durations[6]
+var note_index = 6
+var note_count = 6
+var wave[142]
+var i
+var wave_phase
+var wave_intensity
+
+# compute a sinus wave for sound
+for i in 0:141 do
+	wave_phase = (i-70)*468
+	call math.cos(wave_intensity, wave_phase)
+	wave[i] = wave_intensity/256
+end
+call sound.wave(wave)
+# reset outputs
+call sound.system(-1)
+call leds.top(0,0,0)
+call leds.bottom.left(0,0,0)
+call leds.bottom.right(0,0,0)
+call leds.circle(0,0,0,0,0,0,0,0)
+
+# when a note is finished, play the next note
+onevent sound.finished
+	if note_index != note_count then
+		call sound.freq(notes[note_index], durations[note_index])
+		note_index += 1
+	end
+
+onevent buttons
+	when button.forward == 1 and button.backward == 1 do
+		motor.left.target = 0
+		motor.right.target = 0
+		call math.copy(notes[0:5], [440, 524, 440, 370, 311, 370])
+		call math.copy(durations[0:5], [7, 7, 14, 7, 7, 14])
+		note_index = 1
+		note_count = 6
+		call sound.freq(notes[0], durations[0])
+		emit pair_run 0
+	end
+
+
+
+
+CHAT GPT
+
+
+# Aseba event handler for when the Thymio starts
+onevent button.forward
+    callsub initialize
+
+sub initialize
+    # Initialize state and random direction
+    state = 0 # 0: find, 1: turn
+    call math.rand
+    direction = abs(rand(1)) % 2 # 0: left, 1: right
+    ts = timer.period[0]
+    callsub drive_straight
+
+sub drive_straight
+    motor.left.target = 200
+    motor.right.target = 200
+    timer.period[0] = 5000 # 5 seconds
+
+onevent timer0
+    if state == 0 then
+        state = 1
+        ts = timer.period[0]
+        call math.rand
+        direction = abs(rand(1)) % 2
+        callsub turn
+    else
+        state = 0
+        callsub drive_straight
+    end
+
+sub turn
+    if direction == 0 then
+        motor.left.target = -150
+        motor.right.target = 150
+    else
+        motor.left.target = 150
+        motor.right.target = -150
+    end if
+    timer.period[0] = 1000 # 1 second
+
+onevent prox
+    var left_sensor = prox.ground.reflected[0]
+    var right_sensor = prox.ground.reflected[1]
+    var left_sensor_threshold = 250
+    var right_sensor_threshold = 250
+    var detectsCollision = 0
+
+    for i in 0 to 4 do
+        if prox.horizontal[i] > 800 then
+            detectsCollision = 1
+        end if
+    end for
+
+    if detectsCollision > 0 then
+        motor.left.target = -100
+        motor.right.target = -100
+        state = 1
+        ts = timer.period[0]
+    elseif state == 0 then
+        if left_sensor > left_sensor_threshold and right_sensor > right_sensor_threshold then
+            motor.left.target = 0
+            motor.right.target = 0
+            state = 1
+        elseif left_sensor < left_sensor_threshold and right_sensor > right_sensor_threshold then
+            motor.left.target = -120
+            motor.right.target = 100
+        elseif left_sensor > left_sensor_threshold and right_sensor < right_sensor_threshold then
+            motor.left.target = 100
+            motor.right.target = -120
+        end if
+    end if
+
+
+
+
+# Define the threshold for detecting obstacles
+var obstacle_threshold = 300
+var left_sensor_threshold = 250
+var right_sensor_threshold = 250
+var sound_state = 0
+var detectsCollision = 0
+var hor_thr = 800
+var random_number = 0
+var state = 0
+var ts 
+var direction
+var left_sensor = prox.ground.reflected[0]
+var right_sensor = prox.ground.reflected[1]
+
+sub play_sound
+if sound_state == 1 then
+	call sound.system(0)  # Play a sound of 2000 Hz for 500 ms
+end
+
+callsub initialize
+callsub drive_straight
+
+
+sub initialize
+	state = 0
+	ts = timer.period[0]
+    callsub drive_straight
+    
+sub drive_straight
+    motor.left.target = 200
+    motor.right.target = 200
+    timer.period[0] = 5000 # 5 seconds
+    
+onevent timer0
+    if state == 0 then
+        state = 1
+        ts = timer.period[0]
+        callsub turning
+    else
+        state = 0
+        callsub drive_straight
+    end
+    
+sub turning
+    # Generate a random number between 0 and 1
+    
+    call math.rand(random_number)
+	direction = random_number % 2
+	timer.period[0] = 1000
+	    if direction == 0 then
+	        motor.left.target = 150  # Turn right
+	        motor.right.target = -150
+	        timer.period[0] = 1000
+	    else
+	        motor.left.target = -150  # Turn left
+	        motor.right.target = 150
+	        timer.period[0] = 1000
+	    end
+	    timer.period[0] = 1000  # Set timer to straighten out after 0.5 second
+	
+onevent sound.finished
+	call sound.play(5)
+
+
+  
+# Event handler for proximity sensor	
+onevent prox
+	if  prox.horizontal[0]> hor_thr or prox.horizontal[1]> hor_thr or prox.horizontal[2]> hor_thr or prox.horizontal[3]> hor_thr or prox.horizontal[4]> hor_thr then 
+
+		#motor.left.target = -100  # Move backward
+		#motor.right.target = -100
+		state = 1
+		timer.period[0]=1000
+		callsub turning	
+		timer.period[0]=1000
+
+	elseif state == 0 then
+		if left_sensor > left_sensor_threshold and right_sensor > right_sensor_threshold then
+			motor.left.target = 0
+	        motor.right.target = 0
+	        state = 1
+	    elseif left_sensor < left_sensor_threshold and right_sensor > right_sensor_threshold then
+			motor.left.target = -120
+			motor.right.target = 100
+	    elseif left_sensor > left_sensor_threshold and right_sensor < right_sensor_threshold then
+	        motor.left.target = 100
+	        motor.right.target = -120
+	    end
+	end 
+# Start the robot moving forward
+#callsub play_sound
+# motor.left.target = 200
+# motor.right.target = 200

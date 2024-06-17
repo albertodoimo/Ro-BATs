@@ -31,6 +31,7 @@ def main(use_sim=False, ip='localhost', port=2001):
         th.set_var_aray("leds.top", [255,0,0])
         robot = th[th.first_node()]  
 
+        robot['sound.system'] = [0]
         while True:
             #robot["sound.freq"]  = [700,60/60]
             time.sleep(2)

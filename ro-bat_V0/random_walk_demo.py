@@ -61,8 +61,8 @@ def main(use_sim=False, ip='localhost', port=2001):
                 ts = current_time
             elif state == 'find':
                 # Drive straight for 5 seconds
-                robot['motor.left.target'] = 200
-                robot['motor.right.target'] = 200
+                robot['motor.left.target'] = 400
+                robot['motor.right.target'] = 400
                 if current_time - ts >= 5:
                     # Change state to turn
                     state = 'turn'
