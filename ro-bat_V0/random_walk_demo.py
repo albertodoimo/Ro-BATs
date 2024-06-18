@@ -54,15 +54,15 @@ def main(use_sim=False, ip='localhost', port=2001):
             # print(robot['prox.horizontal'])
 
             if detectsCollision > 0: 
-                robot['motor.left.target'] = -100
-                robot['motor.right.target'] = -100
+                robot['motor.left.target'] = -150
+                robot['motor.right.target'] = -150
                 #print('obstacle detected')
                 state = 'turn'
                 ts = current_time
             elif state == 'find':
                 # Drive straight for 5 seconds
-                robot['motor.left.target'] = 400
-                robot['motor.right.target'] = 400
+                robot['motor.left.target'] = 250
+                robot['motor.right.target'] = 250
                 if current_time - ts >= 5:
                     # Change state to turn
                     state = 'turn'
