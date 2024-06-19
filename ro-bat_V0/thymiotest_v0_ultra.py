@@ -147,7 +147,7 @@ def update():
         # calculate aavarage angle
 
         avar_theta = avar_angle(delay_crossch,channels-1,mic_spacing)
-        # print('avarage theta rad',avar_theta)
+        #print('avarage theta rad',avar_theta)
         # print('avarage theta deg',np.rad2deg(avar_theta))
 
         # Calculate RMS
@@ -226,7 +226,7 @@ def main(use_sim=False, ip='localhost', port=2001):
             ground_sensors_max = 1000
             # Adjust these threshold values as needed
             ground_sensors = robot['prox.ground.reflected']
-            print('ground = ',robot['prox.ground.reflected'])
+            #print('ground = ',robot['prox.ground.reflected'])
             # Adjust these threshold values as needed
             left_sensor_threshold = 250
             right_sensor_threshold = 250
@@ -236,11 +236,11 @@ def main(use_sim=False, ip='localhost', port=2001):
                 if direction == 'left':
                     robot['motor.left.target'] = -150
                     robot['motor.right.target'] = 150
-                    time.sleep(0.5)
+                    time.sleep(0.3)
                 else:
                     robot['motor.left.target'] = 150
                     robot['motor.right.target'] = -150
-                    time.sleep(0.5)
+                    time.sleep(0.3)
                 # robot['motor.left.target'] = -50 + random.choice([, 100])
                 # robot['motor.right.target'] = -50 + random.choice([-100, 100])
             elif ground_sensors[0] < left_sensor_threshold and ground_sensors[1] > right_sensor_threshold:
@@ -256,31 +256,31 @@ def main(use_sim=False, ip='localhost', port=2001):
                     case theta if theta < -30:
                         robot["leds.top"] = [0, 0, 255]
                         time.sleep(wait)
-                        robot['motor.left.target'] = 500
+                        robot['motor.left.target'] = 700
                         robot['motor.right.target'] = 50
                         time.sleep(wait)
                     case theta if -30 <= theta < -5:
                         robot["leds.top"] = [0, 255, 255]
                         time.sleep(wait)
-                        robot['motor.left.target'] = 400
-                        robot['motor.right.target'] = 100
+                        robot['motor.left.target'] = 600
+                        robot['motor.right.target'] = 50
                         time.sleep(wait)
-                    case theta if -5 <= theta <= 5:
+                    case theta if -1 <= theta <= 1:
                         robot["leds.top"] = [255, 255, 255]
                         time.sleep(wait)
-                        robot['motor.left.target'] = 100
-                        robot['motor.right.target'] = 100
+                        robot['motor.left.target'] = 250
+                        robot['motor.right.target'] = 250
                         time.sleep(wait)
                     case theta if 5 < theta <= 30:
                         robot["leds.top"] = [255, 255, 0]
                         time.sleep(wait)
-                        robot['motor.right.target'] = 400
-                        robot['motor.left.target'] = 100
+                        robot['motor.right.target'] = 600
+                        robot['motor.left.target'] = 50
                         time.sleep(wait)
                     case theta if theta > 30:
                         robot["leds.top"] = [255, 0, 0]
                         time.sleep(wait)
-                        robot['motor.right.target'] = 500
+                        robot['motor.right.target'] = 700
                         robot['motor.left.target'] = 50
                         time.sleep(wait)
                     case _:
