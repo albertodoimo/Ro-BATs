@@ -9,12 +9,48 @@ from mss import mss
 
 import math
 
+# This code defines a class called `Aruco_tracker` that is used for tracking ArUco markers in a video stream or screen capture.
+#  Here's a breakdown of what the code does:
+# 
+# 1. The `__init__` method initializes various parameters and settings, such as the camera ID, frame size, debug mode, record mode, and more.
+#   It also sets up the ArUco dictionary and detector parameters.
+# 
+# 2. If the camera ID is set to -1, it captures the screen using the `mss` library. Otherwise, it opens a video capture device using OpenCV's `cv2.VideoCapture`.
+# 
+# 3. If debug mode is enabled, it creates a window to display the video feed with detected markers.
+# 
+# 4. If record mode is enabled, it sets up a ZMQ socket to receive commands for starting and stopping the video recording.
+# 
+# 5. If position publishing is enabled, it sets up a ZMQ socket to publish the detected marker positions.
+# 
+# 6. The `detect_arena` method is used to detect four specific ArUco markers (100, 101, 102, 103) that define the corners of the arena.
+#   It publishes the detected arena corners over the ZMQ socket.
+# 
+# 7. The `get_positions` method is the main method that performs the ArUco marker detection and tracking.
+#   It captures a frame from the camera or screen, converts it to grayscale, and detects the ArUco markers using OpenCV's `cv2.aruco.detectMarkers` function.
+# 
+# 8. For each detected marker, it calculates the center position, orientation, and other relevant information.
+#   If position publishing is enabled, it publishes the marker positions over the ZMQ socket.
+# 
+# 9. If debug mode is enabled, it draws bounding boxes, marker IDs, and other information on the video frame and displays it in the window.
+# 
+# 10. If record mode is enabled, it checks for commands from the ZMQ socket to start or stop recording the video stream.
+# 
+# 11. If print mode is enabled, it prints the detected marker positions to the console.
+# 
+# 12. The `close` method is used to release the video writer when the program is closing.
+# 
+# In summary, this code provides a way to track ArUco markers in a video stream or screen capture, with various options for debugging, recording,
+#   and publishing the marker positions over a ZMQ socket.
+# 
+
+
 class Aruco_tracker:
     
     def __init__(self, 
-                    cam_id=0,                   # Camera ID -1 for screen capture
+                    cam_id=-1,                   # Camera ID -1 for screen capture
                     monitor_id=0,               # Monitor ID for screen capture
-                    debug=False,                # Debug mode
+                    debug=True,                # Debug mode
                     debug_stream=False,         # Debug stream
                     frame_width=1920,           # Frame width for input frame
                     frame_height=1080,          # Frame height for input frame
@@ -56,6 +92,7 @@ class Aruco_tracker:
         else:
             # Get desired video capture device
             self._cam = cv2.VideoCapture(cam_id)
+            # self._cam = cv2.VideoCapture('/Volumes/Extreme SSD/università/tesi/robat V0 video/overhead camera/RobatV0 static collision avoidance 1.mp4')
 
             # Set codec to MJPEG
             self._cam.set(cv2.CAP_PROP_FOURCC, 0x47504A4D)
@@ -260,3 +297,15 @@ class Aruco_tracker:
     def close(self):
         print("close")
         self._writer.release()
+
+cap = cv2.VideoCapture('/Volumes/Extreme SSD/università/tesi/robat V0 video/overhead camera/RobatV0 static collision avoidance 1.mp4')
+while True:
+    ret, frame = cap.read()
+    if not ret:
+        break
+    # Process the frame here
+    cv2.imshow('frame', frame)
+    if cv2.waitKey(1) & 0xFF == ord('q'):
+        break
+cap.release()
+cv2.destroyAllWindows()
