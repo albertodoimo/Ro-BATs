@@ -210,8 +210,8 @@ def draw_trajectories_on_video(input_video_path, output_video_path, aruco_tracke
             for corner, markerID in zip(corners, ids):
                 if markerID not in trajectories:
                     trajectories[markerID] = []
-                    colors[70] = (0,255,0) #robat
-                    colors[markerID] = ()
+                    colors[70] = (0, 255 ,0) #robat
+                    #colors[markerID] = (np.random.randint(0, 255), np.random.randint(0, 255), np.random.randint(0, 255))
                     # colors[markerID] = (np.random.randint(0, 255), np.random.randint(0, 255), np.random.randint(0, 255))
                     
 
@@ -222,9 +222,13 @@ def draw_trajectories_on_video(input_video_path, output_video_path, aruco_tracke
 
                 center = np.mean(corner[0], axis=0)
                 trajectories[markerID].append(center)
-                for i in range(1, len(trajectories[markerID])):
-                    #print(len(trajectories[markerID]))
-                    cv2.line(frame, tuple(trajectories[markerID][i-1].astype(int)), tuple(trajectories[markerID][i].astype(int)), colors[markerID], 3)
+                #for i in range(1, len(trajectories[markerID])):
+                #    #print(len(trajectories[markerID]))
+                #    cv2.line(frame, tuple(trajectories[markerID][i-1].astype(int)), tuple(trajectories[markerID][i].astype(int)), colors[markerID], 3)
+                if markerID== 70:
+                    for i in range(1, len(trajectories[markerID])):
+                        #print(len(trajectories[markerID]))
+                        cv2.line(frame, tuple(trajectories[markerID][i-1].astype(int)), tuple(trajectories[markerID][i].astype(int)), colors[markerID], 3)
 
         out.write(frame)
         cv2.imshow('Trajectories', frame)
