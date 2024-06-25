@@ -225,7 +225,7 @@ def draw_trajectories_on_video(input_video_path, output_video_path, aruco_tracke
                 if markerID== 70:
                     for i in range(1, len(trajectories[markerID])):
                         #print(len(trajectories[markerID]))
-                        cv2.line(frame, tuple(trajectories[markerID][i-1].astype(int)), tuple(trajectories[markerID][i].astype(int)), colors[markerID], 3)
+                        cv2.line(frame, tuple(trajectories[markerID][i-1].astype(int)), tuple(trajectories[markerID][i].astype(int)), colors[markerID], 1)
 
         out.write(frame)
         cv2.imshow('Trajectories', frame)
@@ -242,8 +242,8 @@ aruco_tracker = Aruco_tracker(cam_id=-1, monitor_id=0, debug=False, debug_stream
 linux_path = '/home/adoimo/Desktop/'
 #mac_path =  '/Extreme SSD/università/tesi/robat V0 video'
 #ssd_path = '/media/adoimo/Extreme SSD/università/tesi/robat V0 video'
-video_name = 'Basler_acA1920-40uc__24531279__20240621_173542632.mp4'
+video_name = 'Basler_acA1920-40uc__24531279__20240625_155621360.mp4'
 input_video_path = linux_path + video_name  # replace with your input video path
 #input_video_path = '/Volumes/Extreme SSD/università/tesi/robat V0 video/overhead camera/Basler_acA1920-40uc__24531279__20240621_173535657.mp4'  # replace with your input video path
-output_video_path =  linux_path + '/video_out_linux/' + video_name  # replace with your desired output video path
+output_video_path =  linux_path + 'video_out_linux/' + video_name  # replace with your desired output video path
 draw_trajectories_on_video(input_video_path, output_video_path, aruco_tracker)
