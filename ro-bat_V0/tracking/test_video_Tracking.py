@@ -204,8 +204,13 @@ def draw_trajectories_on_video(input_video_path, output_video_path, aruco_tracke
                 
                 center = np.mean(corner[0], axis=0)
                 trajectories[markerID].append(center)
-                for i in range(1, len(trajectories[markerID])):
-                    cv2.line(frame, tuple(trajectories[markerID][i-1].astype(int)), tuple(trajectories[markerID][i].astype(int)), (0, 255, 0), 2)
+                #for i in range(1, len(trajectories[markerID])):
+                #    #print(len(trajectories[markerID]))
+                #    cv2.line(frame, tuple(trajectories[markerID][i-1].astype(int)), tuple(trajectories[markerID][i].astype(int)), colors[markerID], 3)
+                if markerID== 70:
+                    for i in range(1, len(trajectories[markerID])):
+                        #print(len(trajectories[markerID]))
+                        cv2.line(frame, tuple(trajectories[markerID][i-1].astype(int)), tuple(trajectories[markerID][i].astype(int)), colors[markerID], 3)
 
         out.write(frame)
         cv2.imshow('Trajectories', frame)
@@ -218,7 +223,13 @@ def draw_trajectories_on_video(input_video_path, output_video_path, aruco_tracke
 
 # Example usage
 aruco_tracker = Aruco_tracker(cam_id=-1, monitor_id=0, debug=False, debug_stream=False, frame_width=1920, frame_height=1080, crop_img=False, num_tags=15, decision_margin=20, record_stream=False, publish_pos=False, print_pos=False, detect_arena=False)
-input_video_path = '/Basler_acA1920-40uc__24531279__20240621_173535657.mp4'  # replace with your input video path
-#input_video_path = './GH010355.mp4'  # replace with your input video path
-output_video_path = '/Users/alberto/Documents/UNIVERSITA/MAGISTRALE/tesi/robat video-foto/robat v0 tracking/' + input_video_path 
+
+#linux_path = '/home/adoimo/Desktop/'
+mac_path =  '/Volumes/Extreme SSD/università/tesi/robat V0 video'
+#ssd_path = '/media/adoimo/Extreme SSD/università/tesi/robat V0 video'
+video_name = 'Basler_acA1920-40uc__24531279__20240621_173542632.mp4'
+input_video_path = mac_path + '/overhead camera/' + video_name  # replace with your input video path
+#input_video_path = '/Volumes/Extreme SSD/università/tesi/robat V0 video/overhead camera/Basler_acA1920-40uc__24531279__20240621_173535657.mp4'  # replace with your input video path
+output_video_path =  mac_path + '/video_out_mac/' + video_name  # replace with your desired output video path
 draw_trajectories_on_video(input_video_path, output_video_path, aruco_tracker)
+

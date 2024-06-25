@@ -212,9 +212,6 @@ def draw_trajectories_on_video(input_video_path, output_video_path, aruco_tracke
                     trajectories[markerID] = []
                     colors[70] = (0, 255 ,0) #robat
                     #colors[markerID] = (np.random.randint(0, 255), np.random.randint(0, 255), np.random.randint(0, 255))
-                    # colors[markerID] = (np.random.randint(0, 255), np.random.randint(0, 255), np.random.randint(0, 255))
-                    
-
 
                 # Draw 3D axis
                 rvecs, tvecs, _ = cv2.aruco.estimatePoseSingleMarkers(corner, 0.05, camera_matrix, dist_coeffs)
@@ -248,5 +245,5 @@ linux_path = '/home/adoimo/Desktop/'
 video_name = 'Basler_acA1920-40uc__24531279__20240621_173542632.mp4'
 input_video_path = linux_path + video_name  # replace with your input video path
 #input_video_path = '/Volumes/Extreme SSD/università/tesi/robat V0 video/overhead camera/Basler_acA1920-40uc__24531279__20240621_173535657.mp4'  # replace with your input video path
-output_video_path =  linux_path + '/video_out/' + video_name  # replace with your desired output video path
+output_video_path =  linux_path + '/video_out_linux/' + video_name  # replace with your desired output video path
 draw_trajectories_on_video(input_video_path, output_video_path, aruco_tracker)
