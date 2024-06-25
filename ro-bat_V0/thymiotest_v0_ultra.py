@@ -194,6 +194,7 @@ def update():
 # # %%------------------------------------------------------
 # 
 wait = 0.0001
+waiturn = 0.3
 def main(use_sim=False, ip='localhost', port=2001):
     ''' Main function '''
 
@@ -228,60 +229,62 @@ def main(use_sim=False, ip='localhost', port=2001):
             ground_sensors = robot['prox.ground.reflected']
             #print('ground = ',robot['prox.ground.reflected'])
             # Adjust these threshold values as needed
-            left_sensor_threshold = 250
-            right_sensor_threshold = 250
+            left_sensor_threshold = 80
+            right_sensor_threshold = 80
             direction = random.choice(['left', 'right'])
             if ground_sensors[0] > left_sensor_threshold  and ground_sensors[1]> right_sensor_threshold:
                 # Both sensors detect the line, turn left
                 if direction == 'left':
                     robot['motor.left.target'] = -150
-                    robot['motor.right.target'] = 150
-                    time.sleep(0.3)
+                    robot['motor.right.target'] = 150   
+                    time.sleep(waiturn) 
                 else:
                     robot['motor.left.target'] = 150
                     robot['motor.right.target'] = -150
-                    time.sleep(0.3)
+                    time.sleep(waiturn)
                 # robot['motor.left.target'] = -50 + random.choice([, 100])
                 # robot['motor.right.target'] = -50 + random.choice([-100, 100])
-            elif ground_sensors[0] < left_sensor_threshold and ground_sensors[1] > right_sensor_threshold:
+            elif ground_sensors[1] > right_sensor_threshold:
                 # Only right sensor detects the line, turn left
-                robot['motor.left.target'] = -200
-                robot['motor.right.target'] = 100
-            elif ground_sensors[0] > left_sensor_threshold and ground_sensors[1] < right_sensor_threshold:
+                robot['motor.left.target'] = -150
+                robot['motor.right.target'] = 150
+                time.sleep(waiturn)
+            elif ground_sensors[0] > left_sensor_threshold:
                 # Only left sensor detects the line, turn right
-                robot['motor.left.target'] = 100 
-                robot['motor.right.target'] = -200 
+                robot['motor.left.target'] = 150 
+                robot['motor.right.target'] = -150 
+                time.sleep(waiturn)
             else:       
                 match avar_theta_deg:
                     case theta if theta < -30:
                         robot["leds.top"] = [0, 0, 255]
                         time.sleep(wait)
-                        robot['motor.left.target'] = 700
-                        robot['motor.right.target'] = 50
+                        robot['motor.left.target'] = 400
+                        robot['motor.right.target'] = 20
                         time.sleep(wait)
-                    case theta if -30 <= theta < -5:
+                    case theta if -30 <= theta < -1:
                         robot["leds.top"] = [0, 255, 255]
                         time.sleep(wait)
-                        robot['motor.left.target'] = 600
-                        robot['motor.right.target'] = 50
+                        robot['motor.left.target'] = 300
+                        robot['motor.right.target'] = 20
                         time.sleep(wait)
                     case theta if -1 <= theta <= 1:
                         robot["leds.top"] = [255, 255, 255]
                         time.sleep(wait)
-                        robot['motor.left.target'] = 250
-                        robot['motor.right.target'] = 250
+                        robot['motor.left.target'] = 200
+                        robot['motor.right.target'] = 200
                         time.sleep(wait)
-                    case theta if 5 < theta <= 30:
+                    case theta if 1 < theta <= 30:
                         robot["leds.top"] = [255, 255, 0]
                         time.sleep(wait)
-                        robot['motor.right.target'] = 600
-                        robot['motor.left.target'] = 50
+                        robot['motor.right.target'] = 300
+                        robot['motor.left.target'] = 20
                         time.sleep(wait)
                     case theta if theta > 30:
                         robot["leds.top"] = [255, 0, 0]
                         time.sleep(wait)
-                        robot['motor.right.target'] = 700
-                        robot['motor.left.target'] = 50
+                        robot['motor.right.target'] = 400
+                        robot['motor.left.target'] = 20
                         time.sleep(wait)
                     case _:
                         pass
@@ -309,7 +312,7 @@ def main(use_sim=False, ip='localhost', port=2001):
         robot['motor.right.target'] = 0
         robot["leds.top"] = [0,0,0]
         print("Press Ctrl-C again to end the program")
-
+    # time.sleep(0.0005)
 if __name__ == '__main__':
     # Parse commandline arguments to cofigure the interface for a simulation (default = real robot)
     parser = argparse.ArgumentParser(description='Configure optional arguments to run the code with simulated Thymio. '
