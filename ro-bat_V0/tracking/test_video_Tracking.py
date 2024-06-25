@@ -156,7 +156,7 @@ class Aruco_tracker:
                     date_time = datetime.now()
                     timestamp = date_time.strftime("%d%m%Y_%H%M%S") + '.mp4'
                     print(timestamp)
-                    self._writer = cv2.VideoWriter(timestamp, cv2.VideoWriter_fourcc('m', 'p', '4', 'v'), 20, (self._frame_width, self._frame_height))
+                    self._writer = cv2.VideoWriter(timestamp, cv2.VideoWriter_fourcc('m', 'p', '4', 'v'), 20, (self._frame_width, self._frame_height)) # 20 = fps
                     print("record")
                 elif data == 'save':
                     self._record = False
@@ -184,7 +184,7 @@ def draw_trajectories_on_video(input_video_path, output_video_path, aruco_tracke
     cap = cv2.VideoCapture(input_video_path)
     frame_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
     frame_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-    out = cv2.VideoWriter(output_video_path, cv2.VideoWriter_fourcc('m', 'p', '4','v'), 20, (frame_width, frame_height))
+    out = cv2.VideoWriter(output_video_path, cv2.VideoWriter_fourcc('m', 'p', '4','v'), 20, (frame_width, frame_height)) # 20 = fps
 
     trajectories = {}
 
