@@ -24,14 +24,26 @@ print('libraries imported')
 
 print('loading functions...')
 #%%
-# def calc_rms(in_sig):
-#     '''
-#     
-#     '''
-#     rms_sig = np.sqrt(np.mean(in_sig**2))
-#     return(rms_sig)
-# 
+def calc_rms(in_sig):
+    '''
+    
+    '''
+    rms_sig = np.sqrt(np.mean(in_sig**2))
+    # print('rms =', rms_sig)
+    return(rms_sig)
 
+def calc_rms_avar(in_sig,ch):
+    rms_sig = []
+    #print(ch)
+    #print('empty rms =', rms_sig)
+    for i in range(ch):
+        #print(i)
+        rms_sig.append(np.sqrt(np.mean(in_sig[:,i]**2)))
+        #print('rms =', rms_sig)
+    
+    avar_rms = np.mean(rms_sig)
+    #print('rms avar =', avar_rms)
+    return(avar_rms)
 def calc_delay(two_ch,fs):
     '''
     Parameters
@@ -108,17 +120,18 @@ fs = 96000
 block_size = 4096
 # block_size = 1024*2
 #block_size = 8192
-channels = 8
+nchannels = 8
 mic_spacing = 0.003 #m
+central_mic = 3
 
-bp_freq = np.array([100,45000.0]) # the min and max frequencies
+#bp_freq = np.array([100,45000.0]) # the min and max frequencies
 # to be 'allowed' in Hz.
 
 # ba_filt = signal.butter(2, bp_freq/float(fs*0.5),'bandpass')
 
 #%%
 # define the input signals features
-S = sd.InputStream(samplerate=fs,blocksize=block_size,channels=channels, latency='low')
+S = sd.InputStream(samplerate=fs,blocksize=block_size, device=usb_fireface_index, channels=nchannels, latency='low')
 print('fs = ', S.samplerate)
 print('blocksize = ', S.blocksize)
 print('channels = ', S.channels)
@@ -133,62 +146,32 @@ S.start()
 
 print('audio stream initialized')
 
+in_sig,status = S.read(S.blocksize)
+threshold = calc_rms_avar(in_sig, nchannels)
+print('thresh=', threshold)
+
 def update():
     #global sp_my, all_xs, threshold, S, ba_filt
     try:
         in_sig,status = S.read(S.blocksize)
-        
-        # Filter input signal
-        # delay_crossch = calc_multich_delays(in_sig,ba_filt,fs)
-        # delay_crossch = calc_multich_delays(in_sig[:,[2,3,4,5]],ba_filt,fs)
-        delay_crossch = calc_multich_delays(in_sig[:,[0,1,2,3,4,5,6,7]],fs)
+        rms_sig = calc_rms(in_sig[:,central_mic])
+        if rms_sig > threshold*1.09:
 
-        # print('delay',delay_crossch)
-        # calculate aavarage angle
+            delay_crossch = calc_multich_delays(in_sig, fs)
+    
 
-        avar_theta = avar_angle(delay_crossch,channels-1,mic_spacing)
-        #print('avarage theta rad',avar_theta)
-        # print('avarage theta deg',np.rad2deg(avar_theta))
+            # print('delay',delay_crossch)
+            # calculate aavarage angle
 
-        # Calculate RMS
-        # rms_sig = calc_rms(in_sig[:,0])
-#        rms_sig = calc_rms(in_sig[:,2])
-#         
-#        if rms_sig > threshold:
-#            
-#            # Scale movement
-#            movement_amp_factor = 5e4
-#            all_zs = np.tile(rms_sig*movement_amp_factor*1e-3, S.blocksize)
-#            
-#            # Scale delay (delay_crossch[3] gives the best central accuracy w.r.t the center of the array )
-#
-#            #all_delay = np.tile(-delay_crossch[3]*movement_amp_factor, S.blocksize)
-#            all_delay = np.tile(-delay_crossch[2]*movement_amp_factor, S.blocksize) 
-#
-#            # print(all_delay)
-#            # all_delay = np.tile(avar_theta*movement_amp_factor, S.blocksize)
-#            # print(all_delay)
-#            
-#            # Add delay to signal            
-#            all_ys = in_sig[:,0]+all_delay[0]
-#            xyz = np.column_stack((all_xs,all_ys,all_zs))
-#            
-#        else:
-#            # when there's no/low signal at the mics
-#            # Set y values to 0
-#            y = np.zeros(S.blocksize)
-#            z= y.copy()
-#            xyz = np.column_stack((all_xs,y,z))
-#      
-#        #sp_my.setData(pos=xyz)
-#        
+            avar_theta = avar_angle(delay_crossch,nchannels,mic_spacing)
+            return np.rad2deg(avar_theta)
+        else:
+            avar_theta = None
+            return avar_theta
     except KeyboardInterrupt:
         S.stop()
-    return np.rad2deg(avar_theta)
 
-# t = QtCore.QTimer()
-# t.timeout.connect(update)
-# t.start(5)
+
 
 # Thymio 
 # # %%------------------------------------------------------
@@ -216,10 +199,9 @@ def main(use_sim=False, ip='localhost', port=2001):
 
         # Delay to allow robot initialization of all variables
         #time.sleep(1)
-
         while True:
             avar_theta_deg = update()
-            avar_theta_deg = avar_theta_deg*1.25
+            # avar_theta_deg = avar_theta_deg*1.25
             #detectsCollision = max([robot['prox.horizontal'][i] > 1200 for i in range(5)])
             print('avarage theta deg', avar_theta_deg)
 
@@ -256,25 +238,38 @@ def main(use_sim=False, ip='localhost', port=2001):
                 time.sleep(waiturn)
             else:       
                 match avar_theta_deg:
+                    case theta if theta == None:
+                        robot["leds.top"] = [0, 0, 0]
+                        time.sleep(wait)
+                        robot['motor.left.target'] = 200
+                        robot['motor.right.target'] = 200
                     case theta if theta < -30:
                         robot["leds.top"] = [0, 0, 255]
                         time.sleep(wait)
                         robot['motor.left.target'] = 400
                         robot['motor.right.target'] = 20
                         time.sleep(wait)
-                    case theta if -30 <= theta < -1:
+                    case theta if -30 <= theta < -3:
                         robot["leds.top"] = [0, 255, 255]
                         time.sleep(wait)
                         robot['motor.left.target'] = 300
                         robot['motor.right.target'] = 20
                         time.sleep(wait)
-                    case theta if -1 <= theta <= 1:
+                    case theta if -3 <= theta <= 3:
                         robot["leds.top"] = [255, 255, 255]
                         time.sleep(wait)
-                        robot['motor.left.target'] = 200
-                        robot['motor.right.target'] = 200
-                        time.sleep(wait)
-                    case theta if 1 < theta <= 30:
+                        robot['motor.left.target'] = -100
+                        robot['motor.right.target'] = -100
+                        direction = random.choice(['left', 'right'])
+                        time.sleep(waiturn)
+                        if direction == 'left':
+                            robot['motor.left.target'] = -150
+                            robot['motor.right.target'] = 150
+                        else:
+                            robot['motor.left.target'] = 150
+                            robot['motor.right.target'] = -150
+                        time.sleep(waiturn)
+                    case theta if 3 < theta <= 30:
                         robot["leds.top"] = [255, 255, 0]
                         time.sleep(wait)
                         robot['motor.right.target'] = 300
