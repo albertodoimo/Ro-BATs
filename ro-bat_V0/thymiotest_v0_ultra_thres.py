@@ -249,19 +249,19 @@ def main(use_sim=False, ip='localhost', port=2001):
                         robot['motor.left.target'] = 400
                         robot['motor.right.target'] = 20
                         time.sleep(wait)
-                    case theta if -30 <= theta < -3:
+                    case theta if -30 <= theta < -5:
                         robot["leds.top"] = [0, 255, 255]
                         time.sleep(wait)
                         robot['motor.left.target'] = 300
                         robot['motor.right.target'] = 20
                         time.sleep(wait)
-                    case theta if -3 <= theta <= 3:
+                    case theta if -5 <= theta <= 5:
                         robot["leds.top"] = [255, 255, 255]
                         time.sleep(wait)
                         robot['motor.left.target'] = -100
                         robot['motor.right.target'] = -100
-                        direction = random.choice(['left', 'right'])
                         time.sleep(waiturn)
+                        direction = random.choice(['left', 'right'])
                         if direction == 'left':
                             robot['motor.left.target'] = -150
                             robot['motor.right.target'] = 150
@@ -269,7 +269,7 @@ def main(use_sim=False, ip='localhost', port=2001):
                             robot['motor.left.target'] = 150
                             robot['motor.right.target'] = -150
                         time.sleep(waiturn)
-                    case theta if 3 < theta <= 30:
+                    case theta if 5 < theta <= 30:
                         robot["leds.top"] = [255, 255, 0]
                         time.sleep(wait)
                         robot['motor.right.target'] = 300
