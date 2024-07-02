@@ -212,7 +212,7 @@ mean = np.mean(input_audio_av[central_mic])
 print('mean = ', mean)
 thr = 0.001
 initial_delay = 0
-print('popopo')
+
 for sample in range(40000):
     k = 5
     print('sample = ',sample)

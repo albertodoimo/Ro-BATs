@@ -75,8 +75,11 @@ def code(locations):
         # echo = pra.circular_2D_array(center=room_dim/2, M=8, phi0=0, radius=0.04)
     else:
         print('select a case')
-
+        
+    # Concatenate the room center coordinates as a row vector to the echo array
     echo = np.concatenate((echo, np.array(room_dim/2, ndmin=2).T), axis=1)
+    
+    # Create a MicrophoneArray object using the echo array and the room's sample rate
     aroom.add_microphone_array(pra.MicrophoneArray(echo, aroom.fs))
 
     # fig, ax = aroom.plot()
@@ -126,6 +129,8 @@ def code(locations):
     plt.title('Room layout', fontdict={'fontsize': 15})
 
     # The DOA algorithms require an STFT input, which we will compute for overlapping frames for our 1 second duration signal.
+    print('signals =', aroom.mic_array.signals)
+    print('signals =', np.shape(aroom.mic_array.signals))
     X = pra.transform.stft.analysis(aroom.mic_array.signals.T, nfft, nfft // 2)
     X = X.transpose([2, 1, 0])
 
@@ -290,7 +295,7 @@ def code(locations):
 
 # source locations
 # locations = [91]
-locations = np.arange(0,180,5)
+locations = np.arange(0,10,5)
 locations = np.array(locations)
 for i in range(len(locations)):
     code(locations[i])
