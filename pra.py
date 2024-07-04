@@ -23,12 +23,10 @@ fs = 96000  # sampling frequency
 nfft = 256  # FFT size
 mic_spacing = 0.003 
 channels = 8
-block_size  = 4096*2
+block_size  = 4096
 freq_range = [20, 40000]
-room_dim = np.r_[8.,5.]
-#print(np.shape(room_dim))
 
-echo = pra.linear_2D_array(center=room_dim/2, M=channels, phi=0, d=mic_spacing)
+echo = pra.linear_2D_array(center=[(channels-1)*mic_spacing//2,0], M=channels, phi=0, d=mic_spacing)
 # The DOA algorithms require an STFT input, which we will compute for overlapping frames for our 1 second duration signal.
 
 def get_card(device_list):
@@ -71,9 +69,6 @@ print('1')
 
 initialization()
 
-
-
-
 def update_polar():
     # Your streaming data source logic goes here
 
@@ -92,7 +87,7 @@ def update_polar():
     X = pra.transform.stft.analysis(input_audio.T, nfft, nfft // 2)
     X = X.transpose([2, 1, 0])
 
-    doa = pra.doa.algorithms['MUSIC'](echo, fs, nfft, c=c, num_src=1)
+    doa = pra.doa.algorithms['MUSIC'](echo, fs, nfft, c=c, num_src=2)
     doa.locate_sources(X, freq_range=freq_range)
     print(doa.azimuth_recon * 180 / np.pi) #degrees 
 
@@ -103,67 +98,66 @@ def update_polar():
     max_val = spatial_resp.max()
     spatial_resp = (spatial_resp - min_val) / (max_val - min_val)
 
+
+    values = np.zeros(360)
+
     # Update the polar plot
-    return spatial_resp
+    # line.set_ydata(values)
 
-for i in range(200):
+    # Update the polar plot
+    phi_plt = doa.grid.azimuth
+    return spatial_resp, phi_plt
+    #return spatial_resp
+
+for i in range(50):
     update_polar()
+   
+    base = 1.
+    height = 10.
+    true_col = [0, 0, 0]
 
-# # Set up the polar plot
-# fig, ax = plt.subplots(subplot_kw={'projection': 'polar'})
-# theta = np.linspace(-np.pi/2, np.pi/2, 180)
-# values = np.random.rand(180)
-# line, = ax.plot(theta, values)
-# ax.set_thetamin(-90)
-# ax.set_thetamax(90)
-# 
-# # Set up the animation
-# ani = FuncAnimation(fig, update_polar, frames=range(180), blit=True)
-# 
-# plt.show()
-# 
-# 
-# 
-# 
-# base = 1.
-# height = 10.
-# true_col = [0, 0, 0]
-# 
-# phi_plt = doa.grid.azimuth
-# fig = plt.figure()
-# algo_name = 'MUSIC'
-# 
-# # plot
-# ax = fig.add_subplot(111, projection='polar')
-# c_phi_plt = np.r_[phi_plt, phi_plt[0]]
-# c_dirty_img = np.r_[spatial_resp, spatial_resp[0]]
-# ax.plot(c_phi_plt, base + height * c_dirty_img, linewidth=2,
-#         alpha=0.55, linestyle='-', 
-#         label="spatial \n spectrum")
-# plt.title(algo_name, fontdict={'fontsize': 15}, loc='left')
-# 
-# # plot true loc
-# # for angle in azimuth:
-# ax.plot([azimuth, azimuth], [base, base + height], linewidth=2, linestyle='--',
-#     color=true_col, alpha=0.6)
-# # K = len(azimuth)
-# K = 1
-# ax.scatter(azimuth, base + height*np.ones(K), c=np.tile(true_col,
-#             (K, 1)), s=500, alpha=0.75, marker='*',
-#             linewidths=0,
-#             label='true \n locations')
-# 
-# plt.legend()
-# handles, labels = ax.get_legend_handles_labels()
-# ax.legend(handles, labels, fontsize=8, bbox_to_anchor=(1.5, 0.6))
-# # ax.legend(handles, labels, framealpha=0.5,
-# #           scatterpoints=1, loc='upper center', fontsize=10,
-# #           ncol=1, bbox_to_anchor=(1.6, 0.5),
-# #           handletextpad=.2, columnspacing=1.7, labelspacing=0.1)
-# 
-# ax.set_xticks(np.linspace(0, 2 * np.pi, num=12, endpoint=False))
-# ax.xaxis.set_label_coords(0.5, -0.11)
-# ax.set_yticks(np.linspace(0, 1, 2))
-# # ax.xaxis.grid(b=True, color=[0.3, 0.3, 0.3], linestyle=':')
-# # ax.yaxis.grid(b=True, color=[0.3, 0.3, 0.3], linestyle='--')
-# ax.set_ylim([0, 1.05 * (base + height)])
+    spatial_resp, phi_plt = update_polar()
+    fig = plt.figure()
+    algo_name = 'MUSIC'
+
+
+    # plot
+    ax = fig.add_subplot(111, projection='polar')
+    c_phi_plt = np.r_[phi_plt, phi_plt[0]]
+    c_dirty_img = np.r_[spatial_resp, spatial_resp[0]]
+    ax.plot(c_phi_plt, base + height * c_dirty_img, linewidth=2,
+            alpha=0.55, linestyle='-', 
+            label="spatial \n spectrum")
+    plt.title(algo_name, fontdict={'fontsize': 15}, loc='left')
+
+    plt.legend()
+    handles, labels = ax.get_legend_handles_labels()
+    ax.legend(handles, labels, fontsize=8, bbox_to_anchor=(1.5, 0.6))
+    # ax.legend(handles, labels, framealpha=0.5,
+    #           scatterpoints=1, loc='upper center', fontsize=10,
+    #           ncol=1, bbox_to_anchor=(1.6, 0.5),
+    #           handletextpad=.2, columnspacing=1.7, labelspacing=0.1)
+
+    ax.set_xticks(np.linspace(0, 2 * np.pi, num=12, endpoint=False))
+    ax.xaxis.set_label_coords(0.5, -0.11)
+    ax.set_yticks(np.linspace(0, 1, 2))
+    # ax.xaxis.grid(b=True, color=[0.3, 0.3, 0.3], linestyle=':')
+    # ax.yaxis.grid(b=True, color=[0.3, 0.3, 0.3], linestyle='--')
+    ax.set_ylim([0, 1.05 * (base + height)])
+    plt.show()
+
+
+# # Set up the polar plot
+# fig, ax = plt.subplots(subplot_kw={'projection': 'polar'})
+# theta = np.linspace(-np.pi/2, np.pi/2, 360)
+# values = np.random.rand(180)
+# line, = ax.plot(theta, values)
+# #ax.set_thetamin(-90)
+# #ax.set_thetamax(90)
+# 
+# # Set up the animation
+# ani = FuncAnimation(fig, update_polar, frames=range(360), blit=True)
+# 
+# plt.show()
+
+
