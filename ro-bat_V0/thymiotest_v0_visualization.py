@@ -1,8 +1,8 @@
 import subprocess
 
 print('install libraries...')
-subprocess.run(
-    'pip install thymiodirect sounddevice numpy scipy argparse',shell=True)
+#subprocess.run(
+#    'pip install thymiodirect sounddevice numpy scipy argparse',shell=True)
 
 print('libraries installed')
 print('import libraries...')
@@ -246,6 +246,8 @@ def update_polar(frame):
 
     # Update the polar plot
     line.set_ydata(values)
+    print('line = ',values)
+    print('line shape= ',np.shape(values))
     return line,
 
 # Set up the polar plot
@@ -257,7 +259,7 @@ ax.set_thetamin(-90)
 ax.set_thetamax(90)
 
 # Set up the animation
-ani = FuncAnimation(fig, update_polar, frames=range(180), blit=True)
+ani = FuncAnimation(fig, update_polar, frames=range(180), blit=True, interval= 10)
 
 plt.show()
 

@@ -1,8 +1,8 @@
 import subprocess
 
 print('install libraries...')
-subprocess.run(
-    'pip install thymiodirect sounddevice numpy scipy argparse',shell=True)
+#subprocess.run(
+#    'pip install thymiodirect sounddevice numpy scipy argparse',shell=True)
 
 print('libraries installed')
 print('import libraries...')
@@ -287,7 +287,7 @@ ax.set_thetamin(-90)
 ax.set_thetamax(90)
 
 # Set up the animation
-ani = FuncAnimation(fig, update_polar, frames=range(180), blit=False)
+ani = FuncAnimation(fig, update_polar, frames=range(180), blit=False,interval= 50)
 
 plt.show()
 
