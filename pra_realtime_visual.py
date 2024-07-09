@@ -1,4 +1,9 @@
 # `pyroomacoustics` demo
+import datetime
+
+now = datetime.datetime.now()
+print("\nCurrent date and time: \n", now.strftime("%Y-%m-%d %H:%M:%S"))
+print('')
 
 # Let's begin by importing the necessary libraries all of which can be installed with `pip`, even `pyroomacoustics`!
 import numpy as np
@@ -11,7 +16,7 @@ import IPython
 import pyroomacoustics as pra
 import scipy.signal as signal 
 import sounddevice as sd
-
+import soundfile as sf
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
 
@@ -24,7 +29,7 @@ nfft = 512  # FFT size
 mic_spacing = 0.003 
 channels = 8
 block_size  = 4096
-freq_range = [10000, 20000]
+freq_range = [20, 10000]
 
 echo = pra.linear_2D_array(center=[(channels-1)*mic_spacing//2,0], M=channels, phi=0, d=mic_spacing)
 # The DOA algorithms require an STFT input, which we will compute for overlapping frames for our 1 second duration signal.
@@ -41,7 +46,7 @@ print(sd.query_devices())
 print('usb_fireface_index=',usb_fireface_index)
 # 
 
-S = sd.InputStream(samplerate=fs,blocksize=block_size, device=usb_fireface_index, channels=channels, latency='low')
+S = sd.InputStream(samplerate=fs, blocksize=block_size, device=usb_fireface_index, channels=channels, latency='low')
             
 def initialization():
     try:
@@ -55,19 +60,22 @@ def initialization():
         print(f"An error occurred: {e}")
 
 
-initialization()
+
 
 def update_polar(frame):
     # Your streaming data source logic goes here
+    global rec
 
     in_sig,status = S.read(S.blocksize)
 
-    input_audio = np.transpose(in_sig)
+    memory.append(in_sig)
+    rec = np.concatenate(memory)
+    print('input audio plot = ', np.shape(rec))
 
-    X = pra.transform.stft.analysis(input_audio.T, nfft, nfft // 2)
+    X = pra.transform.stft.analysis(in_sig, nfft, nfft // 2)
     X = X.transpose([2, 1, 0])
 
-    doa = pra.doa.algorithms['MUSIC'](echo, fs, nfft, c=c, num_src=6)
+    doa = pra.doa.algorithms['MUSIC'](echo, fs, nfft, c=c, num_src=2)
     doa.locate_sources(X, freq_range=freq_range)
     print(doa.azimuth_recon * 180 / np.pi) #degrees 
 
@@ -78,7 +86,6 @@ def update_polar(frame):
     max_val = spatial_resp.max()
     spatial_resp = (spatial_resp - min_val) / (max_val - min_val)
 
-
     values = np.zeros(360)
 
     # Update the polar plot
@@ -88,16 +95,33 @@ def update_polar(frame):
         data.pop(0)
 
     line.set_ydata(spatial_resp)
+    print('input audio plot last = ', np.shape(rec))
     return line,
 
 
-fig, ax = plt.subplots(subplot_kw={'projection': 'polar'})
+initialization()
+memory = []
+rec = []
 
-theta = np.linspace(-np.pi,np.pi, 360)
-values = np.random.rand(360)
-line, =ax.plot(theta, values)
+fig, ax = plt.subplots(subplot_kw={'projection': 'polar'})
+#ax.set_theta_zero_location('E')
+ax.set_theta_direction(1)
+#ax.set_thetamin(360)
+#ax.set_thetamax(0)
+#ax.set_xticks(np.linspace(0, 2*np.pi, 12, endpoint=False))
+#ax.set_xticklabels(['0°', '30°', '60°', '90°', '120°', '150°', '180°', '210°', '240°', '270°', '300°', '330°'])
 data = []
+
+theta = np.linspace(0, 2*np.pi, 360)
+values = np.random.rand(360)
+line, = ax.plot(theta, values)
+
 # Set up the animation
 ani = FuncAnimation(fig, update_polar, frames=range(360), blit=False, interval= 50)
 
 plt.show()
+print('input audio plot lastlast = ', np.shape(rec))
+
+for i in range(channels):
+    sf.write(f'recordings/{now}_AudioRec_Ch_{i+1}.wav', rec[:,i], samplerate=fs)
+

@@ -201,12 +201,13 @@ def update():
     # print('avarage theta rad',avar_theta)
     print('\n avarage theta deg = ',np.rad2deg(avar_theta))
     print()
-
+ 
 initialization()
 input_buf_av = np.concatenate(input_buffer)
-# print('\n input buf  shape = ',np.shape(input_buffer))
+print('\n input buffer = ',np.shape(input_buffer))
+print('\n input buf  shape = ',np.shape(input_buf_av))
 input_audio_av = np.transpose(input_buf_av)
-# print('\n input av = ',input_audio_av)
+print('\n input av = ',input_audio_av)
 print('\n input av shape = ',np.shape(input_audio_av))
 mean = np.mean(input_audio_av[central_mic])
 print('mean = ', mean)
@@ -215,11 +216,11 @@ initial_delay = 0
 
 for sample in range(40000):
     k = 5
-    print('sample = ',sample)
-    print(np.abs(input_buf_av[sample,central_mic]))
+    # print('sample = ',sample)
+    # print(np.abs(input_buf_av[sample,central_mic]))
     if np.abs(input_buf_av[sample,central_mic]) > np.abs(mean) + thr and np.abs(input_buf_av[sample+k,central_mic]) > np.abs(mean) + thr:
         initial_delay = sample/sample_rate
-        print('initial delay = ', initial_delay)
+        #print('initial delay = ', initial_delay)
         break
 
 #input_buffer = []
