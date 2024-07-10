@@ -23,13 +23,6 @@ from thymiodirect import Connection
 from thymiodirect import Thymio
 print('libraries imported')
 
-
-now = datetime.datetime.now()
-print("\nCurrent date and time: \n", now.strftime("%Y-%m-%d %H:%M:%S"))
-print('')
-
-
-
 print('loading functions...')
 #%%
 # def calc_rms(in_sig):
@@ -114,15 +107,8 @@ usb_fireface_index = get_card(sd.query_devices())
 print('usb_fireface_index=',usb_fireface_index)
 fs = 48000
 block_size = 4096
-# block_size = 1024*2
-#block_size = 8192
 channels = 8
 mic_spacing = 0.003 #m
-
-bp_freq = np.array([100,45000.0]) # the min and max frequencies
-# to be 'allowed' in Hz.
-
-# ba_filt = signal.butter(2, bp_freq/float(fs*0.5),'bandpass')
 
 #%%
 # define the input signals features
@@ -133,26 +119,22 @@ print('channels = ', S.channels)
 print('latency = ', S.latency)
 print('devinfo = ', S.device)
 S.start()
+
 memory = []
 rec = []
-
-# creation the guide vector x values
-# all_xs = np.linspace(-10,10,S.blocksize)
-# print('all_xs',all_xs.shape)
-# threshold = 1e-5
 
 print('audio stream initialized')
 
 def update():
     #global sp_my, all_xs, threshold, S, ba_filt
     try:
-        global rec
+        global memory
 
         in_sig,status = S.read(S.blocksize)
 
         memory.append(in_sig)
-        rec = np.concatenate(memory)
-        print('input audio plot = ', np.shape(rec))
+
+        print('input audio plot = ', np.shape(memory))
         
         # Filter input signal
         # delay_crossch = calc_multich_delays(in_sig,ba_filt,fs)
@@ -165,47 +147,34 @@ def update():
         avar_theta = avar_angle(delay_crossch,channels-1,mic_spacing)
         #print('avarage theta rad',avar_theta)
         # print('avarage theta deg',np.rad2deg(avar_theta))
-
-        # Calculate RMS
-        # rms_sig = calc_rms(in_sig[:,0])
-#        rms_sig = calc_rms(in_sig[:,2])
-#         
-#        if rms_sig > threshold:
-#            
-#            # Scale movement
-#            movement_amp_factor = 5e4
-#            all_zs = np.tile(rms_sig*movement_amp_factor*1e-3, S.blocksize)
-#            
-#            # Scale delay (delay_crossch[3] gives the best central accuracy w.r.t the center of the array )
-#
-#            #all_delay = np.tile(-delay_crossch[3]*movement_amp_factor, S.blocksize)
-#            all_delay = np.tile(-delay_crossch[2]*movement_amp_factor, S.blocksize) 
-#
-#            # print(all_delay)
-#            # all_delay = np.tile(avar_theta*movement_amp_factor, S.blocksize)
-#            # print(all_delay)
-#            
-#            # Add delay to signal            
-#            all_ys = in_sig[:,0]+all_delay[0]
-#            xyz = np.column_stack((all_xs,all_ys,all_zs))
-#            
-#        else:
-#            # when there's no/low signal at the mics
-#            # Set y values to 0
-#            y = np.zeros(S.blocksize)
-#            z= y.copy()
-#            xyz = np.column_stack((all_xs,y,z))
-#      
-#        #sp_my.setData(pos=xyz)
-#        
+        
     except KeyboardInterrupt:
-        S.stop()
-        print('\nciao')
-    return np.rad2deg(avar_theta)
 
-# t = QtCore.QTimer()
-# t.timeout.connect(update)
-# t.start(5)
+        print("update function stopped")
+
+        S.stop()
+        # print('memory shape =', np.shape(memory))
+        rec = np.concatenate(memory)
+        # print('memory shape =', np.shape(rec))
+
+        stoptime = datetime.datetime.now()
+        print("\nREC START TIME: \n", startime.strftime("%Y-%m-%d %H:%M:%S"))
+        print("\nSTOP REC TIME: \n", stoptime.strftime("%Y-%m-%d %H:%M:%S"))
+        print('')
+
+        if not os.path.exists('recordings'):
+            os.makedirs('recordings')
+
+        os.makedirs(f'recordings/rec_{startime}')
+        #time.sleep(1000)
+        for i in range(channels):
+            
+            sf.write(f'recordings/rec_{startime}/{startime}_AudioRec_Ch_{i+1}.wav', rec[:,i], samplerate=fs)
+        
+        
+
+
+    return np.rad2deg(avar_theta)
 
 # Thymio 
 # # %%------------------------------------------------------
@@ -216,6 +185,7 @@ def main(use_sim=False, ip='localhost', port=2001):
     ''' Main function '''
 
     try:
+        global startime
         # Configure Interface to Thymio robot
         # simulation
         if use_sim:
@@ -233,6 +203,11 @@ def main(use_sim=False, ip='localhost', port=2001):
 
         # Delay to allow robot initialization of all variables
         #time.sleep(1)
+
+
+        startime = datetime.datetime.now()
+        print("\nREC START TIME: \n", startime.strftime("%Y-%m-%d %H:%M:%S"))
+        print('')
 
         while True:
             avar_theta_deg = update()
@@ -304,20 +279,8 @@ def main(use_sim=False, ip='localhost', port=2001):
                         robot['motor.left.target'] = 20
                         time.sleep(wait)
                     case _:
-                        pass
-                    # if ground_sensors[0] > left_sensor_threshold  and ground_sensors[1]> right_sensor_threshold:
-                    #     # Both sensors detect the line, turn left
-                    #     robot['motor.left.target'] = -100
-                    #     robot['motor.right.target'] = 100
-                    # elif ground_sensors[0] < left_sensor_threshold and ground_sensors[1] > right_sensor_threshold:
-                    #     # Only right sensor detects the line, turn left
-                    #     robot['motor.left.target'] = -100
-                    #     robot['motor.right.target'] = 100
-                    # elif ground_sensors[0] > left_sensor_threshold and ground_sensors[1] < right_sensor_threshold:
-                    #     # Only left sensor detects the line, turn right
-                    #     robot['motor.left.target'] = 100 
-                    #     robot['motor.right.target'] = -100  
-    
+                        pass 
+                           
     except Exception as err:
         # Stop robot
         robot['motor.left.target'] = 0
@@ -330,14 +293,7 @@ def main(use_sim=False, ip='localhost', port=2001):
         robot["leds.top"] = [0,0,0]
 
         print("Press Ctrl-C again to end the program")
-
-        if not os.path.exists('recordings'):
-            os.makedirs('recordings')
-
-        for i in range(channels):
-            sf.write(f'recordings/{now}_AudioRec_Ch_{i+1}.wav', rec[:,i], samplerate=fs)
-
-
+        
     # time.sleep(0.0005)
 if __name__ == '__main__':
     # Parse commandline arguments to cofigure the interface for a simulation (default = real robot)
