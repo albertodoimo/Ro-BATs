@@ -26,9 +26,9 @@ from matplotlib.animation import FuncAnimation
 c = 343.    # speed of sound
 fs = 48000  # sampling frequency
 nfft = 512  # FFT size
-mic_spacing = 0.003 
-channels = 8
-block_size  = 4096
+mic_spacing = 0.02 
+channels = 5
+block_size  = 1024
 freq_range = [20, 10000]
 
 echo = pra.linear_2D_array(center=[(channels-1)*mic_spacing//2,0], M=channels, phi=0, d=mic_spacing)
@@ -117,7 +117,7 @@ values = np.random.rand(360)
 line, = ax.plot(theta, values)
 
 # Set up the animation
-ani = FuncAnimation(fig, update_polar, frames=range(360), blit=False, interval= 50)
+ani = FuncAnimation(fig, update_polar, frames=range(360), blit=False, interval= 80)
 
 plt.show()
 print('input audio plot lastlast = ', np.shape(rec))

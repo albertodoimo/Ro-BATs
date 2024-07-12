@@ -112,7 +112,7 @@ mic_spacing = 0.003 #m
 
 # Initialize buffers for recording
 input_buffer = []
-output_buffer = []
+rec_buffer = []
 j = 0
 # Callback function
 def audio_callback(indata, outdata, frames, time, status):
@@ -127,13 +127,17 @@ def initialization():
                     blocksize=block_size,
                     device=(usb_fireface_index,usb_fireface_index),
                     channels=channels):
-            sd.sleep(int(1000))
+            sd.sleep(int(500))
             print('after pause')
 
     except KeyboardInterrupt:
         print("\nStream stopped by user")
     except Exception as e:
         print(f"An error occurred: {e}")
+
+def record(input_buffer):
+    rec_buffer.append(input_buffer.copy())
+    return rec_buffer
 
 def update():
     global input_buffer_1
@@ -165,26 +169,10 @@ def update():
     except KeyboardInterrupt:
         print("\nStream stopped by user")
 
-        # print('memory shape =', np.shape(memory))
-        #rec = np.concatenate(memory)
-        # print('memory shape =', np.shape(rec))
-        stoptime = datetime.datetime.now()
-        print("\nREC START TIME: \n", startime.strftime("%Y-%m-%d %H:%M:%S"))
-        print("\nSTOP REC TIME: \n", stoptime.strftime("%Y-%m-%d %H:%M:%S"))
-        print('')
-
-        if not os.path.exists('recordings'):
-            os.makedirs('recordings')
-        os.makedirs(f'recordings/rec_{startime}')
-        #time.sleep(1000)
-
-        for i in range(channels):
-            sf.write(f'recordings/rec_{startime}/{startime}_AudioRec_Ch_{i+1}.wav', input_buffer_1[:,i], samplerate=fs)
-
     except Exception as e:
         print(f"An error occurred: {e}")
     
-# #%%
+#%%
 # # define the input signals features
 # S = sd.InputStream(samplerate=fs,blocksize=block_size,channels=channels, latency='low')
 # print('fs = ', S.samplerate)
@@ -287,6 +275,8 @@ def main(use_sim=False, ip='localhost', port=2001):
 
         while True:
             avar_theta_deg = update()
+            rec_buffer = record(input_buffer)
+            print('rec buffer', np.shape(rec_buffer))
             avar_theta_deg = avar_theta_deg*1.25
             #detectsCollision = max([robot['prox.horizontal'][i] > 1200 for i in range(5)])
             print('avarage theta deg', avar_theta_deg)
