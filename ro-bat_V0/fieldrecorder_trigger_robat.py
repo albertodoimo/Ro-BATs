@@ -177,8 +177,6 @@ class fieldrecorder_trigger():
 
         self.S.start()
         num_recordings = 0
-        ffc_recnum = -999
-        #prev_rectime = 0.0
         
         try:
 
@@ -201,53 +199,24 @@ class fieldrecorder_trigger():
                             self.q.put(self.S.read(self.blocksize))
                         else:
                             self.q.put(self.mic_inputs)
-                        
-                        #self.S.write(self.trig_and_sync)
                         i += 1
                         
                     print(self.S.time)    
-                    self.empty_qcontentsintolist()
-                    self.save_qcontents_aswav()
+
                     self.start_recording = False 
                        
 
                     num_recordings += 1 
                     prev_rectime = np.copy(self.S.time)
-                #else :
-                #    
-                #    ffc_initiate = np.remainder(num_recordings,
-                #                                self.FFC_interval) == 0                    
-                #    if ffc_initiate:
-                #        # check if FFC has already taken place:
-                #        if ffc_recnum != num_recordings:
-                #            self.S.write(self.sync_and_FFC)    
-                #            ffc_recnum = np.copy(num_recordings)                               
-                #
-                #    self.S.write(self.only_sync)
-            
 
         except (KeyboardInterrupt, SystemExit):
+            self.empty_qcontentsintolist()
+            self.save_qcontents_aswav()
             print('Stopping recording ..exiting ')
 
         self.S.stop()
         print('Queue size is',self.q.qsize())
         return(self.fs, self.rec)
-
-    def minimum_interval_passed(self,timenow,last_recordingtime,
-                                minimum_interval):
-        ''' Calculates the time difference between the time at which the threshold
-        is crossed and the last made recording to see if the elapsed time is
-        beyond a minimum interval
-        '''
-        interval = timenow - last_recordingtime
-        if interval < 0 :
-            raise ValueError('Time elapsed cannot be <0!')
-
-        if interval >= minimum_interval:            
-            return(True)
-        else:
-            return(False)
-    
 
     def bandpass_sound(self, rec_buffer):
         """
@@ -258,41 +227,7 @@ class fieldrecorder_trigger():
             return(rec_buffer_bp)
         else:
             return(rec_buffer)
-
-    def check_if_above_level(self, mic_inputs):
-        """Checks if the dB rms level of the input recording buffer is above
-        threshold. If any of the microphones are above the given level then 
-        recording is initiated. 
         
-        Inputs:
-            
-            mic_inputs : Nsamples x Nchannels np.array. Data from soundcard
-            
-            level : integer <=0. dB rms ref max . If the input data buffer has an
-                    dB rms >= this value then True will be returned. 
-                    
-        Returns:
-            
-            above_level : Boolean. True if the buffer dB rms is >= the trigger_level
-        """
-
-        dBrms_channel = np.apply_along_axis(self.calc_dBrms, 0, mic_inputs)        
-        above_level = np.any( dBrms_channel >= self.trigger_level)
-        return(above_level)
-        
-    def calc_dBrms(self, one_channel_buffer):
-        """
-        """
-        squared = np.square(one_channel_buffer)
-        mean_squared = np.mean(squared)
-        root_mean_squared = np.sqrt(mean_squared)
-        try:
-            dB_rms = 20.0*np.log10(root_mean_squared)
-        except:
-            dB_rms = -999.
-        return(dB_rms)
-
-
     def empty_qcontentsintolist(self):
         try:
             self.q_contents = [ self.q.get()[0] for i in range(self.q.qsize()) ]
@@ -331,8 +266,6 @@ class fieldrecorder_trigger():
 
         pass
 
-
-
     def get_device_indexnumber(self,device_name):
         '''
         Check for the device name in all of the recognised devices and
@@ -364,23 +297,19 @@ class fieldrecorder_trigger():
             self.tgt_ind = int(np.argmax(np.array(self.tgt_dev_bool)))
 
 
-
-
-
-
 if __name__ == '__main__':
 
     dev_name = 'MCHStreamer'
     in_out_channels = (8,8)
-    if not os.path.exists('recordings'):
-            os.makedirs('recordings')
-    tgt_directory = 'recordings'
+    if not os.path.exists('/Users/alberto/Documents/UNIVERSITA/MAGISTRALE/tesi/github/recordings'):
+            os.makedirs('/Users/alberto/Documents/UNIVERSITA/MAGISTRALE/tesi/github/recordings')
+    tgt_directory = '/Users/alberto/Documents/UNIVERSITA/MAGISTRALE/tesi/github/recordings'
     #tgt_directory = 'C:\\Users\\tbeleyur\\Desktop\\test\\'
 
     a = fieldrecorder_trigger(3500, input_output_chs= in_out_channels,
                               device_name= dev_name, target_dir= tgt_directory,
                               trigger_level=-1.0, duty_cycle=0.18,
-                              monitor_channels=[0,1,4], rec_bout = 60.0,
+                              monitor_channels=[0,1,4], rec_bout = 5.0,
                               bandpass_freqs = [20.0, 20000.0]
                               )
     fs,rec = a.thermoacousticpy()
