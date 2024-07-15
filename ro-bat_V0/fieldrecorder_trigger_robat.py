@@ -3,12 +3,6 @@
 TODO :
     > fix the default output channel number
 
-A completely dongle-free approach to control the thermal cameras
-and mics based on the sounddevice library !!
-
-The current script is tailored for use in the audio-thermal recording array
-to be used in the field to record bats.
-
 Based on the AVR Soundmexpro based scripts written with
 Holger R. Goerlitz
 
@@ -26,17 +20,7 @@ camera live feed
         b) Press the interrupt button with the mouse (doesn't create an extra file )
             This only works on the IPython shell
 
-The program records N input channels simultaneously and outputs 3 signals when
-triggered for recording:
-
-    channel 1: sync. a square 25 Hz signal . The rising edge causes all Thermalcapture
-                cameras to capture a frame
-    channel 2: trigger. a 20KHz sine wave. when this signal is played the frames
-                captured by the cameras are saved to disk.
-    channel 3: cross-device sync signal. A copy of the sync signal is played back
-                through split BNC cables fed into two Fireface UCs. This allows
-                an estimation of the AD conversion delay between the devices
-
+The program records N input channels simultaneously 
 
 By default, even though data is being collected from all channels, only some channels
 are saved into the wav file.
@@ -56,10 +40,6 @@ import sounddevice as sd
 from scipy import signal
 import soundfile
 import matplotlib.pyplot as plt
-plt.rcParams['agg.path.chunksize'] = 10000
-#from pynput.keyboard import  Listener
-
-
 
 class fieldrecorder_trigger():
 
@@ -95,16 +75,16 @@ class fieldrecorder_trigger():
 
         '''
         self.rec_durn = rec_durn
-        self.press_count = 0
+        #self.press_count = 0
         self.recording = False
-        self.sync_freq = 25
+        #self.sync_freq = 25
         self.device_name = device_name
         self.input_output_chs = input_output_chs
         self.target_dir = target_dir
-        self.FFC_interval = 2
+        #self.FFC_interval = 2
         self.fs = 48000
         self.blocksize = 4096
-        self.duty_cycle = duty_cycle
+        #self.duty_cycle = duty_cycle
 
         
         if self.device_name  is None:
@@ -127,16 +107,16 @@ class fieldrecorder_trigger():
 
         self.save_channels  = list(set(self.all_recchannels) - set(self.exclude_channels))
         
-        # set the recording bout duration : 
-        if 'rec_bout' not in kwargs.keys():
-            self.rec_bout = 10
-        else : 
-            self.rec_bout = kwargs['rec_bout']
+        ## set the recording bout duration : 
+        #if 'rec_bout' not in kwargs.keys():
+        #    self.rec_bout = 10
+        #else : 
+        #    self.rec_bout = kwargs['rec_bout']
 
-        if 'trigger_level' not in kwargs.keys():
-            self.trigger_level = -50 # dB level ref max
-        else:
-            self.trigger_level = kwargs['trigger_level']
+        #if 'trigger_level' not in kwargs.keys():
+        #    self.trigger_level = -50 # dB level ref max
+        #else:
+        #    self.trigger_level = kwargs['trigger_level']
         
         if 'monitor_channels' not in kwargs.keys():
             self.monitor_channels = [0,1,2,3]
@@ -153,10 +133,10 @@ class fieldrecorder_trigger():
         else:
             self.bandpass = False
             
-        if duty_cycle is None:
-            self.minimum_interval = 0
-        else:
-            self.minimum_interval = ((1-duty_cycle)/duty_cycle)*self.rec_bout
+        #if duty_cycle is None:
+        #    self.minimum_interval = 0
+        #else:
+        #    self.minimum_interval = ((1-duty_cycle)/duty_cycle)*self.rec_bout
             
 
     def thermoacousticpy(self):
@@ -167,6 +147,15 @@ class fieldrecorder_trigger():
 
         self.S = sd.Stream(samplerate=self.fs,blocksize=self.blocksize,
                            channels=self.input_output_chs,device=self.tgt_ind)
+        
+        print('fs = ', self.S.samplerate)
+        print('blocksize = ', self.S.blocksize)
+        print('channels = ', self.S.channels)
+        print('latency = ', self.S.latency)
+        print(sd.query_devices())
+        print('devinfo = ', self.S.device)
+        
+        
 
         start_time = np.copy(self.S.time)
         rec_time = np.copy(self.S.time)
@@ -180,43 +169,54 @@ class fieldrecorder_trigger():
         
         try:
 
-            while rec_time < end_time:
-                
-                self.mic_inputs = self.S.read(self.blocksize)
-                self.ref_channels = self.mic_inputs[0][:,self.monitor_channels]
-                self.ref_channels_bp = self.bandpass_sound(self.ref_channels)
-                self.start_recording = True
-                print('start_rec = ', self.start_recording)
-                
-                if self.start_recording:
-                    print('starting_recording')
-                    self.recbout_start_time = np.copy(self.S.time)
-                    self.recbout_end_time = self.recbout_start_time + self.rec_bout
-                    i = 0
-                    print(self.S.time)
-                    while  self.recbout_end_time >= self.S.time:   
-                        if i != 0:
-                            self.q.put(self.S.read(self.blocksize))
-                        else:
-                            self.q.put(self.mic_inputs)
-                        i += 1
-                        
-                    print(self.S.time)    
+#            while rec_time < end_time:
+#                
+            self.mic_inputs = self.S.read(self.blocksize)
+            self.ref_channels = self.mic_inputs[0][:,self.monitor_channels]
+            self.ref_channels_bp = self.bandpass_sound(self.ref_channels)
+            self.start_recording = True
+#                print('start_rec = ', self.start_recording)
+            print('starting_recording')     
+            while self.start_recording:
+#                
+#                    self.recbout_start_time = np.copy(self.S.time)
+#                    self.recbout_end_time = self.recbout_start_time + self.rec_bout
+#                i = 0
+        #                    print(self.S.time)
+        #                    while  self.recbout_end_time >= self.S.time:   
+#                if i != 0:
+                self.q.put(self.S.read(self.blocksize))
+                shared_buffer = self.S.read(self.blocksize)
+                print(np.shape(shared_buffer[0]))
+                np.save("shared_audio.npy", shared_buffer[0])
 
-                    self.start_recording = False 
-                       
-
-                    num_recordings += 1 
-                    prev_rectime = np.copy(self.S.time)
+                #in_sig= np.load("shared_audio.npy")
+                #print('in_sig_buffer 1 = ',in_sig)
+                
+                #np.save("shared_audio.npy", np.array([]))
+                in_sig= np.load("shared_audio.npy")
+                print('in_sig_buffer 2 = ',in_sig)
+#                else:
+#                    self.q.put(self.mic_inputs)
+#                i += 1
+#                        
+#                    print(self.S.time)    
+#
+#                    self.start_recording = False 
+#                       
+#
+#            num_recordings += 1 
+#                    prev_rectime = np.copy(self.S.time)
 
         except (KeyboardInterrupt, SystemExit):
+            self.start_recording = False
             self.empty_qcontentsintolist()
             self.save_qcontents_aswav()
-            print('Stopping recording ..exiting ')
+            print('\nStopping recording ..exiting ')
 
         self.S.stop()
         print('Queue size is',self.q.qsize())
-        return(self.fs, self.rec)
+        return(self.fs)
 
     def bandpass_sound(self, rec_buffer):
         """
@@ -231,7 +231,6 @@ class fieldrecorder_trigger():
     def empty_qcontentsintolist(self):
         try:
             self.q_contents = [ self.q.get()[0] for i in range(self.q.qsize()) ]
-            print('check 1')
         except:
             raise IOError('Unable to empty queue object contents')
 
@@ -266,7 +265,7 @@ class fieldrecorder_trigger():
 
         pass
 
-    def get_device_indexnumber(self,device_name):
+    def get_device_indexnumber(self,device_name): 
         '''
         Check for the device name in all of the recognised devices and
         return the index number within the list.
@@ -300,7 +299,7 @@ class fieldrecorder_trigger():
 if __name__ == '__main__':
 
     dev_name = 'MCHStreamer'
-    in_out_channels = (8,8)
+    in_out_channels = (5,5)
     if not os.path.exists('/Users/alberto/Documents/UNIVERSITA/MAGISTRALE/tesi/github/recordings'):
             os.makedirs('/Users/alberto/Documents/UNIVERSITA/MAGISTRALE/tesi/github/recordings')
     tgt_directory = '/Users/alberto/Documents/UNIVERSITA/MAGISTRALE/tesi/github/recordings'
@@ -312,6 +311,6 @@ if __name__ == '__main__':
                               monitor_channels=[0,1,4], rec_bout = 5.0,
                               bandpass_freqs = [20.0, 20000.0]
                               )
-    fs,rec = a.thermoacousticpy()
+    fs = a.thermoacousticpy()
 
 

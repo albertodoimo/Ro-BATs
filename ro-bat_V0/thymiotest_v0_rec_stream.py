@@ -108,7 +108,7 @@ print('usb_fireface_index=',usb_fireface_index)
 fs = 48000
 block_size = 4096
 channels = 5
-mic_spacing = 0.003 #m
+mic_spacing = 0.018 #m
 
 #%%
 # define the input signals features
@@ -126,12 +126,15 @@ def initialization():
     print('devinfo = ', S.device)
     S.start()
 
+path = '/Users/alberto/Documents/UNIVERSITA/MAGISTRALE/tesi/github/recordings/'
 
 print('audio stream initialized')
 
 def update():
     try:
-        in_sig,status = S.read(S.blocksize)
+        #in_sig,status = S.read(S.blocksize)
+        in_sig = np.load(path + "shared_audio.npy")
+        print('in_sig = ',np.shape(in_sig))
 
         delay_crossch = calc_multich_delays(in_sig[:,:channels],fs)        # print('delay',delay_crossch)
 
