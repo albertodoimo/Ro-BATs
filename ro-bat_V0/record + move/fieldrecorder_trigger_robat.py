@@ -178,35 +178,8 @@ class fieldrecorder_trigger():
 #                print('start_rec = ', self.start_recording)
             print('starting_recording')     
             while self.start_recording:
-#                
-#                    self.recbout_start_time = np.copy(self.S.time)
-#                    self.recbout_end_time = self.recbout_start_time + self.rec_bout
-#                i = 0
-        #                    print(self.S.time)
-        #                    while  self.recbout_end_time >= self.S.time:   
-#                if i != 0:
                 self.q.put(self.S.read(self.blocksize))
-                shared_buffer = self.S.read(self.blocksize)
-                print(np.shape(shared_buffer[0]))
-                np.save("shared_audio.npy", shared_buffer[0])
 
-                #in_sig= np.load("shared_audio.npy")
-                #print('in_sig_buffer 1 = ',in_sig)
-                
-                #np.save("shared_audio.npy", np.array([]))
-                in_sig= np.load("shared_audio.npy")
-                print('in_sig_buffer 2 = ',in_sig)
-#                else:
-#                    self.q.put(self.mic_inputs)
-#                i += 1
-#                        
-#                    print(self.S.time)    
-#
-#                    self.start_recording = False 
-#                       
-#
-#            num_recordings += 1 
-#                    prev_rectime = np.copy(self.S.time)
 
         except (KeyboardInterrupt, SystemExit):
             self.start_recording = False
@@ -255,7 +228,7 @@ class fieldrecorder_trigger():
 
             soundfile.write(main_filename,self.rec2besaved,self.fs)
 
-            print('File saved')
+            print('File saved in path:\n\n' + tgt_directory)
 
             pass
 

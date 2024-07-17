@@ -132,13 +132,12 @@ print('audio stream initialized')
 
 def update():
     try:
-        #in_sig,status = S.read(S.blocksize)
-        in_sig = np.load(path + "shared_audio.npy")
-        print('in_sig = ',np.shape(in_sig))
+        in_sig,status = S.read(S.blocksize)
+        #print('in_sig = ',np.shape(in_sig))
 
         delay_crossch = calc_multich_delays(in_sig[:,:channels],fs)        # print('delay',delay_crossch)
 
-        # calculate aavarage angle
+        # calculate avarage angle
         avar_theta = avar_angle(delay_crossch,channels-1,mic_spacing)
         #print('avarage theta rad',avar_theta)
         # print('avarage theta deg',np.rad2deg(avar_theta))
@@ -270,7 +269,7 @@ def main(use_sim=False, ip='localhost', port=2001):
         print("\nPress Ctrl-C again to end the program\n")
         process.terminate()
         process.wait()
-        print("fieldrecorder_trigger_robat.py has been terminated")
+        #print("fieldrecorder_trigger_robat.py has been terminated \n FILE IN PATH: \n\n" + path ) 
 
 if __name__ == '__main__':
     # Parse commandline arguments to cofigure the interface for a simulation (default = real robot)
