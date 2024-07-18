@@ -49,10 +49,10 @@ def check_if_above_level(mic_inputs,trigger_level):
     """
 
     dBrms_channel = np.apply_along_axis(calc_dBrms, 0, mic_inputs)   
-    print('dBrms_channel=',dBrms_channel)     
+    #print('dBrms_channel=',dBrms_channel)     
     above_level = np.any( dBrms_channel >= trigger_level)
     #print('above level =',above_level)
-    return(above_level)
+    return(above_level,dBrms_channel)
 
 def calc_dBrms(one_channel_buffer):
     """
@@ -80,11 +80,11 @@ def calc_rms_avar(in_sig,ch):
     #print('empty rms =', rms_sig)
     for i in range(ch):
         #print(i)
-        rms_sig.append(np.sqrt(np.mean(in_sig[:,i]**2)))
+        rms_sig.append(np.sqrt(np.mean(np.square(in_sig[:,i]))))
         #print('rms =', rms_sig)
-    
-    avar_rms = np.mean(rms_sig)
-    #print('rms avar =', avar_rms)
+    rms = 20.0*np.log10(rms_sig)
+    avar_rms = np.mean(rms)
+    print('rms avar =', avar_rms)
     return(avar_rms)
 
 def calc_delay(two_ch,fs):
@@ -138,7 +138,7 @@ def avar_angle(delay_set,nchannels,mic_spacing):
     theta = []
     for each in range(0, nchannels-1):
         theta.append(np.arcsin((delay_set[each]*343)/((each+1)*mic_spacing))) # rad
-    # print('theta=',theta)
+    #print('theta=',theta)
     avar_theta = np.mean(theta)
     return avar_theta
 
@@ -164,10 +164,16 @@ block_size = 2048
 # block_size = 1024*2
 #block_size = 8192
 nchannels = 4
-mic_spacing = 0.018 #m
-central_mic = 2
+mic_spacing = 0.015 #m
+#central_mic = 2
 
-trigger_level = -25 # dB level ref max
+S = sd.InputStream(samplerate=fs,blocksize=block_size, device=usb_fireface_index, channels=nchannels, latency='low')
+print('fs = ', S.samplerate)
+print('blocksize = ', S.blocksize)
+print('channels = ', S.channels)
+print('latency = ', S.latency)
+print('devinfo = ', S.device)
+S.start()
 
 auto_hipas_freq = int(343/(2*(mic_spacing*(nchannels-1))))
 auto_lowpas_freq = int(343/(2*mic_spacing))
@@ -176,17 +182,24 @@ highpass_freq, lowpass_freq = [auto_hipas_freq ,auto_lowpas_freq]
 nyq_freq = fs/2.0
 b, a = signal.butter(4, [highpass_freq/nyq_freq,lowpass_freq/nyq_freq],btype='bandpass') # to be 'allowed' in Hz.
 
-# ba_filt = signal.butter(2, bp_freq/float(fs*0.5),'bandpass')
+detect_trig_lev = False
+
+if detect_trig_lev:
+    ref_channels,status = S.read(S.blocksize)
+    ref_channels_bp = bandpass_sound(ref_channels,a,b)
+    dBrms_channel = np.apply_along_axis(calc_dBrms, 0, ref_channels_bp) 
+    av_above_level = np.mean(dBrms_channel)
+    trigger_level = av_above_level
+    print('trigger_level = ', av_above_level)
+    time.sleep(1)
+else: 
+    #trigger_level = -25.2 # dB level ref max 12s
+    trigger_level = -55 # dB level ref max pdm
+
 
 #%%
 # define the input signals features
-S = sd.InputStream(samplerate=fs,blocksize=block_size, device=usb_fireface_index, channels=nchannels, latency='low')
-print('fs = ', S.samplerate)
-print('blocksize = ', S.blocksize)
-print('channels = ', S.channels)
-print('latency = ', S.latency)
-print('devinfo = ', S.device)
-S.start()
+
 
 # creation the guide vector x values
 # all_xs = np.linspace(-10,10,S.blocksize)
@@ -207,12 +220,15 @@ def update():
         #print('ref_channels=', np.shape(ref_channels))
         ref_channels_bp = bandpass_sound(ref_channels,a,b)
         #print('ref_channels_bp=', np.shape(ref_channels_bp))
-        above_level = check_if_above_level(ref_channels,trigger_level)
+        above_level,dBrms_channel = check_if_above_level(ref_channels_bp,trigger_level)
         print(above_level)
-        
+        av_above_level = np.mean(dBrms_channel)
+        print(av_above_level)
+
         #rms_sig = calc_rms(in_sig[:,central_mic])
         #if rms_sig > threshold*1.09:
-        if above_level:
+        if av_above_level>trigger_level:
+
 
             delay_crossch = calc_multich_delays(ref_channels_bp, fs)
 #     
@@ -224,7 +240,7 @@ def update():
             return np.rad2deg(avar_theta)
         else:
             avar_theta = None
-        return avar_theta
+            return avar_theta
     except KeyboardInterrupt:
         S.stop()
 
@@ -234,7 +250,7 @@ def update():
 # # %%------------------------------------------------------
 # 
 wait = 0.0001
-waiturn = 0.001
+waiturn = 0.0001
 def main(use_sim=False, ip='localhost', port=2001):
     ''' Main function '''
 
@@ -269,22 +285,22 @@ def main(use_sim=False, ip='localhost', port=2001):
             ground_sensors = robot['prox.ground.reflected']
             #print('ground = ',robot['prox.ground.reflected'])
             # Adjust these threshold values as needed
-            left_sensor_threshold = 400
-            right_sensor_threshold = 400
-            direction = random.choice(['left', 'right'])
-            if ground_sensors[0] > left_sensor_threshold  and ground_sensors[1]> right_sensor_threshold:
-                # Both sensors detect the line, turn left
-                if direction == 'left':
-                    robot['motor.left.target'] = -150
-                    robot['motor.right.target'] = 150   
-                    time.sleep(waiturn) 
-                else:
-                    robot['motor.left.target'] = 150
-                    robot['motor.right.target'] = -150
-                    time.sleep(waiturn)
-                # robot['motor.left.target'] = -50 + random.choice([, 100])
-                # robot['motor.right.target'] = -50 + random.choice([-100, 100])
-            elif ground_sensors[1] > right_sensor_threshold:
+            left_sensor_threshold = 200
+            right_sensor_threshold = 200
+#            direction = random.choice(['left', 'right'])
+#            if ground_sensors[0] > left_sensor_threshold  and ground_sensors[1]> right_sensor_threshold:
+#                # Both sensors detect the line, turn left
+#                if direction == 'left':
+#                    robot['motor.left.target'] = -150
+#                    robot['motor.right.target'] = 140   
+#                    time.sleep(waiturn) 
+#                else:
+#                    robot['motor.left.target'] = 150
+#                    robot['motor.right.target'] = -150
+#                    time.sleep(waiturn)
+#                # robot['motor.left.target'] = -50 + random.choice([, 100])
+#                # robot['motor.right.target'] = -50 + random.choice([-100, 100])
+            if ground_sensors[1] > right_sensor_threshold:
                 # Only right sensor detects the line, turn left
                 robot['motor.left.target'] = -150
                 robot['motor.right.target'] = 150
@@ -299,8 +315,8 @@ def main(use_sim=False, ip='localhost', port=2001):
                     case theta if theta == None:
                         robot["leds.top"] = [0, 0, 0]
                         time.sleep(wait)
-                        robot['motor.left.target'] = 150
-                        robot['motor.right.target'] = 150
+                        robot['motor.left.target'] = 200
+                        robot['motor.right.target'] = 200
                     case theta if theta < -30:
                         robot["leds.top"] = [0, 0, 255]
                         time.sleep(wait)
@@ -315,9 +331,9 @@ def main(use_sim=False, ip='localhost', port=2001):
                         time.sleep(wait)
                     case theta if -5 <= theta <= 5:
                         robot["leds.top"] = [255, 255, 255]
-                        time.sleep(0.1)
-                        robot['motor.left.target'] = -200
-                        robot['motor.right.target'] = -200
+                        time.sleep(0.05)
+                        robot['motor.left.target'] = -100
+                        robot['motor.right.target'] = -100
     #                    time.sleep(waiturn)
     #                    direction = random.choice(['left', 'right'])
     #                    if direction == 'left':

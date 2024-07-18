@@ -131,8 +131,8 @@ fs = 96000
 # block_size = 4096
 block_size = 8192
 # channels = 5
-channels = 6
-mic_spacing = 0.018 #m
+channels = 4
+mic_spacing = 0.015 #m
 
 bp_freq = np.array([100,45000.0]) # the min and max frequencies
 # to be 'allowed' in Hz.
