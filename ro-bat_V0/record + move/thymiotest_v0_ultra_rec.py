@@ -112,7 +112,7 @@ mic_spacing = 0.003 #m
 
 #%%
 # define the input signals features
-S = sd.InputStream(samplerate=fs,blocksize=block_size,channels=channels, latency='low')
+S = sd.InputStream(samplerate=fs,blocksize=block_size,channels=channels, latency='low', device=usb_fireface_index)
 print('fs = ', S.samplerate)
 print('blocksize = ', S.blocksize)
 print('channels = ', S.channels)

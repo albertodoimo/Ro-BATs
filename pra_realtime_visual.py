@@ -26,8 +26,8 @@ from matplotlib.animation import FuncAnimation
 c = 343.    # speed of sound
 fs = 48000  # sampling frequency
 nfft = 512  # FFT size
-mic_spacing = 0.02 
-channels = 5
+mic_spacing = 0.015 
+channels = 4
 block_size  = 1024
 freq_range = [20, 10000]
 
@@ -75,7 +75,7 @@ def update_polar(frame):
     X = pra.transform.stft.analysis(in_sig, nfft, nfft // 2)
     X = X.transpose([2, 1, 0])
 
-    doa = pra.doa.algorithms['MUSIC'](echo, fs, nfft, c=c, num_src=2)
+    doa = pra.doa.algorithms['MUSIC'](echo, fs, nfft, c=c, num_src=1)
     doa.locate_sources(X, freq_range=freq_range)
     print(doa.azimuth_recon * 180 / np.pi) #degrees 
 
