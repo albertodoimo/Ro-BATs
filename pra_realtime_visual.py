@@ -25,11 +25,13 @@ from matplotlib.animation import FuncAnimation
 
 c = 343.    # speed of sound
 fs = 48000  # sampling frequency
-nfft = 512  # FFT size
+
 mic_spacing = 0.015 
-channels = 4
-block_size  = 1024
-freq_range = [20, 10000]
+channels = 7
+block_size  = 2048
+nfft = block_size//4  # FFT size
+print('\nframes per second = ',fs//block_size, '\n' )
+freq_range = [2000, 10000]
 
 echo = pra.linear_2D_array(center=[(channels-1)*mic_spacing//2,0], M=channels, phi=0, d=mic_spacing)
 # The DOA algorithms require an STFT input, which we will compute for overlapping frames for our 1 second duration signal.
@@ -70,12 +72,12 @@ def update_polar(frame):
 
     memory.append(in_sig)
     rec = np.concatenate(memory)
-    print('input audio plot = ', np.shape(rec))
+    #print('input audio plot = ', np.shape(rec))
 
     X = pra.transform.stft.analysis(in_sig, nfft, nfft // 2)
     X = X.transpose([2, 1, 0])
 
-    doa = pra.doa.algorithms['MUSIC'](echo, fs, nfft, c=c, num_src=1)
+    doa = pra.doa.algorithms['MUSIC'](echo, fs, nfft, c=c, num_src=2)
     doa.locate_sources(X, freq_range=freq_range)
     print(doa.azimuth_recon * 180 / np.pi) #degrees 
 
@@ -95,7 +97,7 @@ def update_polar(frame):
         data.pop(0)
 
     line.set_ydata(spatial_resp)
-    print('input audio plot last = ', np.shape(rec))
+    #print('input audio plot last = ', np.shape(rec))
     return line,
 
 
@@ -120,8 +122,7 @@ line, = ax.plot(theta, values)
 ani = FuncAnimation(fig, update_polar, frames=range(360), blit=False, interval= 80)
 
 plt.show()
-print('input audio plot lastlast = ', np.shape(rec))
+#print('input audio plot lastlast = ', np.shape(rec))
 
-for i in range(channels):
-    sf.write(f'recordings/{now}_AudioRec_Ch_{i+1}.wav', rec[:,i], samplerate=fs)
+#sf.write(f'pra_realtime_visual_{now}.wav', rec, samplerate=fs)
 

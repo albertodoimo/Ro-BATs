@@ -5,6 +5,7 @@ The soundfile module (https://python-soundfile.readthedocs.io/)
 has to be installed!
 
 """
+print('import libraries...')
 import argparse
 import tempfile
 import queue
@@ -12,22 +13,120 @@ import sys
 import json
 import datetime
 import time
+import argparse
+import math
+import random
+import os
+from thymiodirect import Connection 
+from thymiodirect import Thymio
+from scipy import signal
 
 
 import sounddevice as sd
 import soundfile as sf
-import numpy  as np # Make sure NumPy is loaded before it is used in the callback
-#assert numpy  # avoid "imported but unused" message (W0611)
+import numpy  as np 
+
+print('libraries imported')
+
+def get_card(device_list):
+    for i, each in enumerate(device_list):
+        dev_name = each['name']
+        asio_in_name = 'MCHStreamer' in dev_name
+        if asio_in_name:
+            return i
+
+usb_fireface_index = get_card(sd.query_devices())
+print(sd.query_devices())
+print('usb_fireface_index=',usb_fireface_index)
+
+fs = 48000
+block_size = 1024
+channels = 7
+mic_spacing = 0.015 #m
+
+auto_hipas_freq = int(343/(2*(mic_spacing*(channels-1))))
+auto_lowpas_freq = int(343/(2*mic_spacing))
+#print(auto_hipas_freq)
+highpass_freq, lowpass_freq = [auto_hipas_freq ,auto_lowpas_freq]
+nyq_freq = fs/2.0
+b, a = signal.butter(4, [highpass_freq/nyq_freq,lowpass_freq/nyq_freq],btype='bandpass') # to be 'allowed' in Hz.
+
+#detect_trig_lev = True
+#
+#if detect_trig_lev:
+#    S = sd.InputStream(samplerate=fs, device=usb_fireface_index,
+#                            channels=channels, blocksize=block_size)
+#    S.start()
+#    ref_channels, status = S.read(S.blocksize)
+#    squared = np.square(ref_channels)
+#    mean_squared = np.mean(squared)
+#    root_mean_squared = np.sqrt(mean_squared)
+#    dBrms_channel = 20.0*np.log10(root_mean_squared)
+#    av_above_level = np.mean(dBrms_channel)
+#    trigger_level = av_above_level
+#    print('trigger_level = ', av_above_level)
+#    S.stop()
+#    sd.stop()
+#    time.sleep(1)
+#else: 
+#    #trigger_level = -25.2 # dB level ref max 12s
+trigger_level = -50 # dB level ref max pdm
+
+
+print('loading functions...')
 
 q = queue.Queue()
+
+def bandpass_sound(rec_buffer,a,b):
+    """
+    """
+    rec_buffer_bp = np.apply_along_axis(lambda X : signal.lfilter(b, a, X),0, rec_buffer)
+    return(rec_buffer_bp)
+
+def check_if_above_level(mic_inputs,trigger_level):
+    """Checks if the dB rms level of the input recording buffer is above
+    threshold. If any of the microphones are above the given level then 
+    recording is initiated. 
+    
+    Inputs:
+        
+        mic_inputs : Nsamples x Nchannels np.array. Data from soundcard
+        
+        level : integer <=0. dB rms ref max . If the input data buffer has an
+                dB rms >= this value then True will be returned. 
+                
+    Returns:
+        
+        above_level : Boolean. True if the buffer dB rms is >= the trigger_level
+    """
+
+    dBrms_channel = np.apply_along_axis(calc_dBrms, 0, mic_inputs)   
+    #print('dBrms_channel=',dBrms_channel)     
+    above_level = np.any( dBrms_channel >= trigger_level)
+    #print('above level =',above_level)
+    return(above_level,dBrms_channel)
+
+def calc_dBrms(one_channel_buffer):
+    """
+    """
+    squared = np.square(one_channel_buffer)
+    mean_squared = np.mean(squared)
+    root_mean_squared = np.sqrt(mean_squared)
+    try:
+        dB_rms = 20.0*np.log10(root_mean_squared)
+    except:
+        dB_rms = -999.
+    return(dB_rms)
 
 def callback(indata, frames, time, status):
     """This is called (from a separate thread) for each audio block."""
     if status:
         print(status, file=sys.stderr)
     q.put(indata.copy())
+    
     args.buffer = (indata.copy())
-    print('buffer=',np.shape(args.buffer))
+
+    #print('buffer=',np.shape(args.buffer))
 
 def calc_delay(two_ch,fs):
     '''
@@ -83,21 +182,6 @@ def avar_angle(delay_set,nchannels,mic_spacing):
     # print('theta=',theta)
     avar_theta = np.mean(theta)
     return avar_theta
-
-def get_card(device_list):
-    for i, each in enumerate(device_list):
-        dev_name = each['name']
-        asio_in_name = 'MCHStreamer' in dev_name
-        if asio_in_name:
-            return i
-
-usb_fireface_index = get_card(sd.query_devices())
-print('usb_fireface_index=',usb_fireface_index)
-fs = 48000
-block_size = 4096
-channels = 4
-mic_spacing = 0.015 #m
-
    
 def int_or_str(text):
     """Helper function for argument parsing."""
@@ -110,21 +194,51 @@ def int_or_str(text):
 def update():
     try:
         in_sig = args.buffer
-        #print(in_sig)
-        print('in_sig = ',np.shape(in_sig))
-        #for line in process.stdout:
-        #    print('Output:', line.strip())
-    
-        delay_crossch = calc_multich_delays(in_sig[:,:channels],fs)        # print('delay',delay_crossch)
+#        #print(in_sig)
+#        # calculate avarage angle
+#        delay_crossch = calc_multich_delays(in_sig,fs)
+#        avar_theta = avar_angle(delay_crossch,channels-1,mic_spacing)
+#        #print('avarage theta rad',avar_theta)
+#        # print('avarage theta deg',np.rad2deg(avar_theta))
 
-        # calculate avarage angle
-        avar_theta = avar_angle(delay_crossch,channels-1,mic_spacing)
-        #print('avarage theta rad',avar_theta)
-        # print('avarage theta deg',np.rad2deg(avar_theta))
+        ref_channels = in_sig
+        #print('ref_channels=', np.shape(ref_channels))
+        ref_channels_bp = bandpass_sound(ref_channels,a,b)
+        #print('ref_channels_bp=', np.shape(ref_channels_bp))
+        above_level,dBrms_channel = check_if_above_level(ref_channels_bp,trigger_level)
+        print(above_level)
+        av_above_level = np.mean(dBrms_channel)
+        print(av_above_level)
+        if av_above_level>trigger_level:
+
+
+            delay_crossch = calc_multich_delays(ref_channels_bp, fs)
+#     
+# 
+#             # print('delay',delay_crossch)
+#             # calculate aavarage angle
+# 
+            avar_theta = avar_angle(delay_crossch,channels,mic_spacing)
+            return np.rad2deg(avar_theta)
+        else:
+            avar_theta = None
+            return avar_theta
         
     except KeyboardInterrupt:
+        #sd.stop()
 
         print("\nupdate function stopped\n")
+        
+        #q_contents = [q.get() for _ in range(q.qsize())]
+        #rec = np.concatenate(q_contents)
+        ##print('q_contents = ', np.shape(rec))
+        #rec2besaved = rec[:, :channels]
+        #save_path = '/home/thymio/robat_py/recordings/'
+        #full_path = os.path.join(save_path, args.filename)
+        #with sf.SoundFile(full_path, mode='x', samplerate=args.samplerate,
+        #                channels=args.channels, subtype=args.subtype) as file:
+        #    file.write(rec2besaved)
+        #    print(f'\nsaved to {args.filename}\n')
 
     return np.rad2deg(avar_theta)
 
@@ -133,32 +247,24 @@ def main(use_sim=False, ip='localhost', port=2001):
     ''' Main function '''
     try:
         global startime, process
-                    # Configure Interface to Thymio robot
-                    # simulation
-            #       if use_sim:
-            #            th = Thymio(use_tcp=True, host=ip, tcp_port=port, 
-            #                        on_connect=lambda node_id: print(f' Thymio {node_id} is connected'))
-                    # real robot
-            #        else:
-            #            port = Connection.serial_default_port()
-            #            th = Thymio(serial_port=port, 
-            #                        on_connect=lambda node_id: print(f'Thymio {node_id} is connected'))
-
-                    # Connect to Robot
-                    # th.connect()
-            #        robot = th[th.first_node()]
+        # Configure Interface to Thymio robot
+        # simulation
+        if use_sim:
+            th = Thymio(use_tcp=True, host=ip, tcp_port=port, 
+                        on_connect=lambda node_id: print(f' Thymio {node_id} is connected'))
+        # real robot
+        else:
+            port = Connection.serial_default_port()
+            th = Thymio(serial_port=port, 
+                        on_connect=lambda node_id: print(f'Thymio {node_id} is connected'))
+        # Connect to Robot
+        th.connect()
+        robot = th[th.first_node()]
 
         startime = datetime.datetime.now()
-        print("\nREC START TIME: \n", startime.strftime("%Y-%m-%d %H:%M:%S"))
-        print('')
-        #initialization()
-        #process = subprocess.Popen(["python3", "fieldrecorder_trigger_robat.py"])
-        # process = subprocess.Popen(["python3", "rec_unlimited.py"],stdout=subprocess.PIPE, text=True)
-        #if process.returncode == 0:
-            # Deserialize the JSON output back to a Python array
-        #    array = json.loads(process.stdout.strip())
-        #    return array
-        #print('array = ', array)
+        #print("\nREC START TIME: \n", startime.strftime("%Y-%m-%d %H:%M:%S"))
+        #print('')
+
         if args.samplerate is None:    
             device_info = sd.query_devices(args.device, 'input')
             # soundfile expects an int, sounddevice provides a float:
@@ -166,109 +272,134 @@ def main(use_sim=False, ip='localhost', port=2001):
         if args.filename is None:
             #args.filename = tempfile.mktemp(prefix='delme_rec_unlimited_',suffix='.wav', dir='')
             timenow = datetime.datetime.now()
-            time1 = timenow.strftime('%Y-%m-%d_%H-%M-%S')
-            args.filename = 'test_' + str(time1) + '.wav'
+            time1 = timenow.strftime('%H-%M-%S_%d-%m-%Y')
+            args.filename = 'MULTIWAV_inverted_loops_' + str(time1) + '.wav'
 
         # Make sure the file is opened before recording anything:
-        with sf.SoundFile(args.filename, mode='x', samplerate=args.samplerate,
-                        channels=args.channels, subtype=args.subtype) as file:
-            with sd.InputStream(samplerate=args.samplerate, device=usb_fireface_index,
-                                channels=args.channels, callback=callback):
-                print('#' * 80)
-                print('press Ctrl+C to stop the recording')
-                print('#' * 80)
-                while True:
-                    file.write(q.get())
-        
-                    avar_theta_deg = update()
-                    avar_theta_deg = avar_theta_deg*1.25
-                    print('avarage theta deg', avar_theta_deg)
-                    
-        #            ground_sensors = robot['prox.ground.reflected']
-        #            ground_sensors_max = 1000
-        #            # Adjust these threshold values as needed
-        #            ground_sensors = robot['prox.ground.reflected']
-        #            #print('ground = ',robot['prox.ground.reflected'])
-        #            # Adjust these threshold values as needed
-        #            left_sensor_threshold = 80
-        #            right_sensor_threshold = 80
-        #            direction = random.choice(['left', 'right'])
-        #            if ground_sensors[0] > left_sensor_threshold  and ground_sensors[1]> right_sensor_threshold:
-        #                # Both sensors detect the line, turn left
-        #                if direction == 'left':
-        #                    robot['motor.left.target'] = -150
-        #                    robot['motor.right.target'] = 150   
-        #                    time.sleep(waiturn) 
-        #                else:
-        #                    robot['motor.left.target'] = 150
-        #                    robot['motor.right.target'] = -150
-        #                    time.sleep(waiturn)
-        #                # robot['motor.left.target'] = -50 + random.choice([, 100])
-        #                # robot['motor.right.target'] = -50 + random.choice([-100, 100])
-        #            elif ground_sensors[1] > right_sensor_threshold:
-        #                # Only right sensor detects the line, turn left
-        #                robot['motor.left.target'] = -150
-        #                robot['motor.right.target'] = 150
-        #                time.sleep(waiturn)
-        #            elif ground_sensors[0] > left_sensor_threshold:
-        #                # Only left sensor detects the line, turn right
-        #                robot['motor.left.target'] = 150 
-        #                robot['motor.right.target'] = -150 
-        #                time.sleep(waiturn)
-        #            else:       
-        #                match avar_theta_deg:
-        #                    case theta if theta < -30:
-        #                        robot["leds.top"] = [0, 0, 255]
-        #                        time.sleep(wait)
-        #                        robot['motor.left.target'] = 400
-        #                        robot['motor.right.target'] = 20
-        #                        time.sleep(wait)
-        #                    case theta if -30 <= theta < -1:
-        #                        robot["leds.top"] = [0, 255, 255]
-        #                        time.sleep(wait)
-        #                        robot['motor.left.target'] = 300
-        #                        robot['motor.right.target'] = 20
-        #                        time.sleep(wait)
-        #                    case theta if -1 <= theta <= 1:
-        #                        robot["leds.top"] = [255, 255, 255]
-        #                        time.sleep(wait)
-        #                        robot['motor.left.target'] = 200
-        #                        robot['motor.right.target'] = 200
-        #                        time.sleep(wait)
-        #                    case theta if 1 < theta <= 30:
-        #                        robot["leds.top"] = [255, 255, 0]
-        #                        time.sleep(wait)
-        #                        robot['motor.right.target'] = 300
-        #                        robot['motor.left.target'] = 20
-        #                        time.sleep(wait)
-        #                    case theta if theta > 30:
-        #                        robot["leds.top"] = [255, 0, 0]
-        #                        time.sleep(wait)
-        #                        robot['motor.right.target'] = 400
-        #                        robot['motor.left.target'] = 20
-        #                        time.sleep(wait)
-        #                    case _:
-        #                        pass 
-        #
-#    except Exception as err:
-#        # Stop robot
-#        robot['motor.left.target'] = 0
-#        robot['motor.right.target'] = 0 
-#        robot["leds.top"] = [0,0,0]
-#        print(err)
+        with sd.InputStream(samplerate=args.samplerate, device=usb_fireface_index,
+                            channels=args.channels, callback=callback, blocksize=block_size):
+            #print('#' * 80)
+            #print('press Ctrl+C to stop the recording')
+            #print('#' * 80)
+            print('audio stream started')
+            waiturn = 0.08
+            wait = 0.0001
+            while True:
+
+                avar_theta_deg = update()
+                # avar_theta_deg = avar_theta_deg*1.25
+                #detectsCollision = max([robot['prox.horizontal'][i] > 1200 for i in range(5)])
+                print('avarage theta deg', avar_theta_deg)
+
+                ground_sensors = robot['prox.ground.reflected']
+                ground_sensors_max = 1000
+                # Adjust these threshold values as needed
+                ground_sensors = robot['prox.ground.reflected']
+                #print('ground = ',robot['prox.ground.reflected'])
+                # Adjust these threshold values as needed
+                left_sensor_threshold = 200
+                right_sensor_threshold = 200
+                direction = random.choice(['left', 'right'])
+                if ground_sensors[0] > left_sensor_threshold  and ground_sensors[1]> right_sensor_threshold:
+                    # Both sensors detect the line, turn left
+                    if direction == 'left':
+                        robot['motor.left.target'] = -150
+                        robot['motor.right.target'] = 150   
+                        time.sleep(0.5) 
+                    else:
+                        robot['motor.left.target'] = 150
+                        robot['motor.right.target'] = -150
+                        time.sleep(0.5)
+                    # robot['motor.left.target'] = -50 + random.choice([, 100])
+                    # robot['motor.right.target'] = -50 + random.choice([-100, 100])
+                elif ground_sensors[1] > right_sensor_threshold:
+                    # Only right sensor detects the line, turn left
+                    robot['motor.left.target'] = -150
+                    robot['motor.right.target'] = 150
+                    time.sleep(waiturn)
+                elif ground_sensors[0] > left_sensor_threshold:
+                    # Only left sensor detects the line, turn right
+                    robot['motor.left.target'] = 150 
+                    robot['motor.right.target'] = -150 
+                    time.sleep(waiturn)
+                else:       
+                    match avar_theta_deg:
+                        case theta if theta == None:
+                            robot["leds.top"] = [0, 0, 0]
+                            time.sleep(wait)
+                            robot['motor.left.target'] = 200
+                            robot['motor.right.target'] = 200
+                        case theta if theta < -30:
+                            robot["leds.top"] = [0, 0, 255]
+                            time.sleep(wait)
+                            robot['motor.left.target'] = 400
+                            robot['motor.right.target'] = 20
+                            time.sleep(wait)
+                        case theta if -30 <= theta < -5:
+                            robot["leds.top"] = [0, 255, 255]
+                            time.sleep(wait)
+                            robot['motor.left.target'] = 300
+                            robot['motor.right.target'] = 20
+                            time.sleep(wait)
+                        case theta if -5 <= theta <= 5:
+                            robot["leds.top"] = [255, 255, 255]
+                            time.sleep(wait)
+                            robot['motor.left.target'] = 50
+                            robot['motor.right.target'] = 50
+                            time.sleep(0.5)
+                            direction = random.choice(['left', 'right'])
+                            if direction == 'left':
+                                robot['motor.left.target'] = -150
+                                robot['motor.right.target'] = 150
+                            else:
+                                robot['motor.left.target'] = 150
+                                robot['motor.right.target'] = -150
+                            time.sleep(waiturn)
+                        case theta if 5 < theta <= 30:
+                            robot["leds.top"] = [255, 255, 0]
+                            time.sleep(wait)
+                            robot['motor.right.target'] = 300
+                            robot['motor.left.target'] = 20
+                            time.sleep(wait)
+                        case theta if theta > 30:
+                            robot["leds.top"] = [255, 0, 0]
+                            time.sleep(wait)
+                            robot['motor.right.target'] = 400
+                            robot['motor.left.target'] = 20
+                            time.sleep(wait)
+                        case _:
+                            pass
+
+    except Exception as err:
+        # Stop robot
+        robot['motor.left.target'] = 0
+        robot['motor.right.target'] = 0 
+        robot["leds.top"] = [0,0,0]
+        print(err)
     except KeyboardInterrupt:
+        robot['motor.left.target'] = 0
+        robot['motor.right.target'] = 0
+        robot["leds.top"] = [0,0,0]
+        print("Press Ctrl-C again to end the program")    
 
-        stoptime = datetime.datetime.now()
-        print("\nREC START TIME: \n", startime.strftime("%Y-%m-%d %H:%M:%S"))
-        print("\nSTOP REC TIME: \n", stoptime.strftime("%Y-%m-%d %H:%M:%S"))
-    
-#        robot['motor.left.target'] = 0
-#        robot['motor.right.target'] = 0
-#        robot["leds.top"] = [0,0,0]
-
-        print("\nPress Ctrl-C again to end the program\n")
+        sd.stop()
+        
+        q_contents = [q.get() for _ in range(q.qsize())]
+        rec = np.concatenate(q_contents)
+        #print('q_contents = ', np.shape(rec))
+        rec2besaved = rec[:, :channels]
+        save_path = '/home/thymio/robat_py/recordings/'
+        full_path = os.path.join(save_path, args.filename)
+        with sf.SoundFile(full_path, mode='x', samplerate=args.samplerate,
+                        channels=args.channels, subtype=args.subtype) as file:
+            file.write(rec2besaved)
+            print(f'\nsaved to {args.filename}\n')
+#
+        #print("\nREC START TIME: \n", startime.strftime("%Y-%m-%d %H:%M:%S"))
+        #print("\nSTOP REC TIME: \n", stoptime.strftime("%Y-%m-%d %H:%M:%S"))
 
         #print("fieldrecorder_trigger_robat.py has been terminated \n FILE IN PATH: \n\n" + path ) 
+print('functions loaded')
 
 if __name__ == '__main__':
     # Parse commandline arguments to cofigure the interface for a simulation (default = real robot)
@@ -302,7 +433,7 @@ if __name__ == '__main__':
     parser.add_argument(
         '-r', '--samplerate', type=int, help='sampling rate')
     parser.add_argument(
-        '-c', '--channels', type=int, default=4, help='number of input channels')
+        '-c', '--channels', type=int, default=channels, help='number of input channels')
     parser.add_argument(
         '-t', '--subtype', type=str, help='sound file subtype (e.g. "PCM_24")')
     
@@ -313,10 +444,3 @@ if __name__ == '__main__':
     args = parser.parse_args()
     args.buffer = np.zeros((block_size, channels))
     main(args.sim, args.ip, args.port)
-
-
-    
-
-
-#%% Set up the audio-stream of the laptop, along with how the 
-# incoming audio buffers will be processed and thresholded.
