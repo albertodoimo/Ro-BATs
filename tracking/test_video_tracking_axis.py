@@ -100,6 +100,9 @@ class Aruco_tracker:
         displ_img = cap_img
         corners, ids, rejectedImgPoints = cv2.aruco.detectMarkers(gray, self._aruco_dict, parameters=self._parameters)
         print('id = ',ids)
+        marker_size = np.linalg.norm(corners[0][0] - corners[0][1])  # Diagonal length of marker
+        overlay_size = (int(marker_size * 2), int(marker_size * 2))  # Larger than marker size
+
         x_positions = [0] * self._num_tags
         y_positions = [0] * self._num_tags
         omega_angles = [0] * self._num_tags
@@ -175,13 +178,13 @@ class Aruco_tracker:
             sys.stdout.write("\033[K")
             print("\r", "\t", printpositions, end="")
 
-        return positions
+        return positions, overlay_size
 
     def close(self):
         print("close")
         self._writer.release()
 
-def draw_trajectories_on_video(input_video_path, output_video_path, aruco_tracker):
+def draw_trajectories_on_video(input_video_path, output_video_path, aruco_tracker, overlay_img_path):
     cap = cv2.VideoCapture(input_video_path)
     frame_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
     frame_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
@@ -190,6 +193,7 @@ def draw_trajectories_on_video(input_video_path, output_video_path, aruco_tracke
     trajectories = {}
     colors = {}
 
+  
     # Camera calibration parameters (you might need to calibrate your camera)
     camera_matrix = np.array([[1406.08415449821, 0, 0],
                               [2.20679787308599, 1417.99930662800, 0],
@@ -204,6 +208,12 @@ def draw_trajectories_on_video(input_video_path, output_video_path, aruco_tracke
               
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         corners, ids, _ = cv2.aruco.detectMarkers(gray, aruco_tracker._aruco_dict, parameters=aruco_tracker._parameters)
+        # Load the overlay image
+        overlay_img = cv2.imread(overlay_img_path)
+        #print(overlay_img.shape)
+        overlay_img = cv2.resize(overlay_img, (1000,1000))  # Adjust size as needed
+        #print(overlay_img.shape)
+
         #print('ids',ids) 
         if ids is not None:
             ids = ids.flatten()
@@ -215,7 +225,7 @@ def draw_trajectories_on_video(input_video_path, output_video_path, aruco_tracke
 
 
                 # Draw 3D axis
-                rvecs, tvecs, _ = cv2.aruco.estimatePoseSingleMarkers(corner, 0.05, camera_matrix, dist_coeffs)
+                rvecs, tvecs, _ = cv2.aruco.estimatePoseSingleMarkers(corner, 0.08, camera_matrix, dist_coeffs)
                 cv2.drawFrameAxes(frame, camera_matrix, dist_coeffs, rvecs, tvecs, 0.1)
 
                 center = np.mean(corner[0], axis=0)
@@ -227,7 +237,33 @@ def draw_trajectories_on_video(input_video_path, output_video_path, aruco_tracke
                     for i in range(1, len(trajectories[markerID])):
                         #print(len(trajectories[markerID]))
                         cv2.line(frame, tuple(trajectories[markerID][i-1].astype(int)), tuple(trajectories[markerID][i].astype(int)), colors[markerID], 3)
-
+#
+#                # Overlay image on marker
+#                # Compute the homography to warp the overlay image
+#                pts_dst = corner[0].astype(int)
+#                #print(pts_dst)
+#                pts_src = np.array([[0, 0], [overlay_img.shape[1], 0], [overlay_img.shape[1], overlay_img.shape[0]], [0, overlay_img.shape[0]]])
+#                h, _ = cv2.findHomography(pts_src, pts_dst)
+#
+#                # Warp the overlay image onto the marker
+#                overlay_warped = cv2.warpPerspective(overlay_img, h, (frame.shape[1], frame.shape[0]))
+#
+#                # Create a mask of the overlay image
+#                overlay_mask = cv2.cvtColor(overlay_warped, cv2.COLOR_BGR2GRAY)
+#                _, mask = cv2.threshold(overlay_mask, 1, 255, cv2.THRESH_BINARY)
+#
+#                # Invert the mask for the overlay
+#                mask_inv = cv2.bitwise_not(mask)
+#
+#                # Black-out the area of the overlay in the frame
+#                img_bg = cv2.bitwise_and(frame, frame, mask=mask_inv)
+#
+#                # Take only region of overlay from overlay image
+#                img_fg = cv2.bitwise_and(overlay_warped, overlay_warped, mask=mask)
+#
+#                # Put overlay on top of the current frame
+#                frame = cv2.add(img_bg, img_fg)
+#
         out.write(frame)
         cv2.imshow('Trajectories', frame)
         if cv2.waitKey(1) & 0xFF == ord('q'):
@@ -240,15 +276,10 @@ def draw_trajectories_on_video(input_video_path, output_video_path, aruco_tracke
 
 # Example usage
 
-# Example usage
 aruco_tracker = Aruco_tracker(cam_id=-1, monitor_id=0, debug=False, debug_stream=False, frame_width=1920, frame_height=1080, crop_img=False, num_tags=15, decision_margin=20, record_stream=False, publish_pos=False, print_pos=False, detect_arena=False)
 
-#linux_path = '/home/adoimo/Desktop/'
-mac_path =  '/Volumes/Extreme SSD/università/tesi/robat V0 video'
-#ssd_path = '/media/adoimo/Extreme SSD/università/tesi/robat V0 video'
-video_name = 'Basler_acA1920-40uc__24531279__20240621_173542632.mp4'
-input_video_path = mac_path + '/overhead camera/' + video_name  # replace with your input video path
-#input_video_path = '/Volumes/Extreme SSD/università/tesi/robat V0 video/overhead camera/Basler_acA1920-40uc__24531279__20240621_173535657.mp4'  # replace with your input video path
-output_video_path =  mac_path + '/video_out_mac/' + video_name  # replace with your desired output video path
-draw_trajectories_on_video(input_video_path, output_video_path, aruco_tracker)
+input_video_path = '/Users/alberto/Documents/UNIVERSITA/MAGISTRALE/tesi/robat video-foto/inverted_loop_pdm array_7mic_fast.mp4'  # replace with your input video path
+output_video_path = '/Users/alberto/Desktop/inverted_loop_pdm array_7mic_tracked.MP4'  # replace with your desired output video path
+overlay_img_path = '/Users/alberto/Downloads/batman_logo square.png'  # replace with your overlay image path
 
+draw_trajectories_on_video(input_video_path, output_video_path, aruco_tracker, overlay_img_path)

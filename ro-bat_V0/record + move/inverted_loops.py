@@ -192,7 +192,7 @@ def int_or_str(text):
 
 
 def update():
-    try:
+    #try:
         in_sig = args.buffer
 #        #print(in_sig)
 #        # calculate avarage angle
@@ -224,23 +224,25 @@ def update():
             avar_theta = None
             return avar_theta
         
-    except KeyboardInterrupt:
-        #sd.stop()
-
-        print("\nupdate function stopped\n")
-        
-        #q_contents = [q.get() for _ in range(q.qsize())]
-        #rec = np.concatenate(q_contents)
-        ##print('q_contents = ', np.shape(rec))
-        #rec2besaved = rec[:, :channels]
-        #save_path = '/home/thymio/robat_py/recordings/'
-        #full_path = os.path.join(save_path, args.filename)
-        #with sf.SoundFile(full_path, mode='x', samplerate=args.samplerate,
-        #                channels=args.channels, subtype=args.subtype) as file:
-        #    file.write(rec2besaved)
-        #    print(f'\nsaved to {args.filename}\n')
-
-    return np.rad2deg(avar_theta)
+#    except KeyboardInterrupt:
+#        
+#
+#        print("\nupdate function stopped\n")
+#        
+#        q_contents = [q.get() for _ in range(q.qsize())]
+#        print('q_contents = ', np.shape(q_contents))
+#        rec = np.concatenate(q_contents)
+#        print('rec = ', np.shape(rec))
+#        rec2besaved = rec[:, :channels]
+#        save_path = '/home/thymio/robat_py/recordings/'
+#        full_path = os.path.join(save_path, args.filename)
+#        with sf.SoundFile(full_path, mode='x', samplerate=args.samplerate,
+#                        channels=args.channels, subtype=args.subtype) as file:
+#            file.write(rec2besaved)
+#            print(f'\nsaved to {args.filename}\n')
+#        sd.stop() 
+#
+        return np.rad2deg(avar_theta)
 
 
 def main(use_sim=False, ip='localhost', port=2001):
@@ -272,7 +274,7 @@ def main(use_sim=False, ip='localhost', port=2001):
         if args.filename is None:
             #args.filename = tempfile.mktemp(prefix='delme_rec_unlimited_',suffix='.wav', dir='')
             timenow = datetime.datetime.now()
-            time1 = timenow.strftime('%H-%M-%S_%d-%m-%Y')
+            time1 = timenow.strftime('%d-%m-%Y_%H-%M-%S')
             args.filename = 'MULTIWAV_inverted_loops_' + str(time1) + '.wav'
 
         # Make sure the file is opened before recording anything:
@@ -282,7 +284,7 @@ def main(use_sim=False, ip='localhost', port=2001):
             #print('press Ctrl+C to stop the recording')
             #print('#' * 80)
             print('audio stream started')
-            waiturn = 0.08
+            waiturn = 0.8
             wait = 0.0001
             while True:
 
@@ -297,19 +299,21 @@ def main(use_sim=False, ip='localhost', port=2001):
                 ground_sensors = robot['prox.ground.reflected']
                 #print('ground = ',robot['prox.ground.reflected'])
                 # Adjust these threshold values as needed
-                left_sensor_threshold = 200
-                right_sensor_threshold = 200
+                left_sensor_threshold = 100
+                right_sensor_threshold = 100
                 direction = random.choice(['left', 'right'])
                 if ground_sensors[0] > left_sensor_threshold  and ground_sensors[1]> right_sensor_threshold:
                     # Both sensors detect the line, turn left
                     if direction == 'left':
-                        robot['motor.left.target'] = -150
+                        robot['motor.left.target'] = -170
                         robot['motor.right.target'] = 150   
                         time.sleep(0.5) 
+                        pass
                     else:
                         robot['motor.left.target'] = 150
-                        robot['motor.right.target'] = -150
+                        robot['motor.right.target'] = -170
                         time.sleep(0.5)
+                        pass
                     # robot['motor.left.target'] = -50 + random.choice([, 100])
                     # robot['motor.right.target'] = -50 + random.choice([-100, 100])
                 elif ground_sensors[1] > right_sensor_threshold:
@@ -332,13 +336,13 @@ def main(use_sim=False, ip='localhost', port=2001):
                         case theta if theta < -30:
                             robot["leds.top"] = [0, 0, 255]
                             time.sleep(wait)
-                            robot['motor.left.target'] = 400
+                            robot['motor.left.target'] = 300
                             robot['motor.right.target'] = 20
                             time.sleep(wait)
                         case theta if -30 <= theta < -5:
                             robot["leds.top"] = [0, 255, 255]
                             time.sleep(wait)
-                            robot['motor.left.target'] = 300
+                            robot['motor.left.target'] = 200
                             robot['motor.right.target'] = 20
                             time.sleep(wait)
                         case theta if -5 <= theta <= 5:
@@ -346,25 +350,29 @@ def main(use_sim=False, ip='localhost', port=2001):
                             time.sleep(wait)
                             robot['motor.left.target'] = 50
                             robot['motor.right.target'] = 50
-                            time.sleep(0.5)
+                            time.sleep(0.1)
                             direction = random.choice(['left', 'right'])
                             if direction == 'left':
                                 robot['motor.left.target'] = -150
                                 robot['motor.right.target'] = 150
+                                time.sleep(0.1)
+                                pass
                             else:
                                 robot['motor.left.target'] = 150
                                 robot['motor.right.target'] = -150
+                                time.sleep(0.1)
+                                pass
                             time.sleep(waiturn)
                         case theta if 5 < theta <= 30:
                             robot["leds.top"] = [255, 255, 0]
                             time.sleep(wait)
-                            robot['motor.right.target'] = 300
+                            robot['motor.right.target'] = 200
                             robot['motor.left.target'] = 20
                             time.sleep(wait)
                         case theta if theta > 30:
                             robot["leds.top"] = [255, 0, 0]
                             time.sleep(wait)
-                            robot['motor.right.target'] = 400
+                            robot['motor.right.target'] = 300
                             robot['motor.left.target'] = 20
                             time.sleep(wait)
                         case _:
@@ -381,12 +389,15 @@ def main(use_sim=False, ip='localhost', port=2001):
         robot['motor.right.target'] = 0
         robot["leds.top"] = [0,0,0]
         print("Press Ctrl-C again to end the program")    
-
-        sd.stop()
         
         q_contents = [q.get() for _ in range(q.qsize())]
+        
+        #time.sleep(1)
+        print('q_contents = ', np.shape(q_contents))
         rec = np.concatenate(q_contents)
-        #print('q_contents = ', np.shape(rec))
+        print('rec = ', np.shape(rec))
+          
+
         rec2besaved = rec[:, :channels]
         save_path = '/home/thymio/robat_py/recordings/'
         full_path = os.path.join(save_path, args.filename)
@@ -394,7 +405,8 @@ def main(use_sim=False, ip='localhost', port=2001):
                         channels=args.channels, subtype=args.subtype) as file:
             file.write(rec2besaved)
             print(f'\nsaved to {args.filename}\n')
-#
+        sd.stop()
+
         #print("\nREC START TIME: \n", startime.strftime("%Y-%m-%d %H:%M:%S"))
         #print("\nSTOP REC TIME: \n", stoptime.strftime("%Y-%m-%d %H:%M:%S"))
 
