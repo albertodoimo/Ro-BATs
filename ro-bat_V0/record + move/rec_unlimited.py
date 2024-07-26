@@ -61,7 +61,6 @@ def callback(indata, frames, time, status):
         print(status, file=sys.stderr)
     q.put(indata.copy())
     #print(numpy.concatenate(indata))
-    buffer = numpy.concatenate(indata)
 
 
 try:

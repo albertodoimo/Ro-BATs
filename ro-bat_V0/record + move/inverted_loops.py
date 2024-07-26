@@ -126,7 +126,7 @@ def callback(indata, frames, time, status):
     
     args.buffer = (indata.copy())
 
-    #print('buffer=',np.shape(args.buffer))
+    print('buffer=',np.shape(args.buffer))
 
 def calc_delay(two_ch,fs):
     '''
