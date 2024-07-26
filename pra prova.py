@@ -24,7 +24,7 @@ c = 343.    # speed of sound
 fs = 48000  # sampling frequency
 nfft = 512  # FFT size
 mic_spacing = 0.003 
-channels = 8
+channels = 7
 block_size  = 4096
 freq_range = [2000, 9000]
 

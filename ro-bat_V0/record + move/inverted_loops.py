@@ -126,7 +126,7 @@ def callback(indata, frames, time, status):
     
     args.buffer = (indata.copy())
 
-    print('buffer=',np.shape(args.buffer))
+    #print('buffer=',np.shape(args.buffer))
 
 def calc_delay(two_ch,fs):
     '''
@@ -206,9 +206,9 @@ def update():
         ref_channels_bp = bandpass_sound(ref_channels,a,b)
         #print('ref_channels_bp=', np.shape(ref_channels_bp))
         above_level,dBrms_channel = check_if_above_level(ref_channels_bp,trigger_level)
-        print(above_level)
+        #print(above_level)
         av_above_level = np.mean(dBrms_channel)
-        print(av_above_level)
+        #print(av_above_level)
         if av_above_level>trigger_level:
 
 
@@ -264,6 +264,7 @@ def main(use_sim=False, ip='localhost', port=2001):
         robot = th[th.first_node()]
 
         startime = datetime.datetime.now()
+    
         #print("\nREC START TIME: \n", startime.strftime("%Y-%m-%d %H:%M:%S"))
         #print('')
 
@@ -286,12 +287,39 @@ def main(use_sim=False, ip='localhost', port=2001):
             print('audio stream started')
             waiturn = 0.8
             wait = 0.0001
+            start_time = time.time()
             while True:
+                
+                
+                # This loop runs for 1 second after the stream is started
+                print(time.time() - start_time)
+                print(start_time)
+                print(time.time())
+                if (time.time() - start_time) <=10:
+                    pass
+                else:
+                    q_contents = [q.get() for _ in range(q.qsize())]
+                    
+                    #time.sleep(1)
+                    print('q_contents = ', np.shape(q_contents))
+                    rec = np.concatenate(q_contents)
+                    print('rec = ', np.shape(rec))
+                    
 
+                    rec2besaved = rec[:, :channels]
+                    save_path = '/home/thymio/robat_py/recordings/'
+                    timenow = datetime.datetime.now()
+                    time1 = timenow.strftime('%d-%m-%Y_%H-%M-%S')
+                    full_path = os.path.join(save_path, time1)
+                    with sf.SoundFile(full_path, mode='x', samplerate=args.samplerate,
+                                    channels=args.channels, subtype=args.subtype) as file:
+                        file.write(rec2besaved)
+                        print(f'\nsaved to {time1}\n')
+                    
                 avar_theta_deg = update()
                 # avar_theta_deg = avar_theta_deg*1.25
                 #detectsCollision = max([robot['prox.horizontal'][i] > 1200 for i in range(5)])
-                print('avarage theta deg', avar_theta_deg)
+                #print('avarage theta deg', avar_theta_deg)
 
                 ground_sensors = robot['prox.ground.reflected']
                 ground_sensors_max = 1000
