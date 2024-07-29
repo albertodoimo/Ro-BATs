@@ -278,8 +278,8 @@ def draw_trajectories_on_video(input_video_path, output_video_path, aruco_tracke
 
 aruco_tracker = Aruco_tracker(cam_id=-1, monitor_id=0, debug=False, debug_stream=False, frame_width=1920, frame_height=1080, crop_img=False, num_tags=15, decision_margin=20, record_stream=False, publish_pos=False, print_pos=False, detect_arena=False)
 
-input_video_path = '/Users/alberto/Documents/UNIVERSITA/MAGISTRALE/tesi/robat video-foto/inverted_loop_pdm array_7mic_fast.mp4'  # replace with your input video path
-output_video_path = '/Users/alberto/Desktop/inverted_loop_pdm array_7mic_tracked.MP4'  # replace with your desired output video path
+input_video_path = '/Users/alberto/Documents/UNIVERSITA/MAGISTRALE/tesi/robat video-foto/pdm 7 mic array/inverted_loop_pdm array_7mic_fast_24_7.mp4'  # replace with your input video path
+output_video_path = '/Users/alberto/Desktop/inverted_loop_pdm array_7mic_24_7_tracked.MP4'  # replace with your desired output video path
 overlay_img_path = '/Users/alberto/Downloads/batman_logo square.png'  # replace with your overlay image path
 
 draw_trajectories_on_video(input_video_path, output_video_path, aruco_tracker, overlay_img_path)

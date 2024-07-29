@@ -40,9 +40,11 @@ print(sd.query_devices())
 print('usb_fireface_index=',usb_fireface_index)
 
 fs = 48000
+rec_samplerate = 48000
 block_size = 1024
 channels = 7
 mic_spacing = 0.015 #m
+
 
 auto_hipas_freq = int(343/(2*(mic_spacing*(channels-1))))
 auto_lowpas_freq = int(343/(2*mic_spacing))
@@ -208,7 +210,7 @@ def update():
         above_level,dBrms_channel = check_if_above_level(ref_channels_bp,trigger_level)
         #print(above_level)
         av_above_level = np.mean(dBrms_channel)
-        #print(av_above_level)
+        print(av_above_level)
         if av_above_level>trigger_level:
 
 
@@ -288,33 +290,42 @@ def main(use_sim=False, ip='localhost', port=2001):
             waiturn = 0.8
             wait = 0.0001
             start_time = time.time()
+            rec_counter = 1
             while True:
-                
-                
-                # This loop runs for 1 second after the stream is started
-                print(time.time() - start_time)
-                print(start_time)
-                print(time.time())
-                if (time.time() - start_time) <=10:
-                    pass
-                else:
-                    q_contents = [q.get() for _ in range(q.qsize())]
-                    
-                    #time.sleep(1)
-                    print('q_contents = ', np.shape(q_contents))
-                    rec = np.concatenate(q_contents)
-                    print('rec = ', np.shape(rec))
-                    
 
-                    rec2besaved = rec[:, :channels]
-                    save_path = '/home/thymio/robat_py/recordings/'
-                    timenow = datetime.datetime.now()
-                    time1 = timenow.strftime('%d-%m-%Y_%H-%M-%S')
-                    full_path = os.path.join(save_path, time1)
-                    with sf.SoundFile(full_path, mode='x', samplerate=args.samplerate,
-                                    channels=args.channels, subtype=args.subtype) as file:
-                        file.write(rec2besaved)
-                        print(f'\nsaved to {time1}\n')
+                
+            #    # This loop runs for 1 second after the stream is started
+            #    #print(time.time() - start_time)
+            #    #print(start_time)©
+            #    #print(time.time())
+            #    if (time.time() - start_time) <=30: #seconds
+            #        pass
+            #    else:
+            #        q_contents = [q.get() for _ in range(q.qsize())]
+            #        
+            #        #time.sleep(1)
+            #        print('q_contents = ', np.shape(q_contents))
+            #        rec = np.concatenate(q_contents)
+            #        print('rec = ', np.shape(rec))
+            #        
+#
+            #        rec2besaved = rec[:, :channels]
+            #        save_path = '/home/thymio/robat_py/recordings/' 
+            #        # Create folder with args.filename (without extension)
+            #        folder_name= 'MULTIWAV_inverted_loops_' + str(time1) 
+            #        folder_path = os.path.join(save_path, folder_name)
+            #        os.makedirs(folder_path, exist_ok=True)
+            #        save_path = folder_path
+#
+            #        timenow = datetime.datetime.now()
+            #        time2 = timenow.strftime('%d-%m-%Y_%H-%M-%S')
+            #        full_path = os.path.join(save_path, str(rec_counter)+'.wav')
+            #        with sf.SoundFile(full_path, mode='x', samplerate=rec_samplerate,
+            #                        channels=args.channels, subtype=args.subtype) as file:
+            #            file.write(rec2besaved)
+            #            print(f'\nsaved to {full_path}\n')
+            #            rec_counter += 1
+            #        start_time = time.time()
                     
                 avar_theta_deg = update()
                 # avar_theta_deg = avar_theta_deg*1.25
@@ -359,8 +370,8 @@ def main(use_sim=False, ip='localhost', port=2001):
                         case theta if theta == None:
                             robot["leds.top"] = [0, 0, 0]
                             time.sleep(wait)
-                            robot['motor.left.target'] = 200
-                            robot['motor.right.target'] = 200
+                            robot['motor.left.target'] = 150
+                            robot['motor.right.target'] = 150
                         case theta if theta < -30:
                             robot["leds.top"] = [0, 0, 255]
                             time.sleep(wait)
@@ -429,7 +440,7 @@ def main(use_sim=False, ip='localhost', port=2001):
         rec2besaved = rec[:, :channels]
         save_path = '/home/thymio/robat_py/recordings/'
         full_path = os.path.join(save_path, args.filename)
-        with sf.SoundFile(full_path, mode='x', samplerate=args.samplerate,
+        with sf.SoundFile(full_path, mode='x', samplerate=rec_samplerate,
                         channels=args.channels, subtype=args.subtype) as file:
             file.write(rec2besaved)
             print(f'\nsaved to {args.filename}\n')
