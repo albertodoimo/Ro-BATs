@@ -26,15 +26,25 @@ from matplotlib.animation import FuncAnimation
 c = 343.    # speed of sound
 fs = 48000  # sampling frequency
 
-mic_spacing = 0.015 
+mic_spacing = 0.018 #m
 channels = 7
 block_size  = 2048
 nfft = block_size//4  # FFT size
 print('\nframes per second = ',fs//block_size, '\n' )
 freq_range = [2000, 10000]
 
+# This line of code creates a linear 2D microphone array using the pyroomacoustics library.
 echo = pra.linear_2D_array(center=[(channels-1)*mic_spacing//2,0], M=channels, phi=0, d=mic_spacing)
-# The DOA algorithms require an STFT input, which we will compute for overlapping frames for our 1 second duration signal.
+# Breaking it down:
+# - pra.linear_2D_array() is a function from pyroomacoustics that creates a linear array of microphones
+# - center=[0,(channels-1)*mic_spacing//2] sets the center of the array
+#   The x-coordinate is 0, and the y-coordinate is calculated based on the number of channels and mic spacing
+# - M=channels sets the number of microphones in the array to the value of the 'channels' variable
+# - phi=0 sets the orientation of the array 
+# - d=mic_spacing sets the distance between adjacent microphones
+
+# This array configuration is likely used for direction of arrival (DOA) estimation or beamforming in acoustic signal processing.
+
 
 def get_card(device_list):
     for i, each in enumerate(device_list):
@@ -119,7 +129,7 @@ values = np.random.rand(360)
 line, = ax.plot(theta, values)
 
 # Set up the animation
-ani = FuncAnimation(fig, update_polar, frames=range(360), blit=False, interval= 80)
+ani = FuncAnimation(fig, update_polar, frames=range(360), blit=False, interval= 50)
 
 plt.show()
 #print('input audio plot lastlast = ', np.shape(rec))

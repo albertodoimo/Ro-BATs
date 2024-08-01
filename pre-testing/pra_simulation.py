@@ -142,6 +142,15 @@ def code(locations):
     for algo_name in algo_names:
         # Construct the new DOA object
         # the max_four parameter is necessary for FRIDA only
+        # This line initializes a Direction of Arrival (DOA) estimation algorithm
+        # The algorithm is selected based on the 'algo_name' variable
+        # 'echo' is likely the input signal (probably a microphone array recording)
+        # 'fs' is the sampling frequency of the input signal
+        # 'nfft' is the number of FFT points for frequency domain processing
+        # 'c' is the speed of sound
+        # 'num_src=2' specifies that we're looking for 2 sound sources
+        # 'max_four=4' limits the algorithm to use up to 4 Fourier coefficients
+
         doa = pra.doa.algorithms[algo_name](echo, fs, nfft, c=c, num_src=2, max_four=4)
 
         # this call here perform localization on the frames in X

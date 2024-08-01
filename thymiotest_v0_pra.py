@@ -1,3 +1,9 @@
+
+#----------------------------------------------------------------------------------------------------------------------------
+
+
+
+
 #!/usr/bin/env python3
 """Create a recording with arbitrary duration.
 
@@ -6,6 +12,17 @@ has to be installed!
 
 """
 print('import libraries...')
+
+import numpy as np
+import matplotlib.pyplot as plt
+import glob
+import IPython
+import pyroomacoustics as pra
+import scipy.signal as signal 
+import sounddevice as sd
+import soundfile as sf
+
+from matplotlib.animation import FuncAnimation
 import argparse
 import tempfile
 import queue
@@ -13,18 +30,12 @@ import sys
 import json
 import datetime
 import time
-import argparse
 import math
 import random
 import os
 from thymiodirect import Connection 
 from thymiodirect import Thymio
 from scipy import signal
-
-
-import sounddevice as sd
-import soundfile as sf
-import numpy  as np 
 
 print('libraries imported')
 
@@ -39,17 +50,23 @@ usb_fireface_index = get_card(sd.query_devices())
 print(sd.query_devices())
 print('usb_fireface_index=',usb_fireface_index)
 
+c = 343.    # speed of sound
 fs = 48000
 rec_samplerate = 48000
 block_size = 1024
 channels = 7
 mic_spacing = 0.015 #m
 
+nfft = 32  # FFT size
 
 auto_hipas_freq = int(343/(2*(mic_spacing*(channels-1))))
+print('HP frequency:', auto_hipas_freq)
 auto_lowpas_freq = int(343/(2*mic_spacing))
-#print(auto_hipas_freq)
+print('LP frequency:', auto_lowpas_freq)
+
 highpass_freq, lowpass_freq = [auto_hipas_freq ,auto_lowpas_freq]
+freq_range = [highpass_freq, lowpass_freq]
+
 nyq_freq = fs/2.0
 b, a = signal.butter(4, [highpass_freq/nyq_freq,lowpass_freq/nyq_freq],btype='bandpass') # to be 'allowed' in Hz.
 
@@ -72,8 +89,9 @@ b, a = signal.butter(4, [highpass_freq/nyq_freq,lowpass_freq/nyq_freq],btype='ba
 #    time.sleep(1)
 #else: 
 #    #trigger_level = -25.2 # dB level ref max 12s
-trigger_level = -50 # dB level ref max pdm
+trigger_level = -53 # dB level ref max pdm
 
+echo = pra.linear_2D_array(center=[(channels-1)*mic_spacing//2,0], M=channels, phi=0, d=mic_spacing)
 
 print('loading functions...')
 
@@ -192,9 +210,9 @@ def int_or_str(text):
     except ValueError:
         return text
 
-avar_theta = None
+
 def update():
-    #try:
+#    try:
         in_sig = args.buffer
 #        #print(in_sig)
 #        # calculate avarage angle
@@ -212,7 +230,7 @@ def update():
         av_above_level = np.mean(dBrms_channel)
         #print(av_above_level)
         if av_above_level>trigger_level:
-            #print(av_above_level)
+
 
             delay_crossch = calc_multich_delays(ref_channels_bp, fs)
 #     
@@ -220,9 +238,8 @@ def update():
 #             # print('delay',delay_crossch)
 #             # calculate aavarage angle
 # 
-            avar_thetaa = avar_angle(delay_crossch,channels,mic_spacing)
-            print(np.rad2deg(avar_thetaa))
-            #return np.rad2deg(avar_theta)
+            avar_theta = avar_angle(delay_crossch,channels,mic_spacing)
+            return np.rad2deg(avar_theta)
         else:
             avar_theta = None
             return avar_theta
@@ -245,7 +262,75 @@ def update():
 #            print(f'\nsaved to {args.filename}\n')
 #        sd.stop() 
 #
-        #return np.rad2deg(avar_theta)
+        return np.rad2deg(avar_theta)
+
+def update_polar():
+    # Your streaming data source logic goes here
+
+
+    in_sig = args.buffer
+
+    #X = pra.transform.stft.analysis(in_sig, nfft, nfft // 2)
+    #X = X.transpose([2, 1, 0])
+#
+    #doa = pra.doa.algorithms['MUSIC'](echo, fs, nfft, c=c, num_src=2, max_four=4)
+    #doa.locate_sources(X, freq_range=freq_range)
+    ##print('azimuth_recon=',doa.azimuth_recon) # rad value of detected angles
+    #theta_pra = (doa.azimuth_recon * 180 / np.pi) 
+    #print('theta=',theta_pra) #degrees value of detected angles
+
+
+    #spatial_resp = doa.grid.values # 360 values for plot
+    ##print('spat_resp',spatial_resp) 
+    ## normalize   
+    #min_val = spatial_resp.min()
+    #max_val = spatial_resp.max()
+    #spatial_resp = (spatial_resp - min_val) / (max_val - min_val)
+
+    #values = np.zeros(360)
+
+    # Update the polar plot
+    #data.append(values)
+
+    #if len(data) > 360:  # Keep only the latest 360 values
+    #    data.pop(0)
+
+    #line.set_ydata(spatial_resp)
+    #print('input audio plot last = ', np.shape(rec))
+    #print('line',np.shape(line))
+    #return line, spatial_resp
+
+    ref_channels = in_sig
+    #print('ref_channels=', np.shape(ref_channels))
+    ref_channels_bp = bandpass_sound(ref_channels,a,b)
+    #print('ref_channels_bp=', np.shape(ref_channels_bp))
+    above_level,dBrms_channel = check_if_above_level(ref_channels_bp,trigger_level)
+    #print(above_level)
+    av_above_level = np.mean(dBrms_channel)
+    #print(av_above_level)
+    if av_above_level>trigger_level:
+        #print('av db level=',av_above_level)
+        X = pra.transform.stft.analysis(in_sig, nfft, nfft // 2)
+        X = X.transpose([2, 1, 0])
+
+        doa = pra.doa.algorithms['MUSIC'](echo, fs, nfft, c=c, num_src=2, max_four=1)
+        doa.locate_sources(X, freq_range=freq_range)
+        #print('azimuth_recon=',doa.azimuth_recon) # rad value of detected angles
+        theta_pra_deg = (doa.azimuth_recon * 180 / np.pi) 
+        #print('theta=',theta_pra_deg) #degrees value of detected angles
+        if theta_pra_deg[0]<=180:
+            theta_pra = 90-theta_pra_deg[0]
+            print('pra theta deg', theta_pra)
+            #return theta_pra
+        elif theta_pra_deg[1]<=180:
+            theta_pra = 90-theta_pra_deg[1]
+            print('pra theta deg', theta_pra)
+            #return theta_pra
+        else:
+            theta_pra = None
+            return theta_pra
+
+        
 
 
 def main(use_sim=False, ip='localhost', port=2001):
@@ -267,9 +352,6 @@ def main(use_sim=False, ip='localhost', port=2001):
         robot = th[th.first_node()]
 
         startime = datetime.datetime.now()
-    
-        #print("\nREC START TIME: \n", startime.strftime("%Y-%m-%d %H:%M:%S"))
-        #print('')
 
         if args.samplerate is None:    
             device_info = sd.query_devices(args.device, 'input')
@@ -278,7 +360,7 @@ def main(use_sim=False, ip='localhost', port=2001):
         if args.filename is None:
             #args.filename = tempfile.mktemp(prefix='delme_rec_unlimited_',suffix='.wav', dir='')
             timenow = datetime.datetime.now()
-            time1 = timenow.strftime('%d-%m-%Y_%H-%M-%S')
+            time1 = timenow.strftime('%Y-%m-%d_%H-%M-%S')
             args.filename = 'MULTIWAV_inverted_loops_' + str(time1) + '.wav'
 
         # Make sure the file is opened before recording anything:
@@ -288,50 +370,18 @@ def main(use_sim=False, ip='localhost', port=2001):
             #print('press Ctrl+C to stop the recording')
             #print('#' * 80)
             print('audio stream started')
-            waiturn = 0.8
-            wait = 0.0005
+            waiturn = 0.3
+            wait = 0.0001
             start_time = time.time()
             rec_counter = 1
             while True:
-
-                
-            #    # This loop runs for 1 second after the stream is started
-            #    #print(time.time() - start_time)
-            #    #print(start_time)©
-            #    #print(time.time())
-            #    if (time.time() - start_time) <=30: #seconds
-            #        pass
-            #    else:
-            #        q_contents = [q.get() for _ in range(q.qsize())]
-            #        
-            #        #time.sleep(1)
-            #        print('q_contents = ', np.shape(q_contents))
-            #        rec = np.concatenate(q_contents)
-            #        print('rec = ', np.shape(rec))
-            #        
-#
-            #        rec2besaved = rec[:, :channels]
-            #        save_path = '/home/thymio/robat_py/recordings/' 
-            #        # Create folder with args.filename (without extension)
-            #        folder_name= 'MULTIWAV_inverted_loops_' + str(time1) 
-            #        folder_path = os.path.join(save_path, folder_name)
-            #        os.makedirs(folder_path, exist_ok=True)
-            #        save_path = folder_path
-#
-            #        timenow = datetime.datetime.now()
-            #        time2 = timenow.strftime('%d-%m-%Y_%H-%M-%S')
-            #        full_path = os.path.join(save_path, str(rec_counter)+'.wav')
-            #        with sf.SoundFile(full_path, mode='x', samplerate=rec_samplerate,
-            #                        channels=args.channels, subtype=args.subtype) as file:
-            #            file.write(rec2besaved)
-            #            print(f'\nsaved to {full_path}\n')
-            #            rec_counter += 1
-            #        start_time = time.time()
                     
-                avar_theta_deg = update()
-                # avar_theta_deg = avar_theta_deg*1.25
+                #avar_theta_deg = update()
+                theta_pra = update_polar()
+                avar_theta_deg = theta_pra
                 #detectsCollision = max([robot['prox.horizontal'][i] > 1200 for i in range(5)])
-                #print('avarage theta deg = ', avar_theta_deg)
+                #print('avarage theta deg', avar_theta_deg)
+                #print('pra theta deg', theta_pra)
 
                 ground_sensors = robot['prox.ground.reflected']
                 ground_sensors_max = 1000
@@ -345,13 +395,13 @@ def main(use_sim=False, ip='localhost', port=2001):
                 if ground_sensors[0] > left_sensor_threshold  and ground_sensors[1]> right_sensor_threshold:
                     # Both sensors detect the line, turn left
                     if direction == 'left':
-                        robot['motor.left.target'] = -170
+                        robot['motor.left.target'] = -180
                         robot['motor.right.target'] = 150   
                         time.sleep(0.5) 
                         pass
                     else:
                         robot['motor.left.target'] = 150
-                        robot['motor.right.target'] = -170
+                        robot['motor.right.target'] = -180
                         time.sleep(0.5)
                         pass
                     # robot['motor.left.target'] = -50 + random.choice([, 100])
@@ -371,39 +421,51 @@ def main(use_sim=False, ip='localhost', port=2001):
                         case theta if theta == None:
                             robot["leds.top"] = [0, 0, 0]
                             time.sleep(wait)
-                            robot['motor.left.target'] = 200
-                            robot['motor.right.target'] = 200
-                        case theta if theta < -30: 
+                            robot['motor.left.target'] = 150
+                            robot['motor.right.target'] = 150
+                        case theta if theta < -30:
                             robot["leds.top"] = [0, 0, 255]
                             time.sleep(wait)
                             robot['motor.left.target'] = 300
                             robot['motor.right.target'] = 20
                             time.sleep(wait)
-                        case theta if -30 <= theta < -5:
+                        case theta if -30 <= theta < -15:
                             robot["leds.top"] = [0, 255, 255]
                             time.sleep(wait)
                             robot['motor.left.target'] = 200
                             robot['motor.right.target'] = 20
                             time.sleep(wait)
-                        case theta if -3 <= theta <= 3:
+                        case theta if -15 <= theta < -1:
+                            robot["leds.top"] = [0, 255, 0]
+                            time.sleep(wait)
+                            robot['motor.left.target'] = 100
+                            robot['motor.right.target'] = 20
+                            time.sleep(wait)
+                        case theta if 0 <= theta <= 0:
                             robot["leds.top"] = [255, 255, 255]
                             time.sleep(wait)
                             robot['motor.left.target'] = 50
                             robot['motor.right.target'] = 50
                             time.sleep(0.1)
-                            direction = random.choice(['left', 'right'])
-                            if direction == 'left':
-                                robot['motor.left.target'] = -150
-                                robot['motor.right.target'] = 150
-                                time.sleep(0.1)
-                                pass
-                            else:
-                                robot['motor.left.target'] = 150
-                                robot['motor.right.target'] = -150
-                                time.sleep(0.1)
-                                pass
-                            time.sleep(waiturn)
-                        case theta if 5 < theta <= 30:
+                            #direction = random.choice(['left', 'right'])
+                            #if direction == 'left':
+                            #    robot['motor.left.target'] = -150
+                            #    robot['motor.right.target'] = 150
+                            #    time.sleep(0.1)
+                            #    pass
+                            #else:
+                            #    robot['motor.left.target'] = 150
+                            #    robot['motor.right.target'] = -150
+                            #    time.sleep(0.1)
+                            #    pass
+                            #time.sleep(waiturn)
+                        case theta if 1 < theta <= 15:
+                            robot["leds.top"] = [0, 255, 0]
+                            time.sleep(wait)
+                            robot['motor.right.target'] = 100
+                            robot['motor.left.target'] = 20
+                            time.sleep(wait)
+                        case theta if 15 < theta <= 30:
                             robot["leds.top"] = [255, 255, 0]
                             time.sleep(wait)
                             robot['motor.right.target'] = 200
@@ -417,7 +479,6 @@ def main(use_sim=False, ip='localhost', port=2001):
                             time.sleep(wait)
                         case _:
                             pass
-
     except Exception as err:
         # Stop robot
         robot['motor.left.target'] = 0
@@ -445,7 +506,7 @@ def main(use_sim=False, ip='localhost', port=2001):
         #                channels=args.channels, subtype=args.subtype) as file:
         #    file.write(rec2besaved)
         #    print(f'\nsaved to {args.filename}\n')
-        sd.stop()
+        #sd.stop()
 
         #print("\nREC START TIME: \n", startime.strftime("%Y-%m-%d %H:%M:%S"))
         #print("\nSTOP REC TIME: \n", stoptime.strftime("%Y-%m-%d %H:%M:%S"))
