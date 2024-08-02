@@ -33,9 +33,6 @@ import time
 import math
 import random
 import os
-import csv
-import xml.etree.ElementTree as ET
-
 from thymiodirect import Connection 
 from thymiodirect import Thymio
 from scipy import signal
@@ -60,7 +57,7 @@ block_size = 1024
 channels = 7
 mic_spacing = 0.015 #m
 
-nfft = 32  # FFT size
+nfft = 16  # FFT size
 
 auto_hipas_freq = int(343/(2*(mic_spacing*(channels-1))))
 print('HP frequency:', auto_hipas_freq)
@@ -216,23 +213,6 @@ def int_or_str(text):
     except ValueError:
         return text
 
-def save_data_to_csv(matrix, filename):
-    with open(filename, "w", newline='') as file:
-        writer = csv.writer(file)
-        writer.writerows(matrix)
-    print(f"Matrix has been saved as csv to {filename}")
-
-def save_data_to_xml(matrix, filename):
-    root = ET.Element("matrix")
-    for row in matrix:
-        row_elem = ET.SubElement(root, "row")
-        for val in row:
-            val_elem = ET.SubElement(row_elem, "val")
-            val_elem.text = str(val)
-    
-    tree = ET.ElementTree(root)
-    tree.write(filename)
-    print(f"Matrix has been saved as xml to {filename}")
 
 def update():
 #    try:
@@ -463,7 +443,6 @@ def main(use_sim=False, ip='localhost', port=2001):
                 left_sensor_threshold = 100
                 right_sensor_threshold = 100
 
-                direction = random.choice(['left', 'right'])
                 if pause:
                     # Stop robot
                     robot['motor.left.target'] = 0
@@ -505,6 +484,7 @@ def main(use_sim=False, ip='localhost', port=2001):
                             robot["leds.top"] = [0, 0, 255]
                             time.sleep(wait)
                             robot['motor.left.target'] = 300
+                            direction = random.choice(['left', 'right'])
                             robot['motor.right.target'] = 20
                             time.sleep(wait)
                         case theta if -30 <= theta < -15:
@@ -573,20 +553,15 @@ def main(use_sim=False, ip='localhost', port=2001):
         spatial_response = [qq.get() for _ in range(qq.qsize())] #360 values for plot
         theta_doa = [qqq.get() for _ in range(qqq.qsize())] #pra recongnized angle values
 
-        #file_doa = "doa.csv"
-        file_spat_resp_csv = "/home/thymio/robat_py/files/"+time1+"_spat_resp.csv"
-        file_spat_resp_xml = "/home/thymio/robat_py/files/"+time1+"_spat_resp.xml"
-
-        save_data_to_xml(spatial_response, file_spat_resp_xml)
-        save_data_to_csv(spatial_response, file_spat_resp_csv)
         
+
         print('spatial response = ', np.shape(spatial_response)) #360 values for plot
         print('theta doa = ', np.shape(theta_doa)) #pra recongnized angle values
         #time.sleep(1) 
         print('q_contents = ', np.shape(q_contents))
         rec = np.concatenate(q_contents)
         print('rec = ', np.shape(rec))
-        
+          
 
         rec2besaved = rec[:, :channels]
         save_path = '/home/thymio/robat_py/recordings/'
@@ -598,7 +573,6 @@ def main(use_sim=False, ip='localhost', port=2001):
         sd.stop()
         #print("\nREC START TIME: \n", startime.strftime("%Y-%m-%d %H:%M:%S"))
         #print("\nSTOP REC TIME: \n", stoptime.strftime("%Y-%m-%d %H:%M:%S"))
-        
 
 print('functions loaded')
 
