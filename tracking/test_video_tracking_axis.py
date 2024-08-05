@@ -5,8 +5,12 @@ from mss import mss
 import math
 import zmq
 
+width = 1920
+height = 1080
+fps = 24
+
 class Aruco_tracker:
-    def __init__(self, cam_id=-1, monitor_id=0, debug=True, debug_stream=True, frame_width=1920, frame_height=1080, crop_img=False, num_tags=15, decision_margin=20, record_stream=False, publish_pos=False, print_pos=False, detect_arena=False):
+    def __init__(self, cam_id=-1, monitor_id=0, debug=True, debug_stream=True, frame_width=width, frame_height=height, crop_img=False, num_tags=15, decision_margin=20, record_stream=False, publish_pos=False, print_pos=False, detect_arena=False):
         self._aruco_dict = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_6X6_250)
         self._parameters = cv2.aruco.DetectorParameters()
         self._parameters.adaptiveThreshConstant = 10
@@ -43,7 +47,7 @@ class Aruco_tracker:
             self._sub_socket = zmq.Context().socket(zmq.SUB)
             self._sub_socket.connect('tcp://localhost:5556')
             self._sub_socket.setsockopt_string(zmq.SUBSCRIBE, "43")
-            self._writer = cv2.VideoWriter('init.mp4', cv2.VideoWriter_fourcc('M', 'P', '4', 'V'), 20, (frame_width, frame_height))
+            self._writer = cv2.VideoWriter('init.mp4', cv2.VideoWriter_fourcc('M', 'P', '4', 'V'), fps, (frame_width, frame_height))
             self._record = False
 
         if self._publish_pos:
@@ -160,7 +164,7 @@ class Aruco_tracker:
                     date_time = datetime.now()
                     timestamp = date_time.strftime("%d%m%Y_%H%M%S") + '.mp4'
                     print(timestamp)
-                    self._writer = cv2.VideoWriter(timestamp, cv2.VideoWriter_fourcc('m', 'p', '4', 'v'), 20, (self._frame_width, self._frame_height))
+                    self._writer = cv2.VideoWriter(timestamp, cv2.VideoWriter_fourcc('m', 'p', '4', 'v'), fps, (self._frame_width, self._frame_height))
                     print("record")
                 elif data == 'save':
                     self._record = False
@@ -184,16 +188,19 @@ class Aruco_tracker:
         print("close")
         self._writer.release()
 
+
+import cv2
+import numpy as np
+
 def draw_trajectories_on_video(input_video_path, output_video_path, aruco_tracker, overlay_img_path):
     cap = cv2.VideoCapture(input_video_path)
     frame_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
     frame_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-    out = cv2.VideoWriter(output_video_path, cv2.VideoWriter_fourcc('m', 'p', '4', 'v'), 20, (frame_width, frame_height))
+    out = cv2.VideoWriter(output_video_path, cv2.VideoWriter_fourcc('m', 'p', '4', 'v'), 24, (frame_width, frame_height))
 
     trajectories = {}
     colors = {}
 
-  
     # Camera calibration parameters (you might need to calibrate your camera)
     camera_matrix = np.array([[1406.08415449821, 0, 0],
                               [2.20679787308599, 1417.99930662800, 0],
@@ -201,6 +208,9 @@ def draw_trajectories_on_video(input_video_path, output_video_path, aruco_tracke
 
     dist_coeffs = np.array([-0.2380769334, 0.0931325835, 0, 0, 0])
     
+    overlay_img = cv2.imread(overlay_img_path)
+    overlay_img = cv2.resize(overlay_img, (100, 100))  # Adjust size as needed
+
     while True:
         ret, frame = cap.read()
         if not ret:
@@ -208,62 +218,82 @@ def draw_trajectories_on_video(input_video_path, output_video_path, aruco_tracke
               
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         corners, ids, _ = cv2.aruco.detectMarkers(gray, aruco_tracker._aruco_dict, parameters=aruco_tracker._parameters)
-        # Load the overlay image
-        overlay_img = cv2.imread(overlay_img_path)
-        #print(overlay_img.shape)
-        overlay_img = cv2.resize(overlay_img, (1000,1000))  # Adjust size as needed
-        #print(overlay_img.shape)
 
-        #print('ids',ids) 
         if ids is not None:
             ids = ids.flatten()
             for corner, markerID in zip(corners, ids):
                 if markerID not in trajectories:
                     trajectories[markerID] = []
-                    #colors[markerID] = (np.random.randint(0, 255), np.random.randint(0, 255), np.random.randint(0, 255))
-                    colors[70] = (0,255,0) #robat
-
-
+                    colors[markerID] = (np.random.randint(0, 255), np.random.randint(0, 255), np.random.randint(0, 255))
+                    colors[70] = [0,255,0]
                 # Draw 3D axis
                 rvecs, tvecs, _ = cv2.aruco.estimatePoseSingleMarkers(corner, 0.08, camera_matrix, dist_coeffs)
-                cv2.drawFrameAxes(frame, camera_matrix, dist_coeffs, rvecs, tvecs, 0.1)
+                #print(np.shape(rvecs))
+                #print(np.shape(tvecs))
+                rvecs1, tvecs1 = rvecs[0,:], tvecs[0,:]
+                rvecs2, tvecs2 = rvecs1[0,:2], tvecs1[0,:2]
+                #rvecs, tvecs = rvecs[:,0], tvecs[:,0]
+                print(rvecs2)
+                print(tvecs2)
 
+                cv2.drawFrameAxes(frame, camera_matrix, dist_coeffs, rvecs, tvecs, 0.1)
+  
                 center = np.mean(corner[0], axis=0)
                 trajectories[markerID].append(center)
-                #for i in range(1, len(trajectories[markerID])):
-                #    #print(len(trajectories[markerID]))
-                #    cv2.line(frame, tuple(trajectories[markerID][i-1].astype(int)), tuple(trajectories[markerID][i].astype(int)), colors[markerID], 3)
-                if markerID== 70:
-                    for i in range(1, len(trajectories[markerID])):
-                        #print(len(trajectories[markerID]))
-                        cv2.line(frame, tuple(trajectories[markerID][i-1].astype(int)), tuple(trajectories[markerID][i].astype(int)), colors[markerID], 3)
-#
-#                # Overlay image on marker
-#                # Compute the homography to warp the overlay image
-#                pts_dst = corner[0].astype(int)
-#                #print(pts_dst)
-#                pts_src = np.array([[0, 0], [overlay_img.shape[1], 0], [overlay_img.shape[1], overlay_img.shape[0]], [0, overlay_img.shape[0]]])
-#                h, _ = cv2.findHomography(pts_src, pts_dst)
-#
-#                # Warp the overlay image onto the marker
-#                overlay_warped = cv2.warpPerspective(overlay_img, h, (frame.shape[1], frame.shape[0]))
-#
-#                # Create a mask of the overlay image
-#                overlay_mask = cv2.cvtColor(overlay_warped, cv2.COLOR_BGR2GRAY)
-#                _, mask = cv2.threshold(overlay_mask, 1, 255, cv2.THRESH_BINARY)
-#
-#                # Invert the mask for the overlay
-#                mask_inv = cv2.bitwise_not(mask)
-#
-#                # Black-out the area of the overlay in the frame
-#                img_bg = cv2.bitwise_and(frame, frame, mask=mask_inv)
-#
-#                # Take only region of overlay from overlay image
-#                img_fg = cv2.bitwise_and(overlay_warped, overlay_warped, mask=mask)
-#
-#                # Put overlay on top of the current frame
-#                frame = cv2.add(img_bg, img_fg)
-#
+
+                for i in range(1, len(trajectories[markerID])):
+                    cv2.line(frame, tuple(trajectories[markerID][i-1].astype(int)), tuple(trajectories[markerID][i].astype(int)), colors[markerID], 3)
+
+                # Compute rotation matrix
+                rotation_matrix, _ = cv2.Rodrigues(rvecs[0])
+                rotation_matrix_2x2 = rotation_matrix[:2, :2]
+
+                # Center point of the overlay image where the rotation will be applied
+                overlay_center = (overlay_img.shape[1] // 2, overlay_img.shape[0] // 2)
+
+                # Create 2D rotation matrix
+                rotation_matrix_2x3 = np.hstack([rotation_matrix_2x2, np.array([[0], [0]])])
+                rotation_matrix_2x3 = np.vstack([rotation_matrix_2x3, [0, 0, 1]])
+
+                # Translation matrices
+                translation_to_origin = np.array([[1, 0, -overlay_center[0]],
+                                                  [0, 1, -overlay_center[1]],
+                                                  [0, 0, 1]])
+
+                translation_back = np.array([[1, 0, overlay_center[0]],
+                                             [0, 1, overlay_center[1]],
+                                             [0, 0, 1]])
+
+                # Combined rotation transformation
+                M = np.dot(translation_back, np.dot(rotation_matrix_2x3, translation_to_origin))
+
+                # Create the 2x3 affine transformation matrix
+                M_affine = M[:2, :]
+
+                # Rotate overlay image
+                rotated_overlay = cv2.warpAffine(overlay_img, M_affine, (overlay_img.shape[1], overlay_img.shape[0]), 
+                                                 flags=cv2.INTER_LINEAR, borderMode=cv2.BORDER_CONSTANT, borderValue=(0, 0, 0))
+
+                # Position overlay image at the center of the frame
+                overlay_top_left = (100, 100)
+                x, y = overlay_top_left
+
+                # Create a mask of the overlay image
+                overlay_gray = cv2.cvtColor(rotated_overlay, cv2.COLOR_BGR2GRAY)
+                _, mask = cv2.threshold(overlay_gray, 1, 255, cv2.THRESH_BINARY)
+
+                # Invert the mask for the overlay
+                mask_inv = cv2.bitwise_not(mask)
+
+                # Black-out the area of the overlay in the frame
+                img_bg = cv2.bitwise_and(frame[y:y+rotated_overlay.shape[0], x:x+rotated_overlay.shape[1]], frame[y:y+rotated_overlay.shape[0], x:x+rotated_overlay.shape[1]], mask=mask_inv)
+
+                # Take only region of overlay from overlay image
+                img_fg = cv2.bitwise_and(rotated_overlay, rotated_overlay, mask=mask)
+
+                # Put overlay on top of the current frame
+                frame[y:y+rotated_overlay.shape[0], x:x+rotated_overlay.shape[1]] = cv2.add(img_bg, img_fg)
+
         out.write(frame)
         cv2.imshow('Trajectories', frame)
         if cv2.waitKey(1) & 0xFF == ord('q'):
@@ -273,13 +303,16 @@ def draw_trajectories_on_video(input_video_path, output_video_path, aruco_tracke
     out.release()
     cv2.destroyAllWindows()
 
+# Usage
+# aruco_tracker should be an initialized ArucoTracker object
+# draw_trajectories_on_video('input_video.mp4', 'output_video.mp4', aruco_tracker, 'overlay_image.png')
 
-# Example usage
+# Example usage 
 
-aruco_tracker = Aruco_tracker(cam_id=-1, monitor_id=0, debug=False, debug_stream=False, frame_width=1920, frame_height=1080, crop_img=False, num_tags=15, decision_margin=20, record_stream=False, publish_pos=False, print_pos=False, detect_arena=False)
+aruco_tracker = Aruco_tracker(cam_id=-1, monitor_id=0, debug=False, debug_stream=False, frame_width=width, frame_height=height, crop_img=False, num_tags=15, decision_margin=20, record_stream=False, publish_pos=False, print_pos=False, detect_arena=False)
 
 input_video_path = '/Users/alberto/Documents/UNIVERSITA/MAGISTRALE/tesi/robat video-foto/pdm 7 mic array/inverted_loop_pdm array_7mic_fast_24_7.mp4'  # replace with your input video path
-output_video_path = '/Users/alberto/Desktop/inverted_loop_pdm array_7mic_24_7_tracked.MP4'  # replace with your desired output video path
+output_video_path = '/Users/alberto/Desktop/test.MP4'  # replace with your desired output video path
 overlay_img_path = '/Users/alberto/Downloads/batman_logo square.png'  # replace with your overlay image path
 
 draw_trajectories_on_video(input_video_path, output_video_path, aruco_tracker, overlay_img_path)
