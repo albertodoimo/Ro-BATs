@@ -209,7 +209,7 @@ def draw_trajectories_on_video(input_video_path, output_video_path, aruco_tracke
     dist_coeffs = np.array([-0.2380769334, 0.0931325835, 0, 0, 0])
     
     overlay_img = cv2.imread(overlay_img_path)
-    overlay_img = cv2.resize(overlay_img, (100, 100))  # Adjust size as needed
+    overlay_img = cv2.resize(overlay_img, (200, 200))  # Adjust size as needed of the overlay image
 
     while True:
         ret, frame = cap.read()
@@ -228,13 +228,6 @@ def draw_trajectories_on_video(input_video_path, output_video_path, aruco_tracke
                     colors[70] = [0,255,0]
                 # Draw 3D axis
                 rvecs, tvecs, _ = cv2.aruco.estimatePoseSingleMarkers(corner, 0.08, camera_matrix, dist_coeffs)
-                #print(np.shape(rvecs))
-                #print(np.shape(tvecs))
-                rvecs1, tvecs1 = rvecs[0,:], tvecs[0,:]
-                rvecs2, tvecs2 = rvecs1[0,:2], tvecs1[0,:2]
-                #rvecs, tvecs = rvecs[:,0], tvecs[:,0]
-                print(rvecs2)
-                print(tvecs2)
 
                 cv2.drawFrameAxes(frame, camera_matrix, dist_coeffs, rvecs, tvecs, 0.1)
   
@@ -243,6 +236,12 @@ def draw_trajectories_on_video(input_video_path, output_video_path, aruco_tracke
 
                 for i in range(1, len(trajectories[markerID])):
                     cv2.line(frame, tuple(trajectories[markerID][i-1].astype(int)), tuple(trajectories[markerID][i].astype(int)), colors[markerID], 3)
+                    # corner = corner.reshape((4, 2)).astype(int)
+                    # center = np.mean(corner, axis=0).astype(int)
+                    # cv2.line(frame, tuple(center), tuple(center + np.array([100, 0])), (0, 0, 255), 2)
+                    # cv2.line(frame, tuple(center), tuple(center + np.array([0, 100])), (0, 255, 0), 2)
+                    # cv2.putText(frame, str(id), tuple(center - np.array([10, 10])), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 2)
+
 
                 # Compute rotation matrix
                 rotation_matrix, _ = cv2.Rodrigues(rvecs[0])
@@ -260,10 +259,10 @@ def draw_trajectories_on_video(input_video_path, output_video_path, aruco_tracke
                                                   [0, 1, -overlay_center[1]],
                                                   [0, 0, 1]])
 
-                translation_back = np.array([[1, 0, overlay_center[0]],
-                                             [0, 1, overlay_center[1]],
+                translation_back = np.array([[1, 0, overlay_img.shape[0]//2+overlay_center[0]],
+                                             [0, 1, overlay_img.shape[1]//2+overlay_center[1]],
                                              [0, 0, 1]])
-
+      
                 # Combined rotation transformation
                 M = np.dot(translation_back, np.dot(rotation_matrix_2x3, translation_to_origin))
 
@@ -271,11 +270,11 @@ def draw_trajectories_on_video(input_video_path, output_video_path, aruco_tracke
                 M_affine = M[:2, :]
 
                 # Rotate overlay image
-                rotated_overlay = cv2.warpAffine(overlay_img, M_affine, (overlay_img.shape[1], overlay_img.shape[0]), 
+                rotated_overlay = cv2.warpAffine(overlay_img, M_affine, (overlay_img.shape[1]*2, overlay_img.shape[0]*2), 
                                                  flags=cv2.INTER_LINEAR, borderMode=cv2.BORDER_CONSTANT, borderValue=(0, 0, 0))
 
                 # Position overlay image at the center of the frame
-                overlay_top_left = (100, 100)
+                overlay_top_left = (width-overlay_img.shape[0]*2, height-overlay_img.shape[1]*2) # position if the image on the video
                 x, y = overlay_top_left
 
                 # Create a mask of the overlay image
@@ -303,6 +302,7 @@ def draw_trajectories_on_video(input_video_path, output_video_path, aruco_tracke
     out.release()
     cv2.destroyAllWindows()
 
+
 # Usage
 # aruco_tracker should be an initialized ArucoTracker object
 # draw_trajectories_on_video('input_video.mp4', 'output_video.mp4', aruco_tracker, 'overlay_image.png')
@@ -311,8 +311,9 @@ def draw_trajectories_on_video(input_video_path, output_video_path, aruco_tracke
 
 aruco_tracker = Aruco_tracker(cam_id=-1, monitor_id=0, debug=False, debug_stream=False, frame_width=width, frame_height=height, crop_img=False, num_tags=15, decision_margin=20, record_stream=False, publish_pos=False, print_pos=False, detect_arena=False)
 
-input_video_path = '/Users/alberto/Documents/UNIVERSITA/MAGISTRALE/tesi/robat video-foto/pdm 7 mic array/inverted_loop_pdm array_7mic_fast_24_7.mp4'  # replace with your input video path
+input_video_path = '/Users/alberto/Documents/UNIVERSITA/MAGISTRALE/tesi/robat video-foto/pdm 7 mic array/inverted_loop_pdm array_7mic_fast.mp4'  # replace with your input video path
+
 output_video_path = '/Users/alberto/Desktop/test.MP4'  # replace with your desired output video path
-overlay_img_path = '/Users/alberto/Downloads/batman_logo square.png'  # replace with your overlay image path
+overlay_img_path = '/Users/alberto/Downloads/thymio.png'  # replace with your overlay image path
 
 draw_trajectories_on_video(input_video_path, output_video_path, aruco_tracker, overlay_img_path)

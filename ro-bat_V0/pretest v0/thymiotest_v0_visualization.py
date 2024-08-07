@@ -12,6 +12,7 @@ import pyqtgraph as pg
 import pyqtgraph.opengl as gl
 from pyqtgraph.Qt import QtCore
 from scipy import signal 
+from scipy.fftpack import fft, ifft
 import sounddevice as sd
 
 import matplotlib.pyplot as plt
@@ -57,7 +58,11 @@ def calc_delay(two_ch,ba_filt,fs):
     for each_column in range(2):
         two_ch[:,each_column] = signal.lfilter(ba_filt[0],ba_filt[1],two_ch[:,each_column])
 
+    
     cc = np.correlate(two_ch[:,0],two_ch[:,1],'same')
+    plt.plot(cc)
+    plt.show()
+    plt.title('cc')
     midpoint = cc.size/2.0
     delay = np.argmax(cc) - midpoint
     # convert delay to seconds
@@ -65,8 +70,27 @@ def calc_delay(two_ch,ba_filt,fs):
     # if np.abs(delay)< 5.5*10**-5:
     #     delay = 0
     # else:
-    #     delay = delay
+    #     delay = delay 
     return delay
+
+
+def gcc_phat(sig, fs):
+    # Compute the cross-correlation between the two signals
+    refsig = sig[:,0]
+    sig = sig[:,1]
+    
+    n = sig.shape[0] + refsig.shape[0]
+    SIG = fft(sig, n=n)
+    REFSIG = fft(refsig, n=n)
+    R = SIG * np.conj(REFSIG)
+    cc = np.fft.ifft(R / np.abs(R))
+    max_shift = int(np.floor(n / 2))
+    cc = np.concatenate((cc[-max_shift:], cc[:max_shift+1]))
+    #plt.plot(cc)
+    #plt.show()
+    #plt.title('gcc-phat')
+    shift = np.argmax(np.abs(cc)) - max_shift
+    return shift / float(fs)
 
 def calc_multich_delays(multich_audio, ba_filt,fs):
     '''s
@@ -75,10 +99,13 @@ def calc_multich_delays(multich_audio, ba_filt,fs):
     '''
     nchannels = multich_audio.shape[1]
     delay_set = []
+    delay_set_gcc = []
     for each in range(1, nchannels):
         delay_set.append(calc_delay(multich_audio[:,[0,each]],ba_filt,fs))
-    #print(delay_set)
-    return np.array(delay_set)
+        delay_set_gcc.append(gcc_phat(multich_audio[:,[0,each]],fs))
+    #print('delay=',delay_set)
+    #print('delay gcc=',delay_set_gcc)
+    return np.array(delay_set), np.array(delay_set_gcc)
 
 def calc_multich_delays_center(multich_audio, ba_filt,fs):
     '''s
@@ -167,7 +194,7 @@ print('usbfireface index:', usb_fireface_index)
 
 fs = 48000
 # block_size = 4096
-block_size = 8192
+block_size = 2048
 # channels = 5
 channels = 7
 mic_spacing = 0.015 #m
@@ -214,9 +241,9 @@ def update():
         #print('avar_theta_l',avar_theta_l)
         #print('avar_theta_r',avar_theta_r)
 
-        print('avarage theta deg l',np.rad2deg(avar_theta_l))
-        print('avarage theta deg r ',np.rad2deg(avar_theta_r))
-        delay_crossch = calc_multich_delays(in_sig,ba_filt,fs)
+        #print('avarage theta deg l',np.rad2deg(avar_theta_l))
+        #print('avarage theta deg r ',np.rad2deg(avar_theta_r))
+        delay_crossch, delay_crossch_gcc = calc_multich_delays(in_sig,ba_filt,fs)
 
         
 
@@ -224,8 +251,10 @@ def update():
         # calculate aavarage angle
 
         avar_theta = avar_angle(delay_crossch,channels,mic_spacing)
+        avar_theta_gcc = avar_angle(delay_crossch_gcc,channels,mic_spacing)
         #print('avarage theta rad',avar_theta)
         print('avarage theta deg',np.rad2deg(avar_theta))
+        print('avarage theta deg gcc',np.rad2deg(avar_theta))
 
         # Calculate RMS
         # rms_sig = calc_rms(in_sig[:,0])
