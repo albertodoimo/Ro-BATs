@@ -20,6 +20,7 @@ import os
 from thymiodirect import Connection 
 from thymiodirect import Thymio
 from scipy import signal
+from scipy.fftpack import fft, ifft
 
 
 import sounddevice as sd
@@ -160,6 +161,24 @@ def calc_delay(two_ch,fs):
     # else:
     #     delay = delay
     return delay
+
+def gcc_phat(sig, fs):
+    # Compute the cross-correlation between the two signals
+    refsig = sig[:,0]
+    sig = sig[:,1]
+    
+    n = sig.shape[0] + refsig.shape[0]
+    SIG = fft(sig, n=n)
+    REFSIG = fft(refsig, n=n)
+    R = SIG * np.conj(REFSIG)
+    cc = np.fft.ifft(R / np.abs(R))
+    max_shift = int(np.floor(n / 2))
+    cc = np.concatenate((cc[-max_shift:], cc[:max_shift+1]))
+    #plt.plot(cc)
+    #plt.show()
+    #plt.title('gcc-phat')
+    shift = np.argmax(np.abs(cc)) - max_shift
+    return shift / float(fs)
 
 def calc_multich_delays(multich_audio,fs):
     '''s
