@@ -4,10 +4,12 @@ from datetime import datetime
 from mss import mss
 import math
 import zmq
+import csv
+import matplotlib.pyplot as plt
 
-width = 1920
-height = 1080
-fps = 24
+width = 1080
+height = 800
+fps = 20
 
 class Aruco_tracker:
     def __init__(self, cam_id=-1, monitor_id=0, debug=True, debug_stream=True, frame_width=width, frame_height=height, crop_img=False, num_tags=15, decision_margin=20, record_stream=False, publish_pos=False, print_pos=False, detect_arena=False):
@@ -204,13 +206,13 @@ def draw_trajectories_on_video(input_video_path, output_video_path, aruco_tracke
     # Camera calibration parameters (you might need to calibrate your camera)
     camera_matrix = np.array([[1406.08415449821, 0, 0],
                               [2.20679787308599, 1417.99930662800, 0],
-                              [1014.13643417416, 566.347754321696, 1]]).reshape(3, 3)
+                              [1014.13643417416, 566.347754321696, -1]]).reshape(3, 3)
 
     dist_coeffs = np.array([-0.2380769334, 0.0931325835, 0, 0, 0])
     
     overlay_img = cv2.imread(overlay_img_path)
     overlay_img = cv2.resize(overlay_img, (200, 200))  # Adjust size as needed of the overlay image
-
+    i = 0
     while True:
         ret, frame = cap.read()
         if not ret:
@@ -238,21 +240,55 @@ def draw_trajectories_on_video(input_video_path, output_video_path, aruco_tracke
                     cv2.line(frame, tuple(trajectories[markerID][i-1].astype(int)), tuple(trajectories[markerID][i].astype(int)), colors[markerID], 3)
                     # corner = corner.reshape((4, 2)).astype(int)
                     # center = np.mean(corner, axis=0).astype(int)
-                    # cv2.line(frame, tuple(center), tuple(center + np.array([100, 0])), (0, 0, 255), 2)
-                    # cv2.line(frame, tuple(center), tuple(center + np.array([0, 100])), (0, 255, 0), 2)
-                    # cv2.putText(frame, str(id), tuple(center - np.array([10, 10])), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 2)
-
 
                 # Compute rotation matrix
                 rotation_matrix, _ = cv2.Rodrigues(rvecs[0])
                 rotation_matrix_2x2 = rotation_matrix[:2, :2]
+                
+                spatial_resp = []
+                data = []
+                with open('/Users/alberto/Documents/UNIVERSITA/MAGISTRALE/tesi/github/Ro-BATs/tracking/spat_resp.csv', "r", newline='') as file:
+                    reader = csv.reader(file)
+                    for row in reader:
+                    # Convert each row to a list of floats
+                        spatial_resp.append(list(map(float, row)))
+
+                #print(np.shape(spatial_resp))
+
+            
+                #spatial_resp = spatial_resp[0]       
+
+                # Create a new figure with a polar projection
+                fig, ax = plt.subplots(subplot_kw={'projection': 'polar'})
+
+                # Generate some sample data
+                theta = np.linspace(0, 2*np.pi, 360)
+
+                # Create the polar plot
+                ax.plot(theta, spatial_resp[i])
+                ax.set_theta_direction(1)
+                # Customize the plot
+                ax.set_title("Polar Plot")
+                ax.set_rticks([0.25, 0.5, 0.75, 1])  # Set radial ticks
+                ax.grid(True)
+
+                # Save the figure as an image file
+                plt.savefig('polar_plot.png')
+                plt.close(fig)  # Close the figure to free up memory
+
+                # Convert the saved image to a format compatible with OpenCV
+                overlay_img = cv2.imread('/Users/alberto/Documents/UNIVERSITA/MAGISTRALE/tesi/github/Ro-BATs/tracking/polar_plot.png')
+                overlay_img = cv2.resize(overlay_img, (400, 400))
 
                 # Center point of the overlay image where the rotation will be applied
                 overlay_center = (overlay_img.shape[1] // 2, overlay_img.shape[0] // 2)
 
                 # Create 2D rotation matrix
+                print('\n',rotation_matrix_2x2)
                 rotation_matrix_2x3 = np.hstack([rotation_matrix_2x2, np.array([[0], [0]])])
-                rotation_matrix_2x3 = np.vstack([rotation_matrix_2x3, [0, 0, 1]])
+                print('\n',rotation_matrix_2x3)
+                rotation_matrix_3x3 = np.vstack([rotation_matrix_2x3, [0, 0, 1]])
+                print('\n',rotation_matrix_3x3)
 
                 # Translation matrices
                 translation_to_origin = np.array([[1, 0, -overlay_center[0]],
@@ -264,7 +300,7 @@ def draw_trajectories_on_video(input_video_path, output_video_path, aruco_tracke
                                              [0, 0, 1]])
       
                 # Combined rotation transformation
-                M = np.dot(translation_back, np.dot(rotation_matrix_2x3, translation_to_origin))
+                M = np.dot(translation_back, np.dot(rotation_matrix_3x3, translation_to_origin))
 
                 # Create the 2x3 affine transformation matrix
                 M_affine = M[:2, :]
@@ -294,6 +330,8 @@ def draw_trajectories_on_video(input_video_path, output_video_path, aruco_tracke
                 frame[y:y+rotated_overlay.shape[0], x:x+rotated_overlay.shape[1]] = cv2.add(img_bg, img_fg)
 
         out.write(frame)
+        #print(i)
+        i+=1
         cv2.imshow('Trajectories', frame)
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break
@@ -312,7 +350,7 @@ def draw_trajectories_on_video(input_video_path, output_video_path, aruco_tracke
 aruco_tracker = Aruco_tracker(cam_id=-1, monitor_id=0, debug=False, debug_stream=False, frame_width=width, frame_height=height, crop_img=False, num_tags=15, decision_margin=20, record_stream=False, publish_pos=False, print_pos=False, detect_arena=False)
 
 input_video_path = '/Users/alberto/Documents/UNIVERSITA/MAGISTRALE/tesi/robat video-foto/pdm 7 mic array/inverted_loop_pdm array_7mic_fast.mp4'  # replace with your input video path
-
+input_video_path = '/Users/alberto/Desktop/test_swarmlab.mp4'
 output_video_path = '/Users/alberto/Desktop/test.MP4'  # replace with your desired output video path
 overlay_img_path = '/Users/alberto/Downloads/thymio.png'  # replace with your overlay image path
 
