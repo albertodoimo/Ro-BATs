@@ -57,6 +57,7 @@ block_size = 1024
 channels = 7
 mic_spacing = 0.015 #m
 
+fps = 5
 
 auto_hipas_freq = int(343/(2*(mic_spacing*(channels-1))))
 auto_lowpas_freq = int(343/(2*mic_spacing))
@@ -250,7 +251,7 @@ def update():
             avar_theta = avar_angle(delay_crossch,channels,mic_spacing)
             avar_theta_gcc = avar_angle(delay_crossch_gcc,channels,mic_spacing)
             #print('avarage theta rad',avar_theta)
-            print('avarage theta deg',np.rad2deg(avar_theta))
+            #print('avarage theta deg',np.rad2deg(avar_theta))
             print('avarage theta deg gcc',np.rad2deg(avar_theta))
         else:
             avar_theta = None
@@ -319,134 +320,144 @@ def main(use_sim=False, ip='localhost', port=2001):
             print('audio stream started')
             waiturn = 0.8
             wait = 0.0005
+            start_time_rec = time.time()
             start_time = time.time()
             rec_counter = 1
             while True:
 
                 
-            #    # This loop runs for 1 second after the stream is started
-            #    #print(time.time() - start_time)
-            #    #print(start_time)©
-            #    #print(time.time())
-            #    if (time.time() - start_time) <=30: #seconds
-            #        pass
-            #    else:
-            #        q_contents = [q.get() for _ in range(q.qsize())]
-            #        
-            #        #time.sleep(1)
-            #        print('q_contents = ', np.shape(q_contents))
-            #        rec = np.concatenate(q_contents)
-            #        print('rec = ', np.shape(rec))
-            #        
-#
-            #        rec2besaved = rec[:, :channels]
-            #        save_path = '/home/thymio/robat_py/recordings/' 
-            #        # Create folder with args.filename (without extension)
-            #        folder_name= 'MULTIWAV_inverted_loops_' + str(time1) 
-            #        folder_path = os.path.join(save_path, folder_name)
-            #        os.makedirs(folder_path, exist_ok=True)
-            #        save_path = folder_path
-#
-            #        timenow = datetime.datetime.now()
-            #        time2 = timenow.strftime('%d-%m-%Y_%H-%M-%S')
-            #        full_path = os.path.join(save_path, str(rec_counter)+'.wav')
-            #        with sf.SoundFile(full_path, mode='x', samplerate=rec_samplerate,
-            #                        channels=args.channels, subtype=args.subtype) as file:
-            #            file.write(rec2besaved)
-            #            print(f'\nsaved to {full_path}\n')
-            #            rec_counter += 1
-            #        start_time = time.time()
+                # This loop runs for 1 second after the stream is started
+                #print(time.time() - start_time)
+                #print(start_time)©
+                #print(time.time())
+                if (time.time() - start_time_rec) <=60: #seconds
+                    pass
+                else:
+                    q_contents = [q.get() for _ in range(q.qsize())]
                     
-                avar_theta_deg = update()
-                # avar_theta_deg = avar_theta_deg*1.25
-                #detectsCollision = max([robot['prox.horizontal'][i] > 1200 for i in range(5)])
-                #print('avarage theta deg = ', avar_theta_deg)
+                    #time.sleep(1)
+                    print('q_contents = ', np.shape(q_contents))
+                    rec = np.concatenate(q_contents)
+                    print('rec = ', np.shape(rec))
+                    
 
-#                ground_sensors = robot['prox.ground.reflected']
-#                ground_sensors_max = 1000
-#                # Adjust these threshold values as needed
-#                ground_sensors = robot['prox.ground.reflected']
-#                #print('ground = ',robot['prox.ground.reflected'])
-#                # Adjust these threshold values as needed
-#                left_sensor_threshold = 100
-#                right_sensor_threshold = 100
-#                direction = random.choice(['left', 'right'])
-#                if ground_sensors[0] > left_sensor_threshold  and ground_sensors[1]> right_sensor_threshold:
-#                    # Both sensors detect the line, turn left
-#                    if direction == 'left':
-#                        robot['motor.left.target'] = -170
-#                        robot['motor.right.target'] = 150   
-#                        time.sleep(0.5) 
-#                        pass
-#                    else:
-#                        robot['motor.left.target'] = 150
-#                        robot['motor.right.target'] = -170
-#                        time.sleep(0.5)
-#                        pass
-#                    # robot['motor.left.target'] = -50 + random.choice([, 100])
-#                    # robot['motor.right.target'] = -50 + random.choice([-100, 100])
-#                elif ground_sensors[1] > right_sensor_threshold:
-#                    # Only right sensor detects the line, turn left
-#                    robot['motor.left.target'] = -150
-#                    robot['motor.right.target'] = 150
-#                    time.sleep(waiturn)
-#                elif ground_sensors[0] > left_sensor_threshold:
-#                    # Only left sensor detects the line, turn right
-#                    robot['motor.left.target'] = 150 
-#                    robot['motor.right.target'] = -150 
-#                    time.sleep(waiturn)
-#                else:       
-#                    match avar_theta_deg:
-#                        case theta if theta == None:
-#                            robot["leds.top"] = [0, 0, 0]
-#                            time.sleep(wait)
-#                            robot['motor.left.target'] = 200
-#                            robot['motor.right.target'] = 200
-#                        case theta if theta < -30: 
-#                            robot["leds.top"] = [0, 0, 255]
-#                            time.sleep(wait)
-#                            robot['motor.left.target'] = 300
-#                            robot['motor.right.target'] = 20
-#                            time.sleep(wait)
-#                        case theta if -30 <= theta < -5:
-#                            robot["leds.top"] = [0, 255, 255]
-#                            time.sleep(wait)
-#                            robot['motor.left.target'] = 200
-#                            robot['motor.right.target'] = 20
-#                            time.sleep(wait)
-#                        case theta if -3 <= theta <= 3:
-#                            robot["leds.top"] = [255, 255, 255]
-#                            time.sleep(wait)
-#                            robot['motor.left.target'] = 50
-#                            robot['motor.right.target'] = 50
-#                            time.sleep(0.1)
-#                            direction = random.choice(['left', 'right'])
-#                            if direction == 'left':
-#                                robot['motor.left.target'] = -150
-#                                robot['motor.right.target'] = 150
-#                                time.sleep(0.1)
-#                                pass
-#                            else:
-#                                robot['motor.left.target'] = 150
-#                                robot['motor.right.target'] = -150
-#                                time.sleep(0.1)
-#                                pass
-#                            time.sleep(waiturn)
-#                        case theta if 5 < theta <= 30:
-#                            robot["leds.top"] = [255, 255, 0]
-#                            time.sleep(wait)
-#                            robot['motor.right.target'] = 200
-#                            robot['motor.left.target'] = 20
-#                            time.sleep(wait)
-#                        case theta if theta > 30:
-#                            robot["leds.top"] = [255, 0, 0]
-#                            time.sleep(wait)
-#                            robot['motor.right.target'] = 300
-#                            robot['motor.left.target'] = 20
-#                            time.sleep(wait)
-#                        case _:
-#                            pass
-#
+                    rec2besaved = rec[:, :channels]
+                    save_path = '/home/thymio/robat_py/recordings/' 
+                    # Create folder with args.filename (without extension)
+                    folder_name= 'MULTIWAV_inverted_loops_' + str(time1) 
+                    folder_path = os.path.join(save_path, folder_name)
+                    os.makedirs(folder_path, exist_ok=True)
+                    save_path = folder_path
+
+                    timenow = datetime.datetime.now()
+                    time2 = timenow.strftime('%d-%m-%Y_%H-%M-%S')
+                    full_path = os.path.join(save_path, str(rec_counter)+'.wav')
+                    with sf.SoundFile(full_path, mode='x', samplerate=rec_samplerate,
+                                    channels=args.channels, subtype=args.subtype) as file:
+                        file.write(rec2besaved)
+                        print(f'\nsaved to {full_path}\n')
+                        rec_counter += 1
+                    start_time_rec = time.time()
+                    print('startime = ',start_time_rec)
+
+                if (time.time() - start_time) <=1/fps: 
+                    pass
+                else:
+
+                    print('delta',time.time() - start_time)
+                    #print('time.time = ',time.time())
+                    avar_theta_deg = update()
+                    # avar_theta_deg = avar_theta_deg*1.25
+                    #detectsCollision = max([robot['prox.horizontal'][i] > 1200 for i in range(5)])
+                    #print('avarage theta deg = ', avar_theta_deg)
+                    start_time = time.time()
+
+    #                ground_sensors = robot['prox.ground.reflected']
+    #                ground_sensors_max = 1000
+    #                # Adjust these threshold values as needed
+    #                ground_sensors = robot['prox.ground.reflected']
+    #                #print('ground = ',robot['prox.ground.reflected'])
+    #                # Adjust these threshold values as needed
+    #                left_sensor_threshold = 100
+    #                right_sensor_threshold = 100
+    #                direction = random.choice(['left', 'right'])
+    #                if ground_sensors[0] > left_sensor_threshold  and ground_sensors[1]> right_sensor_threshold:
+    #                    # Both sensors detect the line, turn left
+    #                    if direction == 'left':
+    #                        robot['motor.left.target'] = -170
+    #                        robot['motor.right.target'] = 150   
+    #                        time.sleep(0.5) 
+    #                        pass
+    #                    else:
+    #                        robot['motor.left.target'] = 150
+    #                        robot['motor.right.target'] = -170
+    #                        time.sleep(0.5)
+    #                        pass
+    #                    # robot['motor.left.target'] = -50 + random.choice([, 100])
+    #                    # robot['motor.right.target'] = -50 + random.choice([-100, 100])
+    #                elif ground_sensors[1] > right_sensor_threshold:
+    #                    # Only right sensor detects the line, turn left
+    #                    robot['motor.left.target'] = -150
+    #                    robot['motor.right.target'] = 150
+    #                    time.sleep(waiturn)
+    #                elif ground_sensors[0] > left_sensor_threshold:
+    #                    # Only left sensor detects the line, turn right
+    #                    robot['motor.left.target'] = 150 
+    #                    robot['motor.right.target'] = -150 
+    #                    time.sleep(waiturn)
+    #                else:       
+    #                    match avar_theta_deg:
+    #                        case theta if theta == None:
+    #                            robot["leds.top"] = [0, 0, 0]
+    #                            time.sleep(wait)
+    #                            robot['motor.left.target'] = 200
+    #                            robot['motor.right.target'] = 200
+    #                        case theta if theta < -30: 
+    #                            robot["leds.top"] = [0, 0, 255]
+    #                            time.sleep(wait)
+    #                            robot['motor.left.target'] = 300
+    #                            robot['motor.right.target'] = 20
+    #                            time.sleep(wait)
+    #                        case theta if -30 <= theta < -5:
+    #                            robot["leds.top"] = [0, 255, 255]
+    #                            time.sleep(wait)
+    #                            robot['motor.left.target'] = 200
+    #                            robot['motor.right.target'] = 20
+    #                            time.sleep(wait)
+    #                        case theta if -3 <= theta <= 3:
+    #                            robot["leds.top"] = [255, 255, 255]
+    #                            time.sleep(wait)
+    #                            robot['motor.left.target'] = 50
+    #                            robot['motor.right.target'] = 50
+    #                            time.sleep(0.1)
+    #                            direction = random.choice(['left', 'right'])
+    #                            if direction == 'left':
+    #                                robot['motor.left.target'] = -150
+    #                                robot['motor.right.target'] = 150
+    #                                time.sleep(0.1)
+    #                                pass
+    #                            else:
+    #                                robot['motor.left.target'] = 150
+    #                                robot['motor.right.target'] = -150
+    #                                time.sleep(0.1)
+    #                                pass
+    #                            time.sleep(waiturn)
+    #                        case theta if 5 < theta <= 30:
+    #                            robot["leds.top"] = [255, 255, 0]
+    #                            time.sleep(wait)
+    #                            robot['motor.right.target'] = 200
+    #                            robot['motor.left.target'] = 20
+    #                            time.sleep(wait)
+    #                        case theta if theta > 30:
+    #                            robot["leds.top"] = [255, 0, 0]
+    #                            time.sleep(wait)
+    #                            robot['motor.right.target'] = 300
+    #                            robot['motor.left.target'] = 20
+    #                            time.sleep(wait)
+    #                        case _:
+    #                            pass
+                        
+    #
 #    except Exception as err:
 #        # Stop robot
 #        robot['motor.left.target'] = 0
