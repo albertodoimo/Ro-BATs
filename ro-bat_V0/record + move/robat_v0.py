@@ -32,6 +32,7 @@ import random
 import os
 import csv
 import xml.etree.ElementTree as ET
+from scipy.fftpack import fft, ifft
 
 from thymiodirect import Connection 
 from thymiodirect import Thymio
@@ -50,16 +51,21 @@ usb_fireface_index = get_card(sd.query_devices())
 print(sd.query_devices())
 print('usb_fireface_index=',usb_fireface_index)
 
+
+# Possible algorithms for computing DOA: PRA, CC
+method = 'CC' 
+doa_name = 'MUSIC'
+
 c = 343.    # speed of sound
 fs = 48000
 rec_samplerate = 48000
 block_size = 1024
 channels = 7
 mic_spacing = 0.015 #m
-
+ref = 3
 nfft = 32  # FFT size
 
-fps = 2
+fps = 1
 
 auto_hipas_freq = int(343/(2*(mic_spacing*(channels-1))))
 print('HP frequency:', auto_hipas_freq)
@@ -91,7 +97,7 @@ b, a = signal.butter(4, [highpass_freq/nyq_freq,lowpass_freq/nyq_freq],btype='ba
 #    time.sleep(1)
 #else: 
 #    #trigger_level = -25.2 # dB level ref max 12s
-trigger_level = -53 # dB level ref max pdm
+trigger_level = -83 # dB level ref max pdm
 
 echo = pra.linear_2D_array(center=[(channels-1)*mic_spacing//2,0], M=channels, phi=0, d=mic_spacing)
 
@@ -154,6 +160,7 @@ def callback(indata, frames, time, status):
     #print('buffer=',np.shape(args.buffer))
 
 def calc_delay(two_ch,fs):
+    
     '''
     Parameters
     ----------
@@ -178,23 +185,40 @@ def calc_delay(two_ch,fs):
     delay = np.argmax(cc) - midpoint
     # convert delay to seconds
     delay *= 1/float(fs)
-    # if np.abs(delay)< 5.5*10**-5:
-    #     delay = 0
-    # else:
-    #     delay = delay
     return delay
 
-def calc_multich_delays(multich_audio,fs):
+def gcc_phat(sig,refsig, fs):
+    # Compute the cross-correlation between the two signals
+    #sig = sig[:,1]
+    
+    n = sig.shape[0] + refsig.shape[0]
+    SIG = fft(sig, n=n)
+    REFSIG = fft(refsig, n=n)
+    R = SIG * np.conj(REFSIG)
+    cc = np.fft.ifft(R / np.abs(R))
+    max_shift = int(np.floor(n / 2))
+    cc = np.concatenate((cc[-max_shift:], cc[:max_shift+1]))
+    #plt.plot(cc)
+    #plt.show()
+    #plt.title('gcc-phat')
+    shift = np.argmax(np.abs(cc)) - max_shift
+    return -shift / float(fs)
+
+def calc_multich_delays(multich_audio,ref_sig,fs):
     '''s
     Calculates peak delay based with reference of 
     channel 1. 
     '''
     nchannels = multich_audio.shape[1]
     delay_set = []
-    for each in range(1, nchannels):
-        delay_set.append(calc_delay(multich_audio[:,[0,each]],fs))
-    # print(delay_set)
-    return np.array(delay_set)
+    delay_set_gcc = []
+    for each in range(0, nchannels):
+        if each != ref:
+            delay_set.append(calc_delay(multich_audio[:,[0, each]],fs))
+            delay_set_gcc.append(gcc_phat(multich_audio[:,each],ref_sig,fs))
+    #print('delay=',delay_set)
+    #print('delay gcc=',delay_set_gcc)
+    return np.array(delay_set), np.array(delay_set_gcc)
 
 def avar_angle(delay_set,nchannels,mic_spacing):
     '''
@@ -202,9 +226,17 @@ def avar_angle(delay_set,nchannels,mic_spacing):
     with channel 1 as reference
     '''
     theta = []
-    for each in range(0, nchannels-1):
-        theta.append(np.arcsin((delay_set[each]*343)/((each+1)*mic_spacing))) # rad
-    # print('theta=',theta)
+    if ref!=0: 
+        for each in range(0, nchannels//2):
+            #print('1',each+1)
+            theta.append(-np.arcsin((delay_set[each]*343)/((each+1)*mic_spacing))) # rad
+        for each in range(nchannels-2, nchannels//2-1, -1):
+            #print('2',each-2)
+            theta.append(np.arcsin((delay_set[each]*343)/((each-2)*mic_spacing))) # rad
+    else:   
+        for each in range(0, nchannels-1):
+            theta.append(np.arcsin((delay_set[each]*343)/((each+1)*mic_spacing))) # rad
+    print('theta=',theta)
     avar_theta = np.mean(theta)
     return avar_theta
    
@@ -215,13 +247,15 @@ def int_or_str(text):
     except ValueError:
         return text
 
-def save_data_to_csv(matrix, filename):
-    with open(filename, "w", newline='') as file:
+def save_data_to_csv(matrix, filename, path):
+    full_path = os.path.join(path, filename)
+    with open(full_path, "w", newline='') as file:
         writer = csv.writer(file)
         writer.writerows(matrix)
-    print(f"Matrix has been saved as csv to {filename}")
+    print(f"Matrix has been saved as csv to {full_path}")
 
-def save_data_to_xml(matrix, filename):
+def save_data_to_xml(matrix, filename, path):
+    full_path = os.path.join(path, filename)
     root = ET.Element("matrix")
     for row in matrix:
         row_elem = ET.SubElement(root, "row")
@@ -230,74 +264,54 @@ def save_data_to_xml(matrix, filename):
             val_elem.text = str(val)
     
     tree = ET.ElementTree(root)
-    tree.write(filename)
-    print(f"Matrix has been saved as xml to {filename}")
+    tree.write(full_path)
+    print(f"Matrix has been saved as xml to {full_path}")
+
+avar_theta = None
 
 def update():
-#    try:
-        in_sig = args.buffer
-#        #print(in_sig)
-#        # calculate avarage angle
-#        delay_crossch = calc_multich_delays(in_sig,fs)
-#        avar_theta = avar_angle(delay_crossch,channels-1,mic_spacing)
-#        #print('avarage theta rad',avar_theta)
-#        # print('avarage theta deg',np.rad2deg(avar_theta))
 
-        ref_channels = in_sig
-        #print('ref_channels=', np.shape(ref_channels))
-        ref_channels_bp = bandpass_sound(ref_channels,a,b)
-        #print('ref_channels_bp=', np.shape(ref_channels_bp))
-        above_level,dBrms_channel = check_if_above_level(ref_channels_bp,trigger_level)
-        #print(above_level)
-        av_above_level = np.mean(dBrms_channel)
-        #print(av_above_level)
-        if av_above_level>trigger_level:
+    in_sig = args.buffer
+
+    ref_channels = in_sig
+    #print('ref_channels=', np.shape(ref_channels))
+    ref_channels_bp = bandpass_sound(ref_channels,a,b)
+    #print('ref_channels_bp=', np.shape(ref_channels_bp))
+    above_level,dBrms_channel = check_if_above_level(ref_channels_bp,trigger_level)
+    #print(above_level)
+    av_above_level = np.mean(dBrms_channel)
+    #print(av_above_level)
+    ref_sig = in_sig[:,ref]
+    delay_crossch, delay_crossch_gcc = calc_multich_delays(in_sig,ref_sig, fs)
+
+    # calculate avarage angle
+    #avar_theta = avar_angle(delay_crossch,channels,mic_spacing)
+    avar_theta = avar_angle(delay_crossch_gcc,channels,mic_spacing)
+
+    qqq.put(avar_theta.copy()) # store detected angle value
+
+    if av_above_level > trigger_level:
 
 
-            delay_crossch = calc_multich_delays(ref_channels_bp, fs)
-#     
-# 
-#             # print('delay',delay_crossch)
-#             # calculate aavarage angle
-# 
-            avar_theta = avar_angle(delay_crossch,channels,mic_spacing)
-            return np.rad2deg(avar_theta)
-        else:
-            avar_theta = None
-            return avar_theta
+        #calculate avarage angle
+        #avar_theta = avar_angle(delay_crossch,channels,mic_spacing)
+        #avar_theta = avar_angle(delay_crossch_gcc,channels,mic_spacing)
         
-#    except KeyboardInterrupt:
-#        
-#
-#        print("\nupdate function stopped\n")
-#        
-#        q_contents = [q.get() for _ in range(q.qsize())]
-#        print('q_contents = ', np.shape(q_contents))
-#        rec = np.concatenate(q_contents)
-#        print('rec = ', np.shape(rec))
-#        rec2besaved = rec[:, :channels]
-#        save_path = '/home/thymio/robat_py/recordings/'
-#        full_path = os.path.join(save_path, args.filename)
-#        with sf.SoundFile(full_path, mode='x', samplerate=args.samplerate,
-#                        channels=args.channels, subtype=args.subtype) as file:
-#            file.write(rec2besaved)
-#            print(f'\nsaved to {args.filename}\n')
-#        sd.stop() 
-#
-#        return np.rad2deg(avar_theta)
+        print('avarage theta deg = ', np.rad2deg(avar_theta))
+        return np.rad2deg(avar_theta)
+    else:
+        avar_theta = None
+        return avar_theta
 
 def update_polar():
     # Your streaming data source logic goes here
 
-
     in_sig = args.buffer
 
-    
     X = pra.transform.stft.analysis(in_sig, nfft, nfft // 2)
     X = X.transpose([2, 1, 0])
 
-#
-    doa = pra.doa.algorithms['MUSIC'](echo, fs, nfft, c=c, num_src=2, max_four=4)
+    doa = pra.doa.algorithms[doa_name](echo, fs, nfft, c=c, num_src=2, max_four=4)
     doa.locate_sources(X, freq_range=freq_range)
     #print('azimuth_recon=',doa.azimuth_recon) # rad value of detected angles
     theta_pra_deg = (doa.azimuth_recon * 180 / np.pi) 
@@ -305,6 +319,7 @@ def update_polar():
 
     spatial_resp = doa.grid.values # 360 values for plot
     #print('spat_resp',spatial_resp) 
+
     # normalize   
     min_val = spatial_resp.min()
     max_val = spatial_resp.max()
@@ -312,18 +327,6 @@ def update_polar():
 
     qq.put(spatial_resp.copy())
     qqq.put(doa.azimuth_recon.copy())
-    #values = np.zeros(360)
-
-    #Update the polar plot
-    #data.append(values)
-
-    #if len(data) > 360:  # Keep only the latest 360 values
-    #    data.pop(0)
-
-    #line.set_ydata(spatial_resp)
-    #print('input audio plot last = ', np.shape(rec))
-    #print('line',np.shape(line))
-    #return line, spatial_resp
 
     ref_channels = in_sig
     #print('ref_channels=', np.shape(ref_channels))
@@ -334,26 +337,8 @@ def update_polar():
     av_above_level = np.mean(dBrms_channel)
     #print(av_above_level)
 
-    if av_above_level>trigger_level:
-        #print('av db level=',av_above_level)
-        #X = pra.transform.stft.analysis(in_sig, nfft, nfft // 2)
-        #X = X.transpose([2, 1, 0])
-#
-        #doa = pra.doa.algorithms['MUSIC'](echo, fs, nfft, c=c, num_src=2, max_four=1)
-        #doa.locate_sources(X, freq_range=freq_range)
-        #spatial_resp = doa.grid.values # 360 values for plot
-        ##print('spat_resp',spatial_resp) 
-#
-        ## normalize   
-        #min_val = spatial_resp.min()
-        #max_val = spatial_resp.max()
-        #spatial_resp = (spatial_resp - min_val) / (max_val - min_val)
-        ##print('azimuth_recon=',doa.azimuth_recon) # rad value of detected angles
-        #qq.put(spatial_resp.copy())
-        #qqq.put(doa.azimuth_recon.copy())
-#
-        #theta_pra_deg = (doa.azimuth_recon * 180 / np.pi) 
-        #print('theta=',theta_pra_deg) #degrees value of detected angles
+    if av_above_level > trigger_level:
+
         if theta_pra_deg[0]<=180:
             theta_pra = 90-theta_pra_deg[0]
             print('pra theta deg', theta_pra)
@@ -365,9 +350,6 @@ def update_polar():
         else:
             theta_pra = None
             return theta_pra
-
-        
-
 
 def main(use_sim=False, ip='localhost', port=2001):
     ''' Main function '''
@@ -393,18 +375,16 @@ def main(use_sim=False, ip='localhost', port=2001):
             device_info = sd.query_devices(args.device, 'input')
             args.samplerate = int(device_info['default_samplerate'])
         if args.filename is None:
-            #args.filename = tempfile.mktemp(prefix='delme_rec_unlimited_',suffix='.wav', dir='')
             timenow = datetime.datetime.now()
-            time1 = timenow.strftime('%Y-%m-%d_%H-%M-%S')
-            args.filename = 'MULTIWAV_inverted_loops_' + str(time1) + '.wav'
+            time1 = timenow.strftime('%Y-%m-%d__%H-%M-%S')
+            args.filename = 'MULTIWAV_' + str(time1) + '.wav'
 
         # Make sure the file is opened before recording anything:
         with sd.InputStream(samplerate=args.samplerate, device=usb_fireface_index,
                             channels=args.channels, callback=callback, blocksize=block_size):
-            #print('#' * 80)
-            #print('press Ctrl+C to stop the recording')
-            #print('#' * 80)
             print('audio stream started')
+
+
             waiturn = 0.3
             wait = 0.0001
             start_time_rec = time.time()
@@ -413,10 +393,6 @@ def main(use_sim=False, ip='localhost', port=2001):
             pause = False
             while True:
 
-            # This loop runs for x seconds after the stream is started
-                #print(time.time() - start_time)
-                #print(start_time)
-                #print(time.time())
                 if (time.time() - start_time_rec) <=10: #seconds
                     pause = False
                     pass
@@ -435,13 +411,13 @@ def main(use_sim=False, ip='localhost', port=2001):
                     save_path = '/home/thymio/robat_py/'
                     save_path = ''
                     # Create folder with args.filename (without extension)
-                    folder_name = 'MULTIWAV_inverted_loops_' + str(time1) 
+                    folder_name = str(time1) + '_MULTIWAV'  
                     folder_path = os.path.join(save_path, folder_name)
                     os.makedirs(folder_path, exist_ok=True)
                     save_path = folder_path
 
                     timenow = datetime.datetime.now()
-                    time2 = timenow.strftime('%d-%m-%Y_%H-%M-%S')
+                    time2 = timenow.strftime('%Y-%m-%d__%H-%M-%S')
                     full_path = os.path.join(save_path, str(rec_counter)+'.wav')
                     with sf.SoundFile(full_path, mode='x', samplerate=rec_samplerate,
                                     channels=args.channels, subtype=args.subtype) as file:
@@ -454,13 +430,16 @@ def main(use_sim=False, ip='localhost', port=2001):
                 if (time.time() - start_time) <=1/fps: 
                     pass
                 else:
-                    print('delta',time.time() - start_time)
-                    #avar_theta_deg = update()
-                    theta_pra = update_polar()
-                    avar_theta_deg = theta_pra
+                    #print('delta',time.time() - start_time)
+                    
+                    if method == 'PRA':
+                        angle = update_polar()
+                    elif method == 'CC':
+                        angle = update()
+                    else:
+                        print('No valid method provided')
+                
 
-                    #print('avarage theta deg', avar_theta_deg)
-                    #print('pra theta deg', theta_pra)
                     start_time = time.time()
 
 #                    ground_sensors = robot['prox.ground.reflected']
@@ -502,7 +481,7 @@ def main(use_sim=False, ip='localhost', port=2001):
 #                        robot['motor.right.target'] = -150 
 #                        time.sleep(waiturn)
 #                    else:       
-#                        match avar_theta_deg:
+#                        match angle:
 #                            case theta if theta == None:
 #                                robot["leds.top"] = [0, 0, 0]
 #                                time.sleep(wait)
@@ -575,43 +554,55 @@ def main(use_sim=False, ip='localhost', port=2001):
 #        robot['motor.right.target'] = 0
 #        robot["leds.top"] = [0,0,0]
         print("Press Ctrl-C again to end the program")    
-        
-        q_contents = [q.get() for _ in range(q.qsize())]
-        spatial_response = [qq.get() for _ in range(qq.qsize())] #360 values for plot
-        theta_doa = [qqq.get() for _ in range(qqq.qsize())] #pra recongnized angle values
 
-        #file_doa = "doa.csv"
         save_path = '/home/thymio/robat_py/'
         save_path = ''
-        file_spat_resp_csv = save_path + "files/" + time1 + "_spat_resp.csv"
-        file_spat_resp_xml = save_path + "files/" + time1 + "_spat_resp.xml"
+        folder_name = str(time1) + '_rec_data' 
+        folder_path = os.path.join(save_path, folder_name)
+        os.makedirs(folder_path, exist_ok=True)
 
-        save_data_to_xml(spatial_response, file_spat_resp_xml)
-        save_data_to_csv(spatial_response, file_spat_resp_csv)
+        if method == 'CC':
+            theta_doa = np.transpose([[qqq.get() for _ in range(qqq.qsize())]]) #recognized angle values
+            file_theta_doa_xml = time1 + "_spat_resp_CC.xml"
+            file_theta_doa_csv = time1 + "_spat_resp_CC.csv"
+            save_data_to_xml(theta_doa, file_theta_doa_xml, folder_path) #[time, av angle deg]
+            save_data_to_csv(theta_doa, file_theta_doa_csv, folder_path) #[time, av angle deg]
+            
+        if method == 'PRA':
+            spatial_response = [qq.get() for _ in range(qq.qsize())] #360 values for plot
+            theta_doa = [[qqq.get() for _ in range(qqq.qsize())]] #recognized angle values
+            theta_doa = np.concatenate(theta_doa)
+
+            file_spat_resp_xml = time1 + "_spat_resp_PRA.xml" 
+            file_spat_resp_csv =  time1 + "_spat_resp_PRA.csv" 
+            save_data_to_xml(spatial_response, file_spat_resp_xml, folder_path) #[time, 360 polar plot angles]
+            save_data_to_csv(spatial_response, file_spat_resp_csv, folder_path) #[time, 360 polar plot angles]
+            
+            file_theta_doa_xml = time1 + "_spat_resp_CC.xml" #[time, number of detected angle]
+            file_theta_doa_csv = time1 + "_spat_resp_CC.csv" #[time, number of detected angle]
+            save_data_to_xml(theta_doa, file_theta_doa_xml, folder_path)
+            save_data_to_csv(theta_doa, file_theta_doa_csv, folder_path)
+
         
-        print('spatial response = ', np.shape(spatial_response)) #360 values for plot
-        print('theta doa = ', np.shape(theta_doa)) #pra recongnized angle values
-        #time.sleep(1) 
-        print('q_contents = ', np.shape(q_contents))
+        # save audio
+        q_contents = [q.get() for _ in range(q.qsize())]
+        #print('q_contents = ', np.shape(q_contents))
         rec = np.concatenate(q_contents)
-        print('rec = ', np.shape(rec))
+        #print('rec = ', np.shape(rec))
         
-
         rec2besaved = rec[:, :channels]
 
-        folder_name = 'MULTIWAV_inverted_loops_' + str(time1) 
+        folder_name = str(time1) + '_MULTIWAV'
         folder_path = os.path.join(save_path, folder_name)
         os.makedirs(folder_path, exist_ok=True)
         save_path = folder_path
 
         full_path = os.path.join(save_path, 'end.wav')
-        with sf.SoundFile(full_path, mode='x', samplerate=rec_samplerate,
+        with sf.SoundFile(full_path, mode ='x', samplerate=rec_samplerate,
                         channels=args.channels, subtype=args.subtype) as file:
             file.write(rec2besaved)
             print(f'\nsaved to {args.filename}\n')
         sd.stop()
-        #print("\nREC START TIME: \n", startime.strftime("%Y-%m-%d %H:%M:%S"))
-        #print("\nSTOP REC TIME: \n", stoptime.strftime("%Y-%m-%d %H:%M:%S"))
         
 
 print('functions loaded')

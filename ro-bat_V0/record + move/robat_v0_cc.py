@@ -57,7 +57,7 @@ block_size = 1024
 channels = 7
 mic_spacing = 0.015 #m
 
-fps = 5
+fps = 2
 
 auto_hipas_freq = int(343/(2*(mic_spacing*(channels-1))))
 auto_lowpas_freq = int(343/(2*mic_spacing))
@@ -206,7 +206,6 @@ def calc_multich_delays(multich_audio,fs):
     #print('delay=',delay_set)
     #print('delay gcc=',delay_set_gcc)
     return np.array(delay_set), np.array(delay_set_gcc)
-
 
 def avar_angle(delay_set,nchannels,mic_spacing):
     '''
