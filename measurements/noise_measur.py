@@ -14,14 +14,17 @@ def rms_to_db(rms_value):
 for i in range (1,7):
     angles = np.arange(0, 210, 30)
     # angles = np.concatenate((np.arange(0, 210, 30), np.arange(-150, 30, 30)))
-    print(angles)
+    #print(angles)
     db_values = []
     rms_values = []
     fftsig = []
     meansig = []
     norm_mean = []
+    SPLs = []
     ukon_number = i
-    print(i)
+    #print(i)
+    #sample_rate, one_Pa = wav.read(f'/Users/alberto/Documents/UNIVERSITA/MAGISTRALE/tesi/github/white-noise-characterisation/1Pa-tone/1Pa-tone_cut.wav')
+
     for angle in angles:
         # Load the WAV file for the given angle
         sample_rate, audio_signal = wav.read(f'/Users/alberto/Documents/UNIVERSITA/MAGISTRALE/tesi/github/white-noise-characterisation/ukon{ukon_number}/{angle}.wav')
@@ -35,29 +38,56 @@ for i in range (1,7):
         #print(norm_mean)
         #db_scale = 20*np.log10(norm_mean)        # Compute the RMS value of the audio signal
         rms_value = compute_rms(audio_signal)
+        #print(rms_value)
         rms_values.append(rms_value)
         db_value = rms_to_db(rms_value)
+        #plt.fft(audio_signal[0], Fs=sample_rate, scale='linear', cmap='inferno')
+        #plt.show()
         db_values.append(db_value)
-        #print(f'rms values {angle} degrees= ',rms_value)
-        print(f'db values {angle}= ',db_value)
+    
+    #rms_ref_spl = compute_rms(one_Pa)
+
+    #SPL = 20*np.log10(rms_value/rms_ref_spl) # Conversion from RMS to dB SPL using 1e-5 Pa as reference pressure
+    #print(f'SPL at {angle} degrees is {SPL} dB')
+    #SPL = 20*np.log10(rms_value)-(20*np.log10(0.000020))
+    #SPLs.append(SPL)
+    #print(f'SPL at {angle} degrees is {SPL} dB')
     # Convert angles to radians for the polar plot
     angles_rad = np.deg2rad(angles)
     ref_db = db_values[0]
+
+
+    #rms_ref_spl = compute_rms(one_Pa)
+    #print('ref spl',rms_ref_spl)
+
     # Plot the RMS values on a polar plot
-    plt.figure(figsize=(8, 8))
-    ax = plt.subplot(111, polar=True)
-    ax.plot(angles_rad, db_values-ref_db, 'b*-')  # blue dots and lines
-    print(f'db values {angle}= ',db_value)
+    plt.figure(figsize = (8, 8))
+    ax = plt.subplot(111, polar = True)
+    ax.plot(angles_rad, db_values-ref_db, 'b-')  # blue dots and lines
+    #print(f'db values {angle}= ',db_value)
 
     # Optional: Improve plot aesthetics
     ax.set_title(f'Thymio speaker Polar Plot of RMS Amplitudes at Different Angles for ukon{ukon_number}')
     ax.set_theta_direction(-1)  # clockwise
     ax.set_theta_offset(np.pi / 2)  # start from the top
     ax.set_ylim(-6,2)
-    ax.set_yticks([2,0,-2,-4])
+    ax.set_yticks([1,0,-1,-2,-3,-4,-5])
     # Set ticks at every 30 degrees 
     ax.set_xticks(np.deg2rad(np.arange(0, 360, 30)))
     ax.set_xticklabels([f"{angle}°" for angle in range(0, 360, 30)])
     #plt.show(False)
     plt.savefig(f'polar plots/rms_ukon{ukon_number}.png', dpi=300, bbox_inches='tight')
-    plt.show()
+    plt.show(block=True)
+
+    # # Optional: Improve plot aesthetics
+    # ax.set_title(f'Thymio speaker Polar Plot of RMS Amplitudes at Different Angles for ukon{ukon_number}')
+    # ax.set_theta_direction(-1)  # clockwise
+    # ax.set_theta_offset(np.pi / 2)  # start from the top
+    # ax.set_ylim(-6,2)
+    # ax.set_yticks([1,0,-1,-2,-3,-4,-5])
+    # # Set ticks at every 30 degrees 
+    # ax.set_xticks(np.deg2rad(np.arange(0, 360, 30)))
+    # ax.set_xticklabels([f"{angle}°" for angle in range(0, 360, 30)])
+    # #plt.show(False)
+    # plt.savefig(f'polar plots/rms_ukon{ukon_number}.png', dpi=300, bbox_inches='tight')
+    # plt.show()
