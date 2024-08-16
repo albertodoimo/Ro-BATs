@@ -230,7 +230,7 @@ def draw_trajectories_on_video(input_video_path, output_video_path, aruco_tracke
                 rvecs, tvecs, _ = cv2.aruco.estimatePoseSingleMarkers(corner, 0.08, camera_matrix, dist_coeffs)
 
                 # Draw 3D axis on the marker
-                cv2.drawFrameAxes(frame, camera_matrix, dist_coeffs, rvecs, tvecs, 0.1)
+                #cv2.drawFrameAxes(frame, camera_matrix, dist_coeffs, rvecs, tvecs, 0.1)
 
                 center = np.mean(corner[0], axis=0)
                 trajectories[markerID].append(center)
@@ -260,7 +260,7 @@ def draw_trajectories_on_video(input_video_path, output_video_path, aruco_tracke
                 ax.grid(True)
                 plt.savefig('polar_plot.png')
                 plt.close(fig)
-
+                
                 # Load and resize the polar plot image
                 overlay_img = cv2.imread('/Users/alberto/Documents/UNIVERSITA/MAGISTRALE/tesi/github/Ro-BATs/tracking/polar_plot.png')
                 overlay_img = cv2.resize(overlay_img, (400, 400))

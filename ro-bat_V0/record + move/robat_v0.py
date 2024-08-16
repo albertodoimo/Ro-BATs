@@ -56,16 +56,17 @@ print('usb_fireface_index=',usb_fireface_index)
 method = 'CC' 
 doa_name = 'MUSIC'
 
-c = 343.    # speed of sound
+c = 343   # speed of sound
 fs = 48000
 rec_samplerate = 48000
 block_size = 1024
 channels = 7
 mic_spacing = 0.015 #m
-ref = 3
+#ref= 0 #left most mic as reference
+ref = channels//2 #central mic in odd array as ref
 nfft = 32  # FFT size
 
-fps = 1
+fps = 4
 
 auto_hipas_freq = int(343/(2*(mic_spacing*(channels-1))))
 print('HP frequency:', auto_hipas_freq)
@@ -212,13 +213,22 @@ def calc_multich_delays(multich_audio,ref_sig,fs):
     nchannels = multich_audio.shape[1]
     delay_set = []
     delay_set_gcc = []
-    for each in range(0, nchannels):
-        if each != ref:
-            delay_set.append(calc_delay(multich_audio[:,[0, each]],fs))
-            delay_set_gcc.append(gcc_phat(multich_audio[:,each],ref_sig,fs))
+    i=0
+    while i < nchannels:
+        if i != ref:
+            #print(i)
+            
+            #delay_set.append(calc_delay(multich_audio[:,[ref, i]],fs)) #cc without phat norm
+            delay_set.append(gcc_phat(multich_audio[:,i],ref_sig,fs)) #gcc phat correlation
+            i+=1
+        else:
+            #print('else',i)
+            i+=1
+            pass
+
     #print('delay=',delay_set)
     #print('delay gcc=',delay_set_gcc)
-    return np.array(delay_set), np.array(delay_set_gcc)
+    return np.array(delay_set)
 
 def avar_angle(delay_set,nchannels,mic_spacing):
     '''
@@ -226,17 +236,23 @@ def avar_angle(delay_set,nchannels,mic_spacing):
     with channel 1 as reference
     '''
     theta = []
-    if ref!=0: 
+    #print(delay_set)
+    if ref!=0: #centered reference that works with odd mics
         for each in range(0, nchannels//2):
-            #print('1',each+1)
-            theta.append(-np.arcsin((delay_set[each]*343)/((each+1)*mic_spacing))) # rad
-        for each in range(nchannels-2, nchannels//2-1, -1):
-            #print('2',each-2)
-            theta.append(np.arcsin((delay_set[each]*343)/((each-2)*mic_spacing))) # rad
+            #print('\n1',each)
+            #print('1',nchannels//2-each)
+            theta.append(-np.arcsin((delay_set[each]*343)/((nchannels//2-each)*mic_spacing))) # rad
+            i=nchannels//2-each
+            #print('i=',i)
+        for each in range(nchannels//2, nchannels-1):
+            #print('\n2',each)
+            #print('2',i)
+            theta.append(np.arcsin((delay_set[each]*343)/((i)*mic_spacing))) # rad
+            i+=1
     else:   
         for each in range(0, nchannels-1):
             theta.append(np.arcsin((delay_set[each]*343)/((each+1)*mic_spacing))) # rad
-    print('theta=',theta)
+
     avar_theta = np.mean(theta)
     return avar_theta
    
@@ -274,6 +290,7 @@ def update():
     in_sig = args.buffer
 
     ref_channels = in_sig
+    #print(np.shape(in_sig))
     #print('ref_channels=', np.shape(ref_channels))
     ref_channels_bp = bandpass_sound(ref_channels,a,b)
     #print('ref_channels_bp=', np.shape(ref_channels_bp))
@@ -282,11 +299,10 @@ def update():
     av_above_level = np.mean(dBrms_channel)
     #print(av_above_level)
     ref_sig = in_sig[:,ref]
-    delay_crossch, delay_crossch_gcc = calc_multich_delays(in_sig,ref_sig, fs)
+    delay_crossch= calc_multich_delays(in_sig,ref_sig, fs)
 
     # calculate avarage angle
-    #avar_theta = avar_angle(delay_crossch,channels,mic_spacing)
-    avar_theta = avar_angle(delay_crossch_gcc,channels,mic_spacing)
+    avar_theta = avar_angle(delay_crossch,channels,mic_spacing)
 
     qqq.put(avar_theta.copy()) # store detected angle value
 
