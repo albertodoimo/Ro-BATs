@@ -54,19 +54,19 @@ print('usb_fireface_index=',usb_fireface_index)
 
 # Possible algorithms for computing DOA: PRA, CC
 method = 'CC' 
-doa_name = 'MUSIC'
+doa_name = 'SRP'
 
 c = 343   # speed of sound
 fs = 48000
 rec_samplerate = 48000
 block_size = 1024
 channels = 7
-mic_spacing = 0.015 #m
-#ref= 0 #left most mic as reference
+mic_spacing = 0.018 #m
 ref = channels//2 #central mic in odd array as ref
+#ref= 0 #left most mic as reference
 nfft = 32  # FFT size
 
-fps = 4
+fps = 5
 
 auto_hipas_freq = int(343/(2*(mic_spacing*(channels-1))))
 print('HP frequency:', auto_hipas_freq)
@@ -129,7 +129,7 @@ def check_if_above_level(mic_inputs,trigger_level):
     Returns:
         
         above_level : Boolean. True if the buffer dB rms is >= the trigger_level
-    """
+    """ 
 
     dBrms_channel = np.apply_along_axis(calc_dBrms, 0, mic_inputs)   
     #print('dBrms_channel=',dBrms_channel)     
@@ -393,6 +393,7 @@ def main(use_sim=False, ip='localhost', port=2001):
         if args.filename is None:
             timenow = datetime.datetime.now()
             time1 = timenow.strftime('%Y-%m-%d__%H-%M-%S')
+            print('time1=',time1)
             args.filename = 'MULTIWAV_' + str(time1) + '.wav'
 
         # Make sure the file is opened before recording anything:
@@ -404,11 +405,12 @@ def main(use_sim=False, ip='localhost', port=2001):
             waiturn = 0.3
             wait = 0.0001
             start_time_rec = time.time()
+            print(start_time_rec)
             start_time = time.time()
             rec_counter = 1
             pause = False
-            while True:
 
+            while True:
                 if (time.time() - start_time_rec) <=10: #seconds
                     pause = False
                     pass
@@ -441,7 +443,7 @@ def main(use_sim=False, ip='localhost', port=2001):
                         print(f'\nsaved to {full_path}\n')
                         rec_counter += 1
                     start_time_rec = time.time()
-                    print('startime = ',start_time_rec)
+                    #print('startime = ',start_time_rec)
 
                 if (time.time() - start_time) <=1/fps: 
                     pass
@@ -449,9 +451,11 @@ def main(use_sim=False, ip='localhost', port=2001):
                     #print('delta',time.time() - start_time)
                     
                     if method == 'PRA':
+                        print('updatestart=',datetime.datetime.now().strftime('%Y-%m-%d__%H-%M-%S'))
                         angle = update_polar()
                     elif method == 'CC':
                         angle = update()
+                        print('updatestart=',datetime.datetime.now().strftime('%Y-%m-%d__%H-%M-%S'))
                     else:
                         print('No valid method provided')
                 

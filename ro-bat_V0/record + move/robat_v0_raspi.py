@@ -53,27 +53,27 @@ print('usb_fireface_index=',usb_fireface_index)
 
 
 # Possible algorithms for computing DOA: PRA, CC
-method = 'PRA' 
-doa_name = 'MUSIC'
+method = 'CC' 
+doa_name = 'SRP'
 
 c = 343   # speed of sound
-fs = 48000
-rec_samplerate = 48000
-block_size = 1024
+fs = 16000
+rec_samplerate = 16000
+block_size = 2048
 channels = 7
 mic_spacing = 0.015 #m
 #ref= 0 #left most mic as reference
 ref = channels//2 #central mic in odd array as ref
 nfft = 32  # FFT size
 
-fps = 10
+fps = 5
 
 auto_hipas_freq = int(343/(2*(mic_spacing*(channels-1))))
 print('HP frequency:', auto_hipas_freq)
 auto_lowpas_freq = int(343/(2*mic_spacing))
 print('LP frequency:', auto_lowpas_freq)
 
-highpass_freq, lowpass_freq = [auto_hipas_freq ,auto_lowpas_freq]
+highpass_freq, lowpass_freq = [auto_hipas_freq ,7500]
 freq_range = [highpass_freq, lowpass_freq]
 
 nyq_freq = fs/2.0
@@ -98,7 +98,7 @@ b, a = signal.butter(4, [highpass_freq/nyq_freq,lowpass_freq/nyq_freq],btype='ba
 #    time.sleep(1)
 #else: 
 #    #trigger_level = -25.2 # dB level ref max 12s
-trigger_level = -50 # dB level ref max pdm
+trigger_level = -55 # dB level ref max pdm
 
 echo = pra.linear_2D_array(center=[(channels-1)*mic_spacing//2,0], M=channels, phi=0, d=mic_spacing)
 
@@ -386,23 +386,24 @@ def main(use_sim=False, ip='localhost', port=2001):
         robot = th[th.first_node()]
 
         startime = datetime.datetime.now()
-
-        if args.samplerate is None:    
+        args.samplerate = fs
+        if args.samplerate is None:  
+            print('error!: no samplerate set! Using default')
             device_info = sd.query_devices(args.device, 'input')
             args.samplerate = int(device_info['default_samplerate'])
         if args.filename is None:
             timenow = datetime.datetime.now()
             time1 = timenow.strftime('%Y-%m-%d__%H-%M-%S')
             args.filename = 'MULTIWAV_' + str(time1) + '.wav'
-
+        print(args.samplerate)
         # Make sure the file is opened before recording anything:
         with sd.InputStream(samplerate=args.samplerate, device=usb_fireface_index,
                             channels=args.channels, callback=callback, blocksize=block_size):
             print('audio stream started')
 
 
-            waiturn = 0.3
-            wait = 0.0001
+            waiturn = 0
+            wait = 0
             start_time_rec = time.time()
             start_time = time.time()
             rec_counter = 1
@@ -416,12 +417,10 @@ def main(use_sim=False, ip='localhost', port=2001):
                     pause = True
                     q_contents = [q.get() for _ in range(q.qsize())]
 
-                    
                     #time.sleep(1)
                     #print('q_contents = ', np.shape(q_contents))
                     rec = np.concatenate(q_contents)
                     #print('rec = ', np.shape(rec))
-                    
 
                     rec2besaved = rec[:, :channels]
                     save_path = '/home/thymio/robat_py/robat_v0_files/'
@@ -441,7 +440,7 @@ def main(use_sim=False, ip='localhost', port=2001):
                         print(f'\nsaved to {full_path}\n')
                         rec_counter += 1
                     start_time_rec = time.time()
-                    #print('startime = ',start_time_rec)
+                    print('startime = ',start_time_rec)
 
                 if (time.time() - start_time) <=1/fps: 
                     pass
@@ -450,8 +449,10 @@ def main(use_sim=False, ip='localhost', port=2001):
                     
                     if method == 'PRA':
                         angle = update_polar()
+                        print('time=',datetime.datetime.now().strftime('%H-%M-%S'))
                     elif method == 'CC':
                         angle = update()
+                        print('time=',datetime.datetime.now().strftime('%H-%M-%S'))
                     else:
                         print('No valid method provided')
                 
@@ -476,13 +477,13 @@ def main(use_sim=False, ip='localhost', port=2001):
                         # Both sensors detect the line, turn left
                         if direction == 'left':
                             robot['motor.left.target'] = -180
-                            robot['motor.right.target'] = 150   
-                            time.sleep(0.5) 
+                            robot['motor.right.target'] = 120   
+                            time.sleep(wait) 
                             pass
                         else:
-                            robot['motor.left.target'] = 150
+                            robot['motor.left.target'] = 120
                             robot['motor.right.target'] = -180
-                            time.sleep(0.5)
+                            time.sleep(wait)
                             pass
                         # robot['motor.left.target'] = -50 + random.choice([, 100])
                         # robot['motor.right.target'] = -50 + random.choice([-100, 100])
@@ -516,7 +517,7 @@ def main(use_sim=False, ip='localhost', port=2001):
                                 robot['motor.right.target'] = 20
                                 time.sleep(wait)
                             case theta if -15 <= theta < -1:
-                                robot["leds.top"] = [0, 255, 0]
+                                #robot["leds.top"] = [0, 255, 0]
                                 time.sleep(wait)
                                 robot['motor.left.target'] = 100
                                 robot['motor.right.target'] = 20
@@ -526,7 +527,7 @@ def main(use_sim=False, ip='localhost', port=2001):
                                 time.sleep(wait)
                                 robot['motor.left.target'] = 50
                                 robot['motor.right.target'] = 50
-                                time.sleep(0.1)
+                                #time.sleep(0.1)
                                 #direction = random.choice(['left', 'right'])
                                 #if direction == 'left':
                                 #    robot['motor.left.target'] = -150
@@ -540,7 +541,7 @@ def main(use_sim=False, ip='localhost', port=2001):
                                 #    pass
                                 #time.sleep(waiturn)
                             case theta if 1 < theta <= 15:
-                                robot["leds.top"] = [0, 255, 0]
+                                #robot["leds.top"] = [0, 255, 0]
                                 time.sleep(wait)
                                 robot['motor.right.target'] = 100
                                 robot['motor.left.target'] = 20
@@ -594,10 +595,6 @@ def main(use_sim=False, ip='localhost', port=2001):
             save_data_to_xml(spatial_response, file_spat_resp_xml, folder_path) #[time, 360 polar plot angles]
             save_data_to_csv(spatial_response, file_spat_resp_csv, folder_path) #[time, 360 polar plot angles]
             
-            file_theta_doa_xml = time1 + "_spat_resp_CC.xml" #[time, number of detected angle]
-            file_theta_doa_csv = time1 + "_spat_resp_CC.csv" #[time, number of detected angle]
-            save_data_to_xml(theta_doa, file_theta_doa_xml, folder_path)
-            save_data_to_csv(theta_doa, file_theta_doa_csv, folder_path)
 
         
         # save audio

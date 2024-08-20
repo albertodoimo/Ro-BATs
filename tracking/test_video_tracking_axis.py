@@ -7,9 +7,11 @@ import zmq
 import csv
 import matplotlib.pyplot as plt
 
-width = 1080
-height = 800
-fps = 20
+width = 2704
+height = 2028
+fps = 24
+
+method = 'CC' 
 
 class Aruco_tracker:
     def __init__(self, cam_id=-1, monitor_id=0, debug=True, debug_stream=True, frame_width=width, frame_height=height, crop_img=False, num_tags=15, decision_margin=20, record_stream=False, publish_pos=False, print_pos=False, detect_arena=False):
@@ -236,6 +238,7 @@ def draw_trajectories_on_video(input_video_path, output_video_path, aruco_tracke
                 trajectories[markerID].append(center)
 
                 for i in range(1, len(trajectories[markerID])):
+                    #print('i1',i)
                     cv2.line(frame, tuple(trajectories[markerID][i-1].astype(int)), tuple(trajectories[markerID][i].astype(int)), colors[markerID], 3)
 
                 # Compute rotation angle around the z-axis (in-plane rotation)
@@ -244,22 +247,68 @@ def draw_trajectories_on_video(input_video_path, output_video_path, aruco_tracke
 
                 # Read and process spatial response data
                 spatial_resp = []
-                with open('/Users/alberto/Documents/UNIVERSITA/MAGISTRALE/tesi/github/Ro-BATs/tracking/spat_resp.csv', "r", newline='') as file:
+                #with open('/Users/alberto/Documents/UNIVERSITA/MAGISTRALE/tesi/github/Ro-BATs/tracking/spat_resp.csv', "r", newline='') as file:
+                with open('/Users/alberto/Desktop/2024-08-20__16-39-58_rec_data/2024-08-20__16-39-58_spat_resp_CC.csv', "r", newline='') as file:
                     reader = csv.reader(file)
                     for row in reader:
                         spatial_resp.append(list(map(float, row)))
+                        #print(np.shape(spatial_resp))
+        
 
                 # Create a polar plot
-        
-                fig, ax = plt.subplots(subplot_kw={'projection': 'polar'},figsize=(6, 6))
-                theta = np.linspace(0, 2*np.pi, 360)
-                ax.plot(theta, spatial_resp[i])
-                ax.set_theta_direction(1)
-                ax.set_title("Polar Plot")
-                ax.set_rticks([0.25, 0.5, 0.75, 1])
-                ax.grid(True)
-                plt.savefig('polar_plot.png')
-                plt.close(fig)
+
+                if method == 'CC':
+                    spatial_resp = np.array(spatial_resp)
+                    print('spat resp', np.shape(spatial_resp))
+
+                
+                    x = float(spatial_resp[i]) 
+                    #print('x',x)
+                    if math.isnan(x):
+                        spatial_resp[i][0] = 0
+                    print('2',spatial_resp[i][0]) 
+
+                    values = np.zeros(360)
+
+                    for ii in range(len(values)):
+                        if round(90-np.rad2deg(spatial_resp[i][0])) == ii:
+                            print('not 90',np.rad2deg(spatial_resp[i][0]))
+                            print('round',round(90-np.rad2deg(spatial_resp[i][0])))
+                            values[ii] = 1
+                        else:
+                            values[ii] = 0
+                    print('val',values)
+
+                    fig, ax = plt.subplots(subplot_kw={'projection': 'polar'},figsize=(6, 6))
+                    theta = np.linspace(0, 2*np.pi, 360)
+                    line, = ax.plot(theta, values)
+                    line.set_ydata(values)
+
+
+                    ax.set_theta_direction(1)
+                    ax.set_title("Polar Plot")
+                    #ax.set_theta_offset(np.pi/2)
+                    ax.set_rticks([])
+                    ax.set_thetagrids(range(0, 360, 30))
+                    ax.grid(True)
+                    plt.savefig('polar_plot.png')
+                    plt.close(fig)
+                    #plt.show()
+
+                elif method == 'PRA':
+                    #print(np.shape(spatial_resp))
+                    fig, ax = plt.subplots(subplot_kw={'projection': 'polar'},figsize=(6, 6))
+                    theta = np.linspace(0, 2*np.pi, 360)
+                    #print('i3',i)
+                    ax.plot(theta, spatial_resp[i])
+                    ax.set_theta_direction(1)
+                    ax.set_title("Polar Plot")
+                    #ax.set_theta_offset(np.pi)
+                    ax.set_rticks([])
+                    ax.set_thetagrids(range(0, 360, 30))
+                    ax.grid(True)
+                    plt.savefig('polar_plot.png')
+                    plt.close(fig)
                 
                 # Load and resize the polar plot image
                 overlay_img = cv2.imread('/Users/alberto/Documents/UNIVERSITA/MAGISTRALE/tesi/github/Ro-BATs/tracking/polar_plot.png')
@@ -311,6 +360,7 @@ aruco_tracker = Aruco_tracker(cam_id=-1, monitor_id=0, debug=False, debug_stream
 
 input_video_path = '/Users/alberto/Documents/UNIVERSITA/MAGISTRALE/tesi/robat video-foto/pdm 7 mic array/inverted_loop_pdm array_7mic_fast.mp4'  # replace with your input video path
 input_video_path = '/Users/alberto/Desktop/test_swarmlab.mp4'
+input_video_path = '/Users/alberto/Desktop/2024-08-20__16-39-58_CC 2.MP4'
 output_video_path = '/Users/alberto/Desktop/test.MP4'  # replace with your desired output video path
 overlay_img_path = '/Users/alberto/Downloads/thymio.png'  # replace with your overlay image path
 
