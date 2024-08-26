@@ -54,7 +54,7 @@ print('usb_fireface_index=',usb_fireface_index)
 
 
 # Possible algorithms for computing DOA: PRA, CC
-method = 'CC'
+method = 'PRA'
 doa_name = 'SRP'
 
 c = 343   # speed of sound
@@ -310,6 +310,7 @@ def save_data_to_xml(matrix, filename, path):
     print(f"Matrix has been saved as xml to {full_path}")
 
 avar_theta = None
+theta_values   = []
 
 def update():
 
@@ -329,9 +330,12 @@ def update():
 
     # calculate avarage angle
     avar_theta = avar_angle(delay_crossch,channels,mic_spacing)
-    print('avarage theta deg = ', np.rad2deg(avar_theta))
+    time3 = datetime.datetime.now()
+    avar_theta1 = np.array([avar_theta, time3.strftime('%H:%M:%S.%f')[:-3]])
 
-    qqq.put(avar_theta.copy()) # store detected angle value
+    print('avarage theta',avar_theta1)
+
+    qqq.put(avar_theta1.copy()) # store detected angle value
 
     if av_above_level > trigger_level:
 
@@ -367,10 +371,13 @@ def update_polar():
     min_val = spatial_resp.min()
     max_val = spatial_resp.max()
     spatial_resp = (spatial_resp - min_val) / (max_val - min_val)
+    time3 = datetime.datetime.now()
+
+    spatial_resp = np.hstack([spatial_resp, np.array(time3.strftime('%H:%M:%S.%f')[:-3])])
+    
 
     qq.put(spatial_resp.copy())
     qqq.put(doa.azimuth_recon.copy())
-    print(doa.azimuth_recon)
 
     ref_channels = in_sig
     #print('ref_channels=', np.shape(ref_channels))
@@ -379,7 +386,7 @@ def update_polar():
     above_level,dBrms_channel = check_if_above_level(ref_channels_bp,trigger_level)
     #print(above_level)
     av_above_level = np.mean(dBrms_channel)
-    print(av_above_level)
+    #print(av_above_level)
 
     if av_above_level > trigger_level:
 
@@ -429,7 +436,6 @@ def main(use_sim=False, ip='localhost', port=2001):
                             channels=args.channels, callback=callback, blocksize=block_size):
             print('audio stream started')
 
-
             waiturn = 0.3
             wait = 0.0001
             start_time_rec = time.time()
@@ -474,29 +480,32 @@ def main(use_sim=False, ip='localhost', port=2001):
                     rec_counter += 1
                     start_time_rec = time.time()
                     record(rec_counter,time1)
+                    print('delta save=',time.time()-start_time_rec,'sec')
                     #print('startime = ',start_time_rec)
 
                 # Check if the elapsed time since the last frame is less than or equal to the desired frame duration
-                if (time.time() - start_time) <= 1/fps: 
-                    pass
-                else:
+                #if (time.time() - start_time) <= 1/fps: 
+                #    pass
+                #else:
                     #print('delta',round(time.time() - start_time))
-                    
-                    if method == 'PRA':
-                        #time.sleep(wait)
-                        print('updatestart=',datetime.datetime.now().strftime('%Y-%m-%d__%H-%M-%S'))
-                        angle = update_polar()
-
-
-                    elif method == 'CC':
-                        angle = update()
-                        #print('updatestart=',datetime.datetime.now().strftime('%Y-%m-%d__%H-%M-%S'))
-                        print
-                    else:
-                        print('No valid method provided')
                 
+                if method == 'PRA':
+                    time_start = time.time()
+                    angle = update_polar()
+                    time_end = time.time()
+                    print('delta update pra',time_end - time_start,'sec')
 
-                    
+                elif method == 'CC':
+                    time_start = time.time()
+                    angle = update()
+                    #print('updatestart=',datetime.datetime.now().strftime('%Y-%m-%d__%H-%M-%S'))
+                    time_end = time.time()
+                    #print('delta update cc',time_end - time_start,'sec')
+
+                else:
+                    print('No valid method provided')
+            
+
 
 #                    ground_sensors = robot['prox.ground.reflected']
 #                    #print('ground = ',robot['prox.ground.reflected'])
@@ -599,7 +608,8 @@ def main(use_sim=False, ip='localhost', port=2001):
 #                                time.sleep(wait)
 #                            case _:
 #                                pass
-                    start_time = time.time()
+                print('delta loop =',time.time()-start_time,'sec')
+                start_time = time.time()
 #    except Exception as err:
 #        # Stop robot
 #        robot['motor.left.target'] = 0
@@ -619,16 +629,19 @@ def main(use_sim=False, ip='localhost', port=2001):
         os.makedirs(folder_path, exist_ok=True)
 
         if method == 'CC':
-            theta_doa = np.transpose([[qqq.get() for _ in range(qqq.qsize())]]) #recognized angle values
+            theta_doa = np.vstack([[qqq.get() for _ in range(qqq.qsize())]]) #recognized angle values
             file_theta_doa_xml = time1 + "_theta_doa_CC.xml"
             file_theta_doa_csv = time1 + "_theta_doa_CC.csv"
+            print(np.shape(theta_doa))
+            print(theta_doa)
             save_data_to_xml(theta_doa, file_theta_doa_xml, folder_path) #[time, av angle deg]
             save_data_to_csv(theta_doa, file_theta_doa_csv, folder_path) #[time, av angle deg]
             
         if method == 'PRA':
             spatial_response = [qq.get() for _ in range(qq.qsize())] #360 values for plot
+            print(np.shape(spatial_response))
+
             theta_doa = [[qqq.get() for _ in range(qqq.qsize())]] #recognized angle values
-            theta_doa = np.concatenate(theta_doa)
 
             file_spat_resp_xml = time1 + "_spat_resp_PRA.xml" 
             file_spat_resp_csv =  time1 + "_spat_resp_PRA.csv" 
