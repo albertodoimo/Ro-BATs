@@ -32,6 +32,7 @@ import random
 import os
 import csv
 import xml.etree.ElementTree as ET
+import subprocess
 from scipy.fftpack import fft, ifft
 
 from thymiodirect import Connection 
@@ -53,7 +54,7 @@ print('usb_fireface_index=',usb_fireface_index)
 
 
 # Possible algorithms for computing DOA: PRA, CC
-method = 'CC' 
+method = 'CC'
 doa_name = 'SRP'
 
 c = 343   # speed of sound
@@ -61,12 +62,13 @@ fs = 48000
 rec_samplerate = 48000
 block_size = 1024
 channels = 7
-mic_spacing = 0.018 #m
+mic_spacing = 0.015 #m
 ref = channels//2 #central mic in odd array as ref
 #ref= 0 #left most mic as reference
 nfft = 32  # FFT size
 
-fps = 5
+fps = 25
+duration = 60 #seconds
 
 auto_hipas_freq = int(343/(2*(mic_spacing*(channels-1))))
 print('HP frequency:', auto_hipas_freq)
@@ -159,6 +161,30 @@ def callback(indata, frames, time, status):
     args.buffer = (indata.copy())
 
     #print('buffer=',np.shape(args.buffer))
+def record(rec_counter,time1):
+    q_contents = [q.get() for _ in range(q.qsize())]
+
+    #print('q_contents = ', np.shape(q_contents))
+    rec = np.concatenate(q_contents)
+    #print('rec = ', np.shape(rec))
+
+
+    rec2besaved = rec[:, :channels]
+    save_path = '/home/thymio/robat_py/'
+    save_path = ''
+    # Create folder with args.filename (without extension)
+    folder_name = str(time1) + '_MULTIWAV'  
+    folder_path = os.path.join(save_path, folder_name)
+    os.makedirs(folder_path, exist_ok=True)
+    save_path = folder_path
+
+    timenow = datetime.datetime.now()
+    time2 = timenow.strftime('%Y-%m-%d__%H-%M-%S')
+    full_path = os.path.join(save_path, str(rec_counter)+'__'+time2+'.wav')
+    with sf.SoundFile(full_path, mode='x', samplerate=rec_samplerate,
+                channels=args.channels, subtype=args.subtype) as file:\
+        file.write(rec2besaved)
+    print(f'\nsaved to {full_path}\n')
 
 def calc_delay(two_ch,fs):
     
@@ -303,6 +329,7 @@ def update():
 
     # calculate avarage angle
     avar_theta = avar_angle(delay_crossch,channels,mic_spacing)
+    print('avarage theta deg = ', np.rad2deg(avar_theta))
 
     qqq.put(avar_theta.copy()) # store detected angle value
 
@@ -343,6 +370,7 @@ def update_polar():
 
     qq.put(spatial_resp.copy())
     qqq.put(doa.azimuth_recon.copy())
+    print(doa.azimuth_recon)
 
     ref_channels = in_sig
     #print('ref_channels=', np.shape(ref_channels))
@@ -351,17 +379,17 @@ def update_polar():
     above_level,dBrms_channel = check_if_above_level(ref_channels_bp,trigger_level)
     #print(above_level)
     av_above_level = np.mean(dBrms_channel)
-    #print(av_above_level)
+    print(av_above_level)
 
     if av_above_level > trigger_level:
 
         if theta_pra_deg[0]<=180:
             theta_pra = 90-theta_pra_deg[0]
-            print('pra theta deg', theta_pra)
+            #print('pra theta deg', theta_pra)
             return theta_pra
         elif theta_pra_deg[1]<=180:
             theta_pra = 90-theta_pra_deg[1]
-            print('pra theta deg', theta_pra)
+            #print('pra theta deg', theta_pra)
             return theta_pra
         else:
             theta_pra = None
@@ -405,9 +433,9 @@ def main(use_sim=False, ip='localhost', port=2001):
             waiturn = 0.3
             wait = 0.0001
             start_time_rec = time.time()
-            print(start_time_rec)
+            #print(start_time_rec)
             start_time = time.time()
-            rec_counter = 1
+            rec_counter = 0
             pause = False
 
             while True:
@@ -416,51 +444,59 @@ def main(use_sim=False, ip='localhost', port=2001):
                     pass
                 else:
                     pause = True
-                    q_contents = [q.get() for _ in range(q.qsize())]
-
-                    
-                    #time.sleep(1)
-                    print('q_contents = ', np.shape(q_contents))
-                    rec = np.concatenate(q_contents)
-                    print('rec = ', np.shape(rec))
-                    
-
-                    rec2besaved = rec[:, :channels]
-                    save_path = '/home/thymio/robat_py/'
-                    save_path = ''
-                    # Create folder with args.filename (without extension)
-                    folder_name = str(time1) + '_MULTIWAV'  
-                    folder_path = os.path.join(save_path, folder_name)
-                    os.makedirs(folder_path, exist_ok=True)
-                    save_path = folder_path
-
-                    timenow = datetime.datetime.now()
-                    time2 = timenow.strftime('%Y-%m-%d__%H-%M-%S')
-                    full_path = os.path.join(save_path, str(rec_counter)+'.wav')
-                    with sf.SoundFile(full_path, mode='x', samplerate=rec_samplerate,
-                                    channels=args.channels, subtype=args.subtype) as file:
-                        file.write(rec2besaved)
-                        print(f'\nsaved to {full_path}\n')
-                        rec_counter += 1
+                    #record(rec_counter,time1)
+#
+#                    q_contents = [q.get() for _ in range(q.qsize())]
+#
+#                    
+#                    #time.sleep(1)
+#                    print('q_contents = ', np.shape(q_contents))
+#                    rec = np.concatenate(q_contents)
+#                    print('rec = ', np.shape(rec))
+#                    
+#
+#                    rec2besaved = rec[:, :channels]
+#                    save_path = '/home/thymio/robat_py/'
+#                    save_path = ''
+#                    # Create folder with args.filename (without extension)
+#                    folder_name = str(time1) + '_MULTIWAV'  
+#                    folder_path = os.path.join(save_path, folder_name)
+#                    os.makedirs(folder_path, exist_ok=True)
+#                    save_path = folder_path
+#
+#                    timenow = datetime.datetime.now()
+#                    time2 = timenow.strftime('%Y-%m-%d__%H-%M-%S')
+#                    full_path = os.path.join(save_path, str(rec_counter)+'.wav')
+#                    with sf.SoundFile(full_path, mode='x', samplerate=rec_samplerate,
+#                                    channels=args.channels, subtype=args.subtype) as file:
+#                        file.write(rec2besaved)
+#                        print(f'\nsaved to {full_path}\n')
+                    rec_counter += 1
                     start_time_rec = time.time()
+                    record(rec_counter,time1)
                     #print('startime = ',start_time_rec)
 
-                if (time.time() - start_time) <=1/fps: 
+                # Check if the elapsed time since the last frame is less than or equal to the desired frame duration
+                if (time.time() - start_time) <= 1/fps: 
                     pass
                 else:
-                    #print('delta',time.time() - start_time)
+                    #print('delta',round(time.time() - start_time))
                     
                     if method == 'PRA':
+                        #time.sleep(wait)
                         print('updatestart=',datetime.datetime.now().strftime('%Y-%m-%d__%H-%M-%S'))
                         angle = update_polar()
+
+
                     elif method == 'CC':
                         angle = update()
-                        print('updatestart=',datetime.datetime.now().strftime('%Y-%m-%d__%H-%M-%S'))
+                        #print('updatestart=',datetime.datetime.now().strftime('%Y-%m-%d__%H-%M-%S'))
+                        print
                     else:
                         print('No valid method provided')
                 
 
-                    start_time = time.time()
+                    
 
 #                    ground_sensors = robot['prox.ground.reflected']
 #                    #print('ground = ',robot['prox.ground.reflected'])
@@ -563,6 +599,7 @@ def main(use_sim=False, ip='localhost', port=2001):
 #                                time.sleep(wait)
 #                            case _:
 #                                pass
+                    start_time = time.time()
 #    except Exception as err:
 #        # Stop robot
 #        robot['motor.left.target'] = 0
@@ -583,8 +620,8 @@ def main(use_sim=False, ip='localhost', port=2001):
 
         if method == 'CC':
             theta_doa = np.transpose([[qqq.get() for _ in range(qqq.qsize())]]) #recognized angle values
-            file_theta_doa_xml = time1 + "_spat_resp_CC.xml"
-            file_theta_doa_csv = time1 + "_spat_resp_CC.csv"
+            file_theta_doa_xml = time1 + "_theta_doa_CC.xml"
+            file_theta_doa_csv = time1 + "_theta_doa_CC.csv"
             save_data_to_xml(theta_doa, file_theta_doa_xml, folder_path) #[time, av angle deg]
             save_data_to_csv(theta_doa, file_theta_doa_csv, folder_path) #[time, av angle deg]
             
@@ -598,8 +635,8 @@ def main(use_sim=False, ip='localhost', port=2001):
             save_data_to_xml(spatial_response, file_spat_resp_xml, folder_path) #[time, 360 polar plot angles]
             save_data_to_csv(spatial_response, file_spat_resp_csv, folder_path) #[time, 360 polar plot angles]
             
-            file_theta_doa_xml = time1 + "_spat_resp_CC.xml" #[time, number of detected angle]
-            file_theta_doa_csv = time1 + "_spat_resp_CC.csv" #[time, number of detected angle]
+            file_theta_doa_xml = time1 + "_theta_doa_PRA.xml" #[time, number of detected angle]
+            file_theta_doa_csv = time1 + "_theta_doa_PRA.csv" #[time, number of detected angle]
             save_data_to_xml(theta_doa, file_theta_doa_xml, folder_path)
             save_data_to_csv(theta_doa, file_theta_doa_csv, folder_path)
 
