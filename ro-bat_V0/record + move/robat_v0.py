@@ -13,7 +13,6 @@ print('import libraries...')
 import numpy as np
 import matplotlib.pyplot as plt
 import glob
-import IPython
 import pyroomacoustics as pra
 import scipy.signal as signal 
 import sounddevice as sd
@@ -21,10 +20,8 @@ import soundfile as sf
 
 from matplotlib.animation import FuncAnimation
 import argparse
-import tempfile
 import queue
 import sys
-import json
 import datetime
 import time
 import math
@@ -32,7 +29,6 @@ import random
 import os
 import csv
 import xml.etree.ElementTree as ET
-import subprocess
 from scipy.fftpack import fft, ifft
 
 from thymiodirect import Connection 
@@ -354,6 +350,7 @@ def update_polar():
     # Your streaming data source logic goes here
 
     in_sig = args.buffer
+    print('buffer', np.shape(in_sig))
 
     X = pra.transform.stft.analysis(in_sig, nfft, nfft // 2)
     X = X.transpose([2, 1, 0])
