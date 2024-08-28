@@ -12,21 +12,25 @@ import soundfile as sf
 from scipy.fftpack import fft, ifft
 from scipy import signal
 
-
-input_video_path = '/Users/alberto/Documents/UNIVERSITA/MAGISTRALE/tesi/robat video-foto/pdm 7 mic array/inverted_loop_pdm array_7mic_fast.mp4'  # replace with your input video path
+#input_video_path = '/Users/alberto/Documents/UNIVERSITA/MAGISTRALE/tesi/robat video-foto/pdm 7 mic array/inverted_loop_pdm array_7mic_fast.mp4'  # replace with your input video path
 #input_video_path = '/Users/alberto/Desktop/test_swarmlab.mp4'
-#input_video_path = '/Users/alberto/Desktop/2024-08-20__16-39-58_CC 2.MP4'
-output_video_path = '/Users/alberto/Desktop/test.MP4'  # replace with your desired output video path
+input_video_name = '2024-08-16__17-11-42_CC'
+input_video_path = '/Users/alberto/Desktop/'+input_video_name+'.MP4'
+
+output_video_name = input_video_name +'tracked'+'.MP4'
+output_video_path = '/Users/alberto/Desktop/'+output_video_name  # replace with your desired output video path
 overlay_img_path = '/Users/alberto/Documents/UNIVERSITA/MAGISTRALE/tesi/github/Ro-BATs/tracking/ROBAT LOGO.png'  # replace with your overlay image path
 
 video = cv2.VideoCapture(input_video_path)
 width = int(video.get(cv2.CAP_PROP_FRAME_WIDTH))
 height = int(video.get(cv2.CAP_PROP_FRAME_HEIGHT))
 fps = int(video.get(cv2.CAP_PROP_FPS))
+out_fps = 5
 
 print(width)
 print(height)
 print(fps)
+
 
 video.release()
 
@@ -68,7 +72,7 @@ class Aruco_tracker:
             self._sub_socket = zmq.Context().socket(zmq.SUB)
             self._sub_socket.connect('tcp://localhost:5556')
             self._sub_socket.setsockopt_string(zmq.SUBSCRIBE, "43")
-            self._writer = cv2.VideoWriter('init.mp4', cv2.VideoWriter_fourcc('M', 'P', '4', 'V'), fps, (frame_width, frame_height))
+            self._writer = cv2.VideoWriter('init.mp4', cv2.VideoWriter_fourcc('M', 'P', '4', 'V'), out_fps, (frame_width, frame_height))
             self._record = False
 
         if self._publish_pos:
@@ -214,8 +218,8 @@ class Aruco_tracker:
 data, samplerate = sf.read('/Users/alberto/Desktop/2024-08-16__17-11-42_MULTIWAV/1.wav')
 print('ch=', np.shape(data)[1])
 
-method = 'CC'
-doa_name = 'SRP'
+method = 'PRA'
+doa_name = 'MUSIC'
 
 c = 343   # speed of sound
 fs = samplerate
@@ -241,10 +245,12 @@ b, a = signal.butter(4, [highpass_freq/nyq_freq,lowpass_freq/nyq_freq],btype='ba
 
 echo = pra.linear_2D_array(center=[(channels-1)*mic_spacing//2,0], M=channels, phi=0, d=mic_spacing)
 
-for block in sf.blocks('/Users/alberto/Desktop/2024-08-16__17-11-42_MULTIWAV/1.wav', blocksize=block_size, overlap=0):
-    buffer = block
-print('buff=',np.shape(buffer))
-#print(buffer)
+#for block in sf.blocks('/Users/alberto/Desktop/2024-08-16__17-11-42_MULTIWAV/1.wav', blocksize=block_size, overlap=0):
+#    buffer = block
+#print('buff=',np.shape(buffer))
+##print(buffer)
+
+audio_buffer = sf.blocks('/Users/alberto/Desktop/2024-08-16__17-11-42_MULTIWAV/1.wav', blocksize=block_size, overlap=0)
 
 
 theta_values = []
@@ -351,10 +357,10 @@ def avar_angle(delay_set,nchannels,mic_spacing):
     avar_theta = np.mean(theta)
     return avar_theta
 
-def update():
+def update(buffer):
 
     in_sig = buffer
-
+    print(np.shape(buffer))
     ref_channels = in_sig
     #print(np.shape(in_sig))
     #print('ref_channels=', np.shape(ref_channels))
@@ -372,7 +378,7 @@ def update():
     return np.rad2deg(avar_theta)
 
 
-def update_polar():
+def update_polar(buffer):
     # Your streaming data source logic goes here
 
     in_sig = buffer
@@ -393,18 +399,19 @@ def update_polar():
     min_val = spatial_resp.min()
     max_val = spatial_resp.max()
     spatial_resp = (spatial_resp - min_val) / (max_val - min_val)
+    return spatial_resp
 
 
 #%%
-def draw_trajectories_on_video(input_video_path, output_video_path, aruco_tracker, overlay_img_path):
+def draw_trajectories_on_video(input_video_path, output_video_path, aruco_tracker, overlay_img_path,audio_buffer):
     cap = cv2.VideoCapture(input_video_path)
     frame_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
     frame_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-    out = cv2.VideoWriter(output_video_path, cv2.VideoWriter_fourcc('m', 'p', '4', 'v'), 24, (frame_width, frame_height))
+    out = cv2.VideoWriter(output_video_path, cv2.VideoWriter_fourcc('m', 'p', '4', 'v'), out_fps, (frame_width, frame_height))
 
     trajectories = {}
     colors = {}
-
+    
     # Camera calibration parameters (you might need to calibrate your camera)
     camera_matrix = np.array([[1406.08415449821, 0, 0],
                               [2.20679787308599, 1417.99930662800, 0],
@@ -414,14 +421,27 @@ def draw_trajectories_on_video(input_video_path, output_video_path, aruco_tracke
     
     overlay_img = cv2.imread(overlay_img_path)
     overlay_img = cv2.resize(overlay_img, (100, 100))  # Adjust size as needed of the overlay image
+
+    #audio_buffer = sf.blocks('/Users/alberto/Desktop/2024-08-16__17-11-42_MULTIWAV/1.wav', blocksize=block_size, overlap=0)
+    #print('ab=',audio_buffer)
     i = 0
+    iii=0
     while True:
         ret, frame = cap.read()
+
         if not ret:
             break
               
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         corners, ids, _ = cv2.aruco.detectMarkers(gray, aruco_tracker._aruco_dict, parameters=aruco_tracker._parameters)
+
+        try:
+            buffer = next(audio_buffer)
+            iii=iii+1
+            print('current buffer read',iii)
+        except StopIteration:
+            print("End of audio file reached.")
+            break
 
         if ids is not None:
             ids = ids.flatten()
@@ -430,19 +450,20 @@ def draw_trajectories_on_video(input_video_path, output_video_path, aruco_tracke
                     trajectories[markerID] = []
                     colors[markerID] = (np.random.randint(0, 255), np.random.randint(0, 255), np.random.randint(0, 255))
                     colors[70] = [0,255,0]
-                
+                #print('buffer2=',buffer)
                 # Estimate pose of each marker
                 rvecs, tvecs, _ = cv2.aruco.estimatePoseSingleMarkers(corner, 0.08, camera_matrix, dist_coeffs)
 
                 # Draw 3D axis on the marker
                 #cv2.drawFrameAxes(frame, camera_matrix, dist_coeffs, rvecs, tvecs, 0.1)
-
+                #print('buffer3=',buffer)
                 center = np.mean(corner[0], axis=0)
                 trajectories[markerID].append(center)
 
                 for i in range(1, len(trajectories[markerID])):
                     #print('i1',i)
                     cv2.line(frame, tuple(trajectories[markerID][i-1].astype(int)), tuple(trajectories[markerID][i].astype(int)), colors[markerID], 3)
+                    #print('buffer4=',buffer)
 
                     # Overlay image on marker
                     # Compute the homography to warp the overlay image
@@ -485,11 +506,10 @@ def draw_trajectories_on_video(input_video_path, output_video_path, aruco_tracke
 
 
                 # Create a polar plot
-
+                #print('buffer5=',buffer)
                 if method == 'CC':
-                    spatial_resp = update()
+                    spatial_resp = update(buffer)
                     spatial_resp = np.array(spatial_resp)
-                    print('spat resp', np.shape(spatial_resp))
 
                 
 #                    x = float(spatial_resp[i]) 
@@ -510,7 +530,7 @@ def draw_trajectories_on_video(input_video_path, output_video_path, aruco_tracke
 #                    print('val',values)
 #
                     x = float(spatial_resp) 
-                    #print('x',x)
+                    print('x',x)
                     if math.isnan(x):
                         spatial_resp = 0
                     print('2',spatial_resp) 
@@ -518,13 +538,14 @@ def draw_trajectories_on_video(input_video_path, output_video_path, aruco_tracke
                     values = np.zeros(360)
 
                     for ii in range(len(values)):
-                        if round(90-np.rad2deg(spatial_resp)) == ii:
-                            print('not 90',np.rad2deg(spatial_resp))
-                            print('round',round(90-np.rad2deg(spatial_resp)))
+                        if round(90-spatial_resp) == ii:
+                            print('not 90',spatial_resp)
+                            print('round',round(90-spatial_resp))
                             values[ii] = 1
+                            print('valii',values[ii])
                         else:
                             values[ii] = 0
-                    print('val',values)
+                    #print('val',values)
 
                     fig, ax = plt.subplots(subplot_kw={'projection': 'polar'},figsize=(6, 6))
                     theta = np.linspace(0, 2*np.pi, 360)
@@ -543,11 +564,12 @@ def draw_trajectories_on_video(input_video_path, output_video_path, aruco_tracke
                     #plt.show()
 
                 elif method == 'PRA':
+                    spatial_resp = update_polar(buffer)
                     #print(np.shape(spatial_resp))
                     fig, ax = plt.subplots(subplot_kw={'projection': 'polar'},figsize=(6, 6))
                     theta = np.linspace(0, 2*np.pi, 360)
                     #print('i3',i)
-                    ax.plot(theta, spatial_resp[i])
+                    ax.plot(theta, spatial_resp)
                     ax.set_theta_direction(1)
                     ax.set_title("Polar Plot")
                     #ax.set_theta_offset(np.pi)
@@ -607,4 +629,4 @@ aruco_tracker = Aruco_tracker(cam_id=-1, monitor_id=0, debug=False, debug_stream
 
 #overlay_img_robat_path = '/Users/alberto/'  # replace with your overlay image path
 
-draw_trajectories_on_video(input_video_path, output_video_path, aruco_tracker, overlay_img_path)
+draw_trajectories_on_video(input_video_path, output_video_path, aruco_tracker, overlay_img_path,audio_buffer)
