@@ -14,12 +14,14 @@ from scipy import signal
 
 #input_video_path = '/Users/alberto/Documents/UNIVERSITA/MAGISTRALE/tesi/robat video-foto/pdm 7 mic array/inverted_loop_pdm array_7mic_fast.mp4'  # replace with your input video path
 #input_video_path = '/Users/alberto/Desktop/test_swarmlab.mp4'
-input_video_name = '2024-08-16__17-11-42_CC'
+input_video_name = '2024-08-20__16-39-58_CC 2'
 input_video_path = '/Users/alberto/Desktop/'+input_video_name+'.MP4'
 
-output_video_name = input_video_name +'tracked'+'.MP4'
+output_video_name = input_video_name +'_tracked'+'.MP4'
 output_video_path = '/Users/alberto/Desktop/'+output_video_name  # replace with your desired output video path
 overlay_img_path = '/Users/alberto/Documents/UNIVERSITA/MAGISTRALE/tesi/github/Ro-BATs/tracking/ROBAT LOGO.png'  # replace with your overlay image path
+
+data, samplerate = sf.read('/Users/alberto/Desktop/2024-08-20__16-39-58_MULTIWAV/1.wav')
 
 video = cv2.VideoCapture(input_video_path)
 width = int(video.get(cv2.CAP_PROP_FRAME_WIDTH))
@@ -215,7 +217,7 @@ class Aruco_tracker:
 
 #%%
 
-data, samplerate = sf.read('/Users/alberto/Desktop/2024-08-16__17-11-42_MULTIWAV/1.wav')
+
 print('ch=', np.shape(data)[1])
 
 method = 'PRA'
@@ -236,7 +238,7 @@ print('HP frequency:', auto_hipas_freq)
 auto_lowpas_freq = int(343/(2*mic_spacing))
 print('LP frequency:', auto_lowpas_freq)
 
-highpass_freq, lowpass_freq = [auto_hipas_freq ,auto_lowpas_freq]
+highpass_freq, lowpass_freq = [auto_hipas_freq ,7900]
 freq_range = [highpass_freq, lowpass_freq]
 
 nyq_freq = fs/2.0

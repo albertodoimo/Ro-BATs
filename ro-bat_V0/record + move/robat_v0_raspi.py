@@ -2,7 +2,7 @@
 # Robat v0 code to use with different arrays(PDM passive array or I2S array).
 #
 # FEATURES:
-# > Compute pra and cc alg for angle detection
+# > Compute pra alg for angle detection
 # > Calculates dB values 
 # > Triggers computation of angle only over threshold
 # > Save recordings every x minutes 
@@ -13,7 +13,6 @@ print('import libraries...')
 import numpy as np
 import matplotlib.pyplot as plt
 import glob
-import IPython
 import pyroomacoustics as pra
 import scipy.signal as signal 
 import sounddevice as sd
@@ -21,10 +20,8 @@ import soundfile as sf
 
 from matplotlib.animation import FuncAnimation
 import argparse
-import tempfile
 import queue
 import sys
-import json
 import datetime
 import time
 import math
@@ -53,27 +50,28 @@ print('usb_fireface_index=',usb_fireface_index)
 
 
 # Possible algorithms for computing DOA: PRA, CC
-method = 'CC' 
+method = 'CC'
 doa_name = 'SRP'
 
 c = 343   # speed of sound
 fs = 16000
 rec_samplerate = 16000
-block_size = 2048
+block_size = 1024
 channels = 7
 mic_spacing = 0.015 #m
-#ref= 0 #left most mic as reference
 ref = channels//2 #central mic in odd array as ref
+#ref= 0 #left most mic as reference
 nfft = 32  # FFT size
 
-fps = 5
+#fps = 25
+#duration = 60 #seconds
 
 auto_hipas_freq = int(343/(2*(mic_spacing*(channels-1))))
 print('HP frequency:', auto_hipas_freq)
 auto_lowpas_freq = int(343/(2*mic_spacing))
 print('LP frequency:', auto_lowpas_freq)
 
-highpass_freq, lowpass_freq = [auto_hipas_freq ,7500]
+highpass_freq, lowpass_freq = [auto_hipas_freq ,7900]
 freq_range = [highpass_freq, lowpass_freq]
 
 nyq_freq = fs/2.0
@@ -98,7 +96,7 @@ b, a = signal.butter(4, [highpass_freq/nyq_freq,lowpass_freq/nyq_freq],btype='ba
 #    time.sleep(1)
 #else: 
 #    #trigger_level = -25.2 # dB level ref max 12s
-trigger_level = -55 # dB level ref max pdm
+trigger_level = -52 # dB level ref max pdm
 
 echo = pra.linear_2D_array(center=[(channels-1)*mic_spacing//2,0], M=channels, phi=0, d=mic_spacing)
 
@@ -129,7 +127,7 @@ def check_if_above_level(mic_inputs,trigger_level):
     Returns:
         
         above_level : Boolean. True if the buffer dB rms is >= the trigger_level
-    """
+    """ 
 
     dBrms_channel = np.apply_along_axis(calc_dBrms, 0, mic_inputs)   
     #print('dBrms_channel=',dBrms_channel)     
@@ -159,6 +157,30 @@ def callback(indata, frames, time, status):
     args.buffer = (indata.copy())
 
     #print('buffer=',np.shape(args.buffer))
+def record(rec_counter,time1):
+    q_contents = [q.get() for _ in range(q.qsize())]
+
+    #print('q_contents = ', np.shape(q_contents))
+    rec = np.concatenate(q_contents)
+    #print('rec = ', np.shape(rec))
+
+
+    rec2besaved = rec[:, :channels]
+    save_path = '/home/thymio/robat_py/robat_v0_files/'
+    #save_path = ''
+    # Create folder with args.filename (without extension)
+    folder_name = str(time1) + '_MULTIWAV'  
+    folder_path = os.path.join(save_path, folder_name)
+    os.makedirs(folder_path, exist_ok=True)
+    save_path = folder_path
+
+    timenow = datetime.datetime.now()
+    time2 = timenow.strftime('%Y-%m-%d__%H-%M-%S')
+    full_path = os.path.join(save_path, str(rec_counter)+'__'+time2+'.wav')
+    with sf.SoundFile(full_path, mode='x', samplerate=rec_samplerate,
+                channels=args.channels, subtype=args.subtype) as file:\
+        file.write(rec2besaved)
+    print(f'\nsaved to {full_path}\n')
 
 def calc_delay(two_ch,fs):
     
@@ -284,6 +306,7 @@ def save_data_to_xml(matrix, filename, path):
     print(f"Matrix has been saved as xml to {full_path}")
 
 avar_theta = None
+theta_values   = []
 
 def update():
 
@@ -303,8 +326,12 @@ def update():
 
     # calculate avarage angle
     avar_theta = avar_angle(delay_crossch,channels,mic_spacing)
-    #print('avarage theta deg = ', np.rad2deg(avar_theta))
-    qqq.put(avar_theta.copy()) # store detected angle value
+    time3 = datetime.datetime.now()
+    avar_theta1 = np.array([avar_theta, time3.strftime('%H:%M:%S.%f')[:-3]])
+
+    #print('avarage theta',avar_theta1)
+
+    qqq.put(avar_theta1.copy()) # store detected angle value
 
     if av_above_level > trigger_level:
 
@@ -323,6 +350,7 @@ def update_polar():
     # Your streaming data source logic goes here
 
     in_sig = args.buffer
+    print('buffer', np.shape(in_sig))
 
     X = pra.transform.stft.analysis(in_sig, nfft, nfft // 2)
     X = X.transpose([2, 1, 0])
@@ -331,7 +359,7 @@ def update_polar():
     doa.locate_sources(X, freq_range=freq_range)
     #print('azimuth_recon=',doa.azimuth_recon) # rad value of detected angles
     theta_pra_deg = (doa.azimuth_recon * 180 / np.pi) 
-    print('theta=',90-theta_pra_deg) #degrees value of detected angles
+    #print('theta=',theta_pra_deg) #degrees value of detected angles
 
     spatial_resp = doa.grid.values # 360 values for plot
     #print('spat_resp',spatial_resp) 
@@ -340,6 +368,10 @@ def update_polar():
     min_val = spatial_resp.min()
     max_val = spatial_resp.max()
     spatial_resp = (spatial_resp - min_val) / (max_val - min_val)
+    time3 = datetime.datetime.now()
+
+    spatial_resp = np.hstack([spatial_resp, np.array(time3.strftime('%H:%M:%S.%f')[:-3])])
+    
 
     qq.put(spatial_resp.copy())
     qqq.put(doa.azimuth_recon.copy())
@@ -357,11 +389,11 @@ def update_polar():
 
         if theta_pra_deg[0]<=180:
             theta_pra = 90-theta_pra_deg[0]
-            print('pra theta deg', theta_pra)
+            #print('pra theta deg', theta_pra)
             return theta_pra
         elif theta_pra_deg[1]<=180:
             theta_pra = 90-theta_pra_deg[1]
-            print('pra theta deg', theta_pra)
+            #print('pra theta deg', theta_pra)
             return theta_pra
         else:
             theta_pra = None
@@ -370,7 +402,7 @@ def update_polar():
 def main(use_sim=False, ip='localhost', port=2001):
     ''' Main function '''
     try:
-        global startime, pause
+        global startime
         # Configure Interface to Thymio robot
         # simulation
         if use_sim:
@@ -396,170 +428,186 @@ def main(use_sim=False, ip='localhost', port=2001):
             time1 = timenow.strftime('%Y-%m-%d__%H-%M-%S')
             args.filename = 'MULTIWAV_' + str(time1) + '.wav'
         print(args.samplerate)
+
         # Make sure the file is opened before recording anything:
         with sd.InputStream(samplerate=args.samplerate, device=usb_fireface_index,
                             channels=args.channels, callback=callback, blocksize=block_size):
             print('audio stream started')
 
-
             waiturn = 0
             wait = 0
             start_time_rec = time.time()
+            #print(start_time_rec)
             start_time = time.time()
-            rec_counter = 1
+            rec_counter = 0
             pause = False
-            while True:
 
+            while True:
                 if (time.time() - start_time_rec) <=60: #seconds
                     pause = False
                     pass
                 else:
                     pause = True
-                    q_contents = [q.get() for _ in range(q.qsize())]
-
-                    #time.sleep(1)
-                    #print('q_contents = ', np.shape(q_contents))
-                    rec = np.concatenate(q_contents)
-                    #print('rec = ', np.shape(rec))
-
-                    rec2besaved = rec[:, :channels]
-                    save_path = '/home/thymio/robat_py/robat_v0_files/'
-                    #save_path = ''
-                    # Create folder with args.filename (without extension)
-                    folder_name = str(time1) + '_MULTIWAV'  
-                    folder_path = os.path.join(save_path, folder_name)
-                    os.makedirs(folder_path, exist_ok=True)
-                    save_path = folder_path
-
-                    timenow = datetime.datetime.now()
-                    time2 = timenow.strftime('%Y-%m-%d__%H-%M-%S')
-                    full_path = os.path.join(save_path, str(rec_counter)+'.wav')
-                    with sf.SoundFile(full_path, mode='x', samplerate=rec_samplerate,
-                                    channels=args.channels, subtype=args.subtype) as file:
-                        file.write(rec2besaved)
-                        print(f'\nsaved to {full_path}\n')
-                        rec_counter += 1
+                    #record(rec_counter,time1)
+#
+#                    q_contents = [q.get() for _ in range(q.qsize())]
+#
+#                    
+#                    #time.sleep(1)
+#                    print('q_contents = ', np.shape(q_contents))
+#                    rec = np.concatenate(q_contents)
+#                    print('rec = ', np.shape(rec))
+#                    
+#
+#                    rec2besaved = rec[:, :channels]
+#                    save_path = '/home/thymio/robat_py/'
+#                    save_path = ''
+#                    # Create folder with args.filename (without extension)
+#                    folder_name = str(time1) + '_MULTIWAV'  
+#                    folder_path = os.path.join(save_path, folder_name)
+#                    os.makedirs(folder_path, exist_ok=True)
+#                    save_path = folder_path
+#
+#                    timenow = datetime.datetime.now()
+#                    time2 = timenow.strftime('%Y-%m-%d__%H-%M-%S')
+#                    full_path = os.path.join(save_path, str(rec_counter)+'.wav')
+#                    with sf.SoundFile(full_path, mode='x', samplerate=rec_samplerate,
+#                                    channels=args.channels, subtype=args.subtype) as file:
+#                        file.write(rec2besaved)
+#                        print(f'\nsaved to {full_path}\n')
+                    rec_counter += 1
                     start_time_rec = time.time()
-                    print('startime = ',start_time_rec)
+                    record(rec_counter,time1)
+                    print('delta save=',time.time()-start_time_rec,'sec')
+                    #print('startime = ',start_time_rec)
 
-                if (time.time() - start_time) <=1/fps: 
-                    pass
-                else:
-                    #print('delta',time.time() - start_time)
-                    
-                    if method == 'PRA':
-                        angle = update_polar()
-                        print('time=',datetime.datetime.now().strftime('%H-%M-%S'))
-                    elif method == 'CC':
-                        angle = update()
-                        print('time=',datetime.datetime.now().strftime('%H-%M-%S'))
-                    else:
-                        print('No valid method provided')
+                # Check if the elapsed time since the last frame is less than or equal to the desired frame duration
+                #if (time.time() - start_time) <= 1/fps: 
+                #    pass
+                #else:
+                    #print('delta',round(time.time() - start_time))
                 
+                if method == 'PRA':
+                    time_start = time.time()
+                    angle = update_polar()
+                    time_end = time.time()
+                    print('delta update pra',time_end - time_start,'sec')
 
-                    start_time = time.time()
+                elif method == 'CC':
+                    time_start = time.time()
+                    angle = update()
+                    #print('updatestart=',datetime.datetime.now().strftime('%Y-%m-%d__%H-%M-%S'))
+                    time_end = time.time()
+                    #print('delta update cc',time_end - time_start,'sec')
 
-                    ground_sensors = robot['prox.ground.reflected']
-                    #print('ground = ',robot['prox.ground.reflected'])
+                else:
+                    print('No valid method provided')
+            
 
-                    # Adjust these threshold values as needed
-                    left_sensor_threshold = 100
-                    right_sensor_threshold = 100
 
-                    direction = random.choice(['left', 'right'])
-                    if pause:
-                        # Stop robot
-                        robot['motor.left.target'] = 0
-                        robot['motor.right.target'] = 0 
-                        robot["leds.top"] = [255,0,0]
-                        #time.sleep(1.5)
-                    elif ground_sensors[0] > left_sensor_threshold  and ground_sensors[1]> right_sensor_threshold:
-                        # Both sensors detect the line, turn left
-                        if direction == 'left':
-                            robot['motor.left.target'] = -180
-                            robot['motor.right.target'] = 120   
-                            time.sleep(wait) 
-                            pass
-                        else:
-                            robot['motor.left.target'] = 120
-                            robot['motor.right.target'] = -180
+                ground_sensors = robot['prox.ground.reflected']
+                #print('ground = ',robot['prox.ground.reflected'])
+
+                # Adjust these threshold values as needed
+                left_sensor_threshold = 200
+                right_sensor_threshold = 200
+
+                direction = random.choice(['left', 'right'])
+                if pause:
+                    # Stop robot
+                    robot['motor.left.target'] = 200
+                    robot['motor.right.target'] = 200 
+                    robot["leds.top"] = [255,0,0]
+                    #time.sleep(1.5)
+                elif ground_sensors[0] > left_sensor_threshold  and ground_sensors[1]> right_sensor_threshold:
+                    # Both sensors detect the line, turn left
+                    if direction == 'left':
+                        robot['motor.left.target'] = -180
+                        robot['motor.right.target'] = 150   
+                        time.sleep(0.5) 
+                        pass
+                    else:
+                        robot['motor.left.target'] = 150
+                        robot['motor.right.target'] = -180
+                        time.sleep(0.5)
+                        pass
+                    # robot['motor.left.target'] = -50 + random.choice([, 100])
+                    # robot['motor.right.target'] = -50 + random.choice([-100, 100])
+                elif ground_sensors[1] > right_sensor_threshold:
+                    # Only right sensor detects the line, turn left
+                    robot['motor.left.target'] = -150
+                    robot['motor.right.target'] = 150
+                    time.sleep(waiturn)
+                elif ground_sensors[0] > left_sensor_threshold:
+                    # Only left sensor detects the line, turn right
+                    robot['motor.left.target'] = 150 
+                    robot['motor.right.target'] = -150 
+                    time.sleep(waiturn)
+                else:       
+                    match angle:
+                        case theta if theta == None:
+                            robot["leds.top"] = [0, 0, 0]
                             time.sleep(wait)
+                            robot['motor.left.target'] = 150
+                            robot['motor.right.target'] = 150
+                        case theta if theta < -30:
+                            robot["leds.top"] = [0, 0, 255]
+                            time.sleep(wait)
+                            robot['motor.left.target'] = 300
+                            robot['motor.right.target'] = 20
+                            time.sleep(wait)
+                        case theta if -30 <= theta < -15:
+                            robot["leds.top"] = [0, 255, 255]
+                            time.sleep(wait)
+                            robot['motor.left.target'] = 200
+                            robot['motor.right.target'] = 20
+                            time.sleep(wait)
+                        case theta if -15 <= theta < -1:
+                            robot["leds.top"] = [0, 255, 0]
+                            time.sleep(wait)
+                            robot['motor.left.target'] = 100
+                            robot['motor.right.target'] = 20
+                            time.sleep(wait)
+                        case theta if 0 <= theta <= 0:
+                            robot["leds.top"] = [255, 255, 255]
+                            time.sleep(wait)
+                            robot['motor.left.target'] = 50
+                            robot['motor.right.target'] = 50
+                            time.sleep(0.1)
+                            #direction = random.choice(['left', 'right'])
+                            #if direction == 'left':
+                            #    robot['motor.left.target'] = -150
+                            #    robot['motor.right.target'] = 150
+                            #    time.sleep(0.1)
+                            #    pass
+                            #else:
+                            #    robot['motor.left.target'] = 150
+                            #    robot['motor.right.target'] = -150
+                            #    time.sleep(0.1)
+                            #    pass
+                            #time.sleep(waiturn)
+                        case theta if 1 < theta <= 15:
+                            robot["leds.top"] = [0, 255, 0]
+                            time.sleep(wait)
+                            robot['motor.right.target'] = 100
+                            robot['motor.left.target'] = 20
+                            time.sleep(wait)
+                        case theta if 15 < theta <= 30:
+                            robot["leds.top"] = [255, 255, 0]
+                            time.sleep(wait)
+                            robot['motor.right.target'] = 200
+                            robot['motor.left.target'] = 20
+                            time.sleep(wait)
+                        case theta if theta > 30:
+                            robot["leds.top"] = [255, 0, 0]
+                            time.sleep(wait)
+                            robot['motor.right.target'] = 300
+                            robot['motor.left.target'] = 20
+                            time.sleep(wait)
+                        case _:
                             pass
-                        # robot['motor.left.target'] = -50 + random.choice([, 100])
-                        # robot['motor.right.target'] = -50 + random.choice([-100, 100])
-                    elif ground_sensors[1] > right_sensor_threshold:
-                        # Only right sensor detects the line, turn left
-                        robot['motor.left.target'] = -150
-                        robot['motor.right.target'] = 150
-                        time.sleep(waiturn)
-                    elif ground_sensors[0] > left_sensor_threshold:
-                        # Only left sensor detects the line, turn right
-                        robot['motor.left.target'] = 150 
-                        robot['motor.right.target'] = -150 
-                        time.sleep(waiturn)
-                    else:       
-                        match angle:
-                            case theta if theta == None:
-                                robot["leds.top"] = [0, 0, 0]
-                                time.sleep(wait)
-                                robot['motor.left.target'] = 150
-                                robot['motor.right.target'] = 150
-                            case theta if theta < -30:
-                                robot["leds.top"] = [0, 0, 255]
-                                time.sleep(wait)
-                                robot['motor.left.target'] = 300
-                                robot['motor.right.target'] = 20
-                                time.sleep(wait)
-                            case theta if -30 <= theta < -15:
-                                robot["leds.top"] = [0, 255, 255]
-                                time.sleep(wait)
-                                robot['motor.left.target'] = 200
-                                robot['motor.right.target'] = 20
-                                time.sleep(wait)
-                            case theta if -15 <= theta < -1:
-                                #robot["leds.top"] = [0, 255, 0]
-                                time.sleep(wait)
-                                robot['motor.left.target'] = 100
-                                robot['motor.right.target'] = 20
-                                time.sleep(wait)
-                            case theta if 0 <= theta <= 0:
-                                robot["leds.top"] = [255, 255, 255]
-                                time.sleep(wait)
-                                robot['motor.left.target'] = 50
-                                robot['motor.right.target'] = 50
-                                #time.sleep(0.1)
-                                #direction = random.choice(['left', 'right'])
-                                #if direction == 'left':
-                                #    robot['motor.left.target'] = -150
-                                #    robot['motor.right.target'] = 150
-                                #    time.sleep(0.1)
-                                #    pass
-                                #else:
-                                #    robot['motor.left.target'] = 150
-                                #    robot['motor.right.target'] = -150
-                                #    time.sleep(0.1)
-                                #    pass
-                                #time.sleep(waiturn)
-                            case theta if 1 < theta <= 15:
-                                #robot["leds.top"] = [0, 255, 0]
-                                time.sleep(wait)
-                                robot['motor.right.target'] = 100
-                                robot['motor.left.target'] = 20
-                                time.sleep(wait)
-                            case theta if 15 < theta <= 30:
-                                robot["leds.top"] = [255, 255, 0]
-                                time.sleep(wait)
-                                robot['motor.right.target'] = 200
-                                robot['motor.left.target'] = 20
-                                time.sleep(wait)
-                            case theta if theta > 30:
-                                robot["leds.top"] = [255, 0, 0]
-                                time.sleep(wait)
-                                robot['motor.right.target'] = 300
-                                robot['motor.left.target'] = 20
-                                time.sleep(wait)
-                            case _:
-                                pass
+            print('delta loop =',time.time()-start_time,'sec')
+            start_time = time.time()
     except Exception as err:
         # Stop robot
         robot['motor.left.target'] = 0
@@ -574,27 +622,34 @@ def main(use_sim=False, ip='localhost', port=2001):
 
         save_path = '/home/thymio/robat_py/robat_v0_files/'
         #save_path = ''
-        folder_name = str(time1) +'_rec_data' 
+        folder_name = str(time1) + '_rec_data' 
         folder_path = os.path.join(save_path, folder_name)
         os.makedirs(folder_path, exist_ok=True)
 
         if method == 'CC':
-            theta_doa = np.transpose([[qqq.get() for _ in range(qqq.qsize())]]) #recognized angle values
-            file_theta_doa_xml = time1 + "_spat_resp_CC.xml"
-            file_theta_doa_csv = time1 + "_spat_resp_CC.csv"
+            theta_doa = np.vstack([[qqq.get() for _ in range(qqq.qsize())]]) #recognized angle values
+            file_theta_doa_xml = time1 + "_theta_doa_CC.xml"
+            file_theta_doa_csv = time1 + "_theta_doa_CC.csv"
+            print(np.shape(theta_doa))
+            print(theta_doa)
             save_data_to_xml(theta_doa, file_theta_doa_xml, folder_path) #[time, av angle deg]
             save_data_to_csv(theta_doa, file_theta_doa_csv, folder_path) #[time, av angle deg]
             
         if method == 'PRA':
             spatial_response = [qq.get() for _ in range(qq.qsize())] #360 values for plot
+            print(np.shape(spatial_response))
+
             theta_doa = [[qqq.get() for _ in range(qqq.qsize())]] #recognized angle values
-            theta_doa = np.concatenate(theta_doa)
 
             file_spat_resp_xml = time1 + "_spat_resp_PRA.xml" 
             file_spat_resp_csv =  time1 + "_spat_resp_PRA.csv" 
             save_data_to_xml(spatial_response, file_spat_resp_xml, folder_path) #[time, 360 polar plot angles]
             save_data_to_csv(spatial_response, file_spat_resp_csv, folder_path) #[time, 360 polar plot angles]
             
+            file_theta_doa_xml = time1 + "_theta_doa_PRA.xml" #[time, number of detected angle]
+            file_theta_doa_csv = time1 + "_theta_doa_PRA.csv" #[time, number of detected angle]
+            save_data_to_xml(theta_doa, file_theta_doa_xml, folder_path)
+            save_data_to_csv(theta_doa, file_theta_doa_csv, folder_path)
 
         
         # save audio
@@ -606,7 +661,7 @@ def main(use_sim=False, ip='localhost', port=2001):
         rec2besaved = rec[:, :channels]
 
         folder_name = str(time1) + '_MULTIWAV'
-        folder_path = os.path.join(save_path , folder_name)
+        folder_path = os.path.join(save_path, folder_name)
         os.makedirs(folder_path, exist_ok=True)
         save_path = folder_path
 
