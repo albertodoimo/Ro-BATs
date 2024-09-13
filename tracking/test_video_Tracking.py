@@ -14,20 +14,22 @@ from scipy import signal
 
 #input_video_path = '/Users/alberto/Documents/UNIVERSITA/MAGISTRALE/tesi/robat video-foto/pdm 7 mic array/inverted_loop_pdm array_7mic_fast.mp4'  # replace with your input video path
 #input_video_path = '/Users/alberto/Desktop/test_swarmlab.mp4'
-input_video_name = '2024-08-20__16-39-58_CC 2'
-input_video_path = '/Users/alberto/Desktop/'+input_video_name+'.MP4'
+input_path = '/Users/alberto/Documents/UNIVERSITA/MAGISTRALE/tesi/robat video-foto/tracking results/2024-08-29__18-55-34/cut/'
+input_video_name = '2024-08-29__18-55-34 cut2'
+input_video_path = input_path +input_video_name+'.mp4'
 
 output_video_name = input_video_name +'_tracked'+'.MP4'
-output_video_path = '/Users/alberto/Desktop/'+output_video_name  # replace with your desired output video path
+output_video_path = input_path+output_video_name  # replace with your desired output video path
 overlay_img_path = '/Users/alberto/Documents/UNIVERSITA/MAGISTRALE/tesi/github/Ro-BATs/tracking/ROBAT LOGO.png'  # replace with your overlay image path
 
-data, samplerate = sf.read('/Users/alberto/Desktop/2024-08-20__16-39-58_MULTIWAV/1.wav')
+audio_path = input_path + '2024-08-29__18-55-34 cut.wav'
+data, samplerate = sf.read(audio_path)
 
 video = cv2.VideoCapture(input_video_path)
 width = int(video.get(cv2.CAP_PROP_FRAME_WIDTH))
 height = int(video.get(cv2.CAP_PROP_FRAME_HEIGHT))
 fps = int(video.get(cv2.CAP_PROP_FPS))
-out_fps = 5
+out_fps = 1
 
 print(width)
 print(height)
@@ -220,7 +222,7 @@ class Aruco_tracker:
 
 print('ch=', np.shape(data)[1])
 
-method = 'PRA'
+method = 'CC'
 doa_name = 'MUSIC'
 
 c = 343   # speed of sound
@@ -252,8 +254,7 @@ echo = pra.linear_2D_array(center=[(channels-1)*mic_spacing//2,0], M=channels, p
 #print('buff=',np.shape(buffer))
 ##print(buffer)
 
-audio_buffer = sf.blocks('/Users/alberto/Desktop/2024-08-16__17-11-42_MULTIWAV/1.wav', blocksize=block_size, overlap=0)
-
+audio_buffer = sf.blocks(audio_path, blocksize=block_size, overlap=0)
 
 theta_values = []
 
@@ -379,7 +380,6 @@ def update(buffer):
     print('avarage theta deg = ', np.rad2deg(avar_theta))
     return np.rad2deg(avar_theta)
 
-
 def update_polar(buffer):
     # Your streaming data source logic goes here
 
@@ -403,13 +403,12 @@ def update_polar(buffer):
     spatial_resp = (spatial_resp - min_val) / (max_val - min_val)
     return spatial_resp
 
-
 #%%
 def draw_trajectories_on_video(input_video_path, output_video_path, aruco_tracker, overlay_img_path,audio_buffer):
     cap = cv2.VideoCapture(input_video_path)
     frame_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
     frame_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-    out = cv2.VideoWriter(output_video_path, cv2.VideoWriter_fourcc('m', 'p', '4', 'v'), out_fps, (frame_width, frame_height))
+    out = cv2.VideoWriter(output_video_path, cv2.VideoWriter_fourcc('m', 'p', '4', 'v'), out_fps, (width, height))
 
     trajectories = {}
     colors = {}
@@ -450,7 +449,7 @@ def draw_trajectories_on_video(input_video_path, output_video_path, aruco_tracke
             for corner, markerID in zip(corners, ids):
                 if markerID not in trajectories:
                     trajectories[markerID] = []
-                    colors[markerID] = (np.random.randint(0, 255), np.random.randint(0, 255), np.random.randint(0, 255))
+                    #colors[markerID] = (np.random.randint(0, 255), np.random.randint(0, 255), np.random.randint(0, 255))
                     colors[70] = [0,255,0]
                 #print('buffer2=',buffer)
                 # Estimate pose of each marker
@@ -463,35 +462,36 @@ def draw_trajectories_on_video(input_video_path, output_video_path, aruco_tracke
                 trajectories[markerID].append(center)
 
                 for i in range(1, len(trajectories[markerID])):
-                    #print('i1',i)
-                    cv2.line(frame, tuple(trajectories[markerID][i-1].astype(int)), tuple(trajectories[markerID][i].astype(int)), colors[markerID], 3)
-                    #print('buffer4=',buffer)
+                    if markerID==70:
+                        #print('i1',i)
+                        cv2.line(frame, tuple(trajectories[markerID][i-1].astype(int)), tuple(trajectories[markerID][i].astype(int)), colors[markerID], 3)
+                        #print('buffer4=',buffer)
 
-                    # Overlay image on marker
-                    # Compute the homography to warp the overlay image
-                    pts_dst = corner[0].astype(int)
-                    #print(pts_dst)
-                    pts_src = np.array([[0, 0], [overlay_img.shape[1], 0], [overlay_img.shape[1], overlay_img.shape[0]], [0, overlay_img.shape[0]]])
-                    h, _ = cv2.findHomography(pts_src, pts_dst)
+                        # Overlay image on marker
+                        # Compute the homography to warp the overlay image
+                        pts_dst = corner[0].astype(int)
+                        #print(pts_dst)
+                        pts_src = np.array([[0, 0], [overlay_img.shape[1], 0], [overlay_img.shape[1], overlay_img.shape[0]], [0, overlay_img.shape[0]]])
+                        h, _ = cv2.findHomography(pts_src, pts_dst)
 
-                    # Warp the overlay image onto the marker
-                    overlay_warped = cv2.warpPerspective(overlay_img, h, (frame.shape[1], frame.shape[0]))
+                        # Warp the overlay image onto the marker
+                        overlay_warped = cv2.warpPerspective(overlay_img, h, (frame.shape[1], frame.shape[0]))
 
-                    # Create a mask of the overlay image
-                    overlay_mask = cv2.cvtColor(overlay_warped, cv2.COLOR_BGR2GRAY)
-                    _, mask = cv2.threshold(overlay_mask, 1, 255, cv2.THRESH_BINARY)
+                        # Create a mask of the overlay image
+                        overlay_mask = cv2.cvtColor(overlay_warped, cv2.COLOR_BGR2GRAY)
+                        _, mask = cv2.threshold(overlay_mask, 1, 255, cv2.THRESH_BINARY)
 
-                    # Invert the mask for the overlay
-                    mask_inv = cv2.bitwise_not(mask)
+                        # Invert the mask for the overlay
+                        mask_inv = cv2.bitwise_not(mask)
 
-                    # Black-out the area of the overlay in the frame
-                    img_bg = cv2.bitwise_and(frame, frame, mask=mask_inv)
+                        # Black-out the area of the overlay in the frame
+                        img_bg = cv2.bitwise_and(frame, frame, mask=mask_inv)
 
-                    # Take only region of overlay from overlay image
-                    img_fg = cv2.bitwise_and(overlay_warped, overlay_warped, mask=mask)
+                        # Take only region of overlay from overlay image
+                        img_fg = cv2.bitwise_and(overlay_warped, overlay_warped, mask=mask)
 
-                    # Put overlay on top of the current frame
-                    frame = cv2.add(img_bg, img_fg)
+                        # Put overlay on top of the current frame
+                        frame = cv2.add(img_bg, img_fg)
 
                 # Compute rotation angle around the z-axis (in-plane rotation)
                 rotation_matrix, _ = cv2.Rodrigues(rvecs[0])
@@ -532,34 +532,34 @@ def draw_trajectories_on_video(input_video_path, output_video_path, aruco_tracke
 #                    print('val',values)
 #
                     x = float(spatial_resp) 
-                    print('x',x)
+                    #print('x',x)
                     if math.isnan(x):
                         spatial_resp = 0
-                    print('2',spatial_resp) 
+                    #print('2',spatial_resp) 
 
                     values = np.zeros(360)
 
                     for ii in range(len(values)):
                         if round(90-spatial_resp) == ii:
-                            print('not 90',spatial_resp)
-                            print('round',round(90-spatial_resp))
+                            #print('not 90',spatial_resp)
+                            #print('round',round(90-spatial_resp))
                             values[ii] = 1
-                            print('valii',values[ii])
+                            #print('valii',values[ii])
                         else:
                             values[ii] = 0
                     #print('val',values)
 
                     fig, ax = plt.subplots(subplot_kw={'projection': 'polar'},figsize=(6, 6))
                     theta = np.linspace(0, 2*np.pi, 360)
-                    line, = ax.plot(theta, values)
+                    line, = ax.plot(theta, values, color='r', linewidth=5)
                     line.set_ydata(values)
 
 
                     ax.set_theta_direction(1)
-                    ax.set_title("Polar Plot")
+                    ax.set_title("Polar Plot",fontsize=20)
                     #ax.set_theta_offset(np.pi/2)
                     ax.set_rticks([])
-                    ax.set_thetagrids(range(0, 360, 30))
+                    ax.set_thetagrids(range(0, 360, 30),fontsize=20)
                     ax.grid(True)
                     plt.savefig('polar_plot.png')
                     plt.close(fig)
@@ -583,35 +583,49 @@ def draw_trajectories_on_video(input_video_path, output_video_path, aruco_tracke
                 
                 # Load and resize the polar plot image
                 overlay_img_polar = cv2.imread('/Users/alberto/Documents/UNIVERSITA/MAGISTRALE/tesi/github/Ro-BATs/tracking/polar_plot.png')
-                overlay_img_polar = cv2.resize(overlay_img_polar, (400, 400))
+                overlay_img_polar = cv2.resize(overlay_img_polar, (120,120))
 
                 # Calculate rotation matrix for in-plane rotation
-                M = cv2.getRotationMatrix2D((overlay_img_polar.shape[1] // 2, overlay_img_polar.shape[0] // 2), angle, 1.0)
+                #M = cv2.getRotationMatrix2D((overlay_img_polar.shape[1] // 2, overlay_img_polar.shape[0] // 2), angle, 1.0)
+#
+                ## Rotate overlay image
+                #rotated_overlay = cv2.warpAffine(overlay_img_polar, M, (overlay_img_polar.shape[1], overlay_img_polar.shape[0]), 
+                #                                 flags=cv2.INTER_LINEAR, borderMode=cv2.BORDER_CONSTANT, borderValue=(0, 0, 0))
+                ## Position the overlay on the frame
+                ##x, y = 50, 50  # You can change this to position the overlay in a different location
+                #x,y  = (width-overlay_img_polar.shape[0], height-overlay_img_polar.shape[1]) # position if the image on the video
+#
+                ## Create a mask of the overlay image
+                #overlay_gray = cv2.cvtColor(rotated_overlay, cv2.COLOR_BGR2GRAY)
+                #_, mask = cv2.threshold(overlay_gray, 1, 255, cv2.THRESH_BINARY)
+#
+                ## Invert the mask
+                #mask_inv = cv2.bitwise_not(mask)
+#
+                ## Black-out the area of the overlay in the frame
+                #img_bg = cv2.bitwise_and(frame[y:y+rotated_overlay.shape[0], x:x+rotated_overlay.shape[1]], 
+                #                         frame[y:y+rotated_overlay.shape[0], x:x+rotated_overlay.shape[1]], 
+                #                         mask=mask_inv)
+#
+                ## Take only the region of the overlay from the overlay image
+                #img_fg = cv2.bitwise_and(rotated_overlay, rotated_overlay, mask=mask)
 
-                # Rotate overlay image
-                rotated_overlay = cv2.warpAffine(overlay_img_polar, M, (overlay_img_polar.shape[1], overlay_img_polar.shape[0]), 
-                                                 flags=cv2.INTER_LINEAR, borderMode=cv2.BORDER_CONSTANT, borderValue=(0, 0, 0))
-                # Position the overlay on the frame
-                #x, y = 50, 50  # You can change this to position the overlay in a different location
-                x,y  = (width-overlay_img_polar.shape[0], height-overlay_img_polar.shape[1]) # position if the image on the video
+                ## Put the overlay on top of the current frame
+                #frame[y:y+rotated_overlay.shape[0], x:x+rotated_overlay.shape[1]] = cv2.add(img_bg, img_fg)
 
-                # Create a mask of the overlay image
-                overlay_gray = cv2.cvtColor(rotated_overlay, cv2.COLOR_BGR2GRAY)
+                ## Create a mask of the overlay image
+                overlay_gray = cv2.cvtColor(overlay_img_polar, cv2.COLOR_BGR2GRAY)
                 _, mask = cv2.threshold(overlay_gray, 1, 255, cv2.THRESH_BINARY)
-
-                # Invert the mask
                 mask_inv = cv2.bitwise_not(mask)
-
-                # Black-out the area of the overlay in the frame
-                img_bg = cv2.bitwise_and(frame[y:y+rotated_overlay.shape[0], x:x+rotated_overlay.shape[1]], 
-                                         frame[y:y+rotated_overlay.shape[0], x:x+rotated_overlay.shape[1]], 
+                x,y  = (width-overlay_img_polar.shape[0], height-overlay_img_polar.shape[1]) # position if the image on the video
+                img_bg = cv2.bitwise_and(frame[y:y+overlay_img_polar.shape[0], x:x+overlay_img_polar.shape[1]], 
+                                         frame[y:y+overlay_img_polar.shape[0], x:x+overlay_img_polar.shape[1]], 
                                          mask=mask_inv)
 
-                # Take only the region of the overlay from the overlay image
-                img_fg = cv2.bitwise_and(rotated_overlay, rotated_overlay, mask=mask)
+                frame[y:y+overlay_img_polar.shape[0], x:x+overlay_img_polar.shape[1]] = cv2.add(img_bg, overlay_img_polar)
+                
+                
 
-                # Put the overlay on top of the current frame
-                frame[y:y+rotated_overlay.shape[0], x:x+rotated_overlay.shape[1]] = cv2.add(img_bg, img_fg)
 
         out.write(frame)
         cv2.imshow('Trajectories', frame)
@@ -627,7 +641,7 @@ def draw_trajectories_on_video(input_video_path, output_video_path, aruco_tracke
 
 # Example usage 
 
-aruco_tracker = Aruco_tracker(cam_id=-1, monitor_id=0, debug=False, debug_stream=False, frame_width=width, frame_height=height, crop_img=False, num_tags=15, decision_margin=20, record_stream=False, publish_pos=False, print_pos=False, detect_arena=False)
+aruco_tracker = Aruco_tracker(cam_id=-1, monitor_id=0, debug=False, debug_stream=False, frame_width=width, frame_height=height, crop_img=False, num_tags=15, decision_margin=20, record_stream=False, publish_pos=False, print_pos=False, detect_arena=True)
 
 #overlay_img_robat_path = '/Users/alberto/'  # replace with your overlay image path
 

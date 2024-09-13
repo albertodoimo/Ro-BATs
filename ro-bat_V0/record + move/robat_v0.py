@@ -157,6 +157,7 @@ def callback(indata, frames, time, status):
     args.buffer = (indata.copy())
 
     #print('buffer=',np.shape(args.buffer))
+
 def record(rec_counter,time1):
     q_contents = [q.get() for _ in range(q.qsize())]
 
