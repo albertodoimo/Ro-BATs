@@ -15,7 +15,7 @@ from scipy import signal
 #input_video_path = '/Users/alberto/Documents/UNIVERSITA/MAGISTRALE/tesi/robat video-foto/pdm 7 mic array/inverted_loop_pdm array_7mic_fast.mp4'  # replace with your input video path
 #input_video_path = '/Users/alberto/Desktop/test_swarmlab.mp4'
 #input_path = '/Users/alberto/Documents/UNIVERSITA/MAGISTRALE/tesi/robat video-foto/tracking results/2024-08-29__18-55-34/cut/'
-input_path = '/media/adoimo/Extreme SSD/tracking results/2024-08-29__18-55-34/cut/'
+input_path = '/home/adoimo/Desktop/tracking results/2024-08-29__18-55-34/cut/'
 input_video_name = '2024-08-29__18-55-34 cut2'
 input_video_path = input_path +input_video_name+'.mp4'
 
@@ -31,7 +31,7 @@ video = cv2.VideoCapture(input_video_path)
 width = int(video.get(cv2.CAP_PROP_FRAME_WIDTH))
 height = int(video.get(cv2.CAP_PROP_FRAME_HEIGHT))
 fps = int(video.get(cv2.CAP_PROP_FPS))
-out_fps = 0.5
+out_fps = fps
 
 print(width)
 print(height)
@@ -553,17 +553,17 @@ def draw_trajectories_on_video(input_video_path, output_video_path, aruco_tracke
                                 values[ii] = 0
                         #print('val',values)
 
-                        fig, ax = plt.subplots(subplot_kw={'projection': 'polar'},figsize=(4, 4))
+                        fig, ax = plt.subplots(subplot_kw={'projection': 'polar'},figsize=(6, 6))
                         theta = np.linspace(0, 2*np.pi, 360)
                         line, = ax.plot(theta, values, color='r', linewidth=6)
                         line.set_ydata(values)
 
 
                         ax.set_theta_direction(1)
-                        ax.set_title("Polar Plot",fontsize=25)
+                        #ax.set_title("Polar Plot",fontsize=30)
                         #ax.set_theta_offset(np.pi/2)
                         ax.set_rticks([])
-                        ax.set_thetagrids(range(0, 360, 30),fontsize=25)
+                        ax.set_thetagrids(range(0, 360, 30),fontsize=30)
                         ax.grid(True)
                         plt.savefig('polar_plot.png')
                         plt.close(fig)
