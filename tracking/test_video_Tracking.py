@@ -16,7 +16,7 @@ from scipy import signal
 #input_video_path = '/Users/alberto/Desktop/test_swarmlab.mp4'
 #input_path = '/Users/alberto/Documents/UNIVERSITA/MAGISTRALE/tesi/robat video-foto/tracking results/2024-08-29__18-55-34/cut/'
 input_path = '/home/adoimo/Desktop/tracking results/2024-08-29__18-55-34/cut/'
-input_video_name = '2024-08-29__18-55-34 cut2'
+input_video_name = '2024-08-29__18-55-34 cut3'
 input_video_path = input_path +input_video_name+'.mp4'
 
 output_video_name = input_video_name +'_tracked'+'.MP4'
@@ -224,7 +224,7 @@ class Aruco_tracker:
 
 print('ch=', np.shape(data)[1])
 
-method = 'CC'
+method = 'PRA'
 doa_name = 'MUSIC'
 
 c = 343   # speed of sound
@@ -390,7 +390,7 @@ def update_polar(buffer):
     X = pra.transform.stft.analysis(in_sig, nfft, nfft // 2)
     X = X.transpose([2, 1, 0])
 
-    doa = pra.doa.algorithms[doa_name](echo, fs, nfft, c=c, num_src=2, max_four=4)
+    doa = pra.doa.algorithms[doa_name](echo, fs, nfft, c=c, num_src=1, max_four=4)
     doa.locate_sources(X, freq_range=freq_range)
     #print('azimuth_recon=',doa.azimuth_recon) # rad value of detected angles
     theta_pra_deg = (doa.azimuth_recon * 180 / np.pi) 
@@ -575,15 +575,16 @@ def draw_trajectories_on_video(input_video_path, output_video_path, aruco_tracke
                         fig, ax = plt.subplots(subplot_kw={'projection': 'polar'},figsize=(8, 8))
                         theta = np.linspace(0, 2*np.pi, 360)
                         #print('i3',i)
-                        ax.plot(theta, spatial_resp)
+                        ax.plot(theta, spatial_resp,linewidth=5)
                         ax.set_theta_direction(1)
-                        ax.set_title("Polar Plot")
+                        #ax.set_title("Polar Plot")
                         #ax.set_theta_offset(np.pi)
                         ax.set_rticks([])
-                        ax.set_thetagrids(range(0, 360, 30))
+                        ax.set_thetagrids(range(0, 360, 30),fontsize=30)
                         ax.grid(True)
                         plt.savefig('polar_plot.png')
                         plt.close(fig)
+                        #plt.show()
                     
                     # Load and resize the polar plot image
                     #overlay_img_polar = cv2.imread('/Users/alberto/Documents/UNIVERSITA/MAGISTRALE/tesi/github/Ro-BATs/tracking/polar_plot.png')
