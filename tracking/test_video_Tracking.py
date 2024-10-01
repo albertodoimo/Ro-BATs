@@ -16,6 +16,8 @@ from scipy import signal
 method = 'CC'
 doa_name = 'MUSIC'
 
+obstacle_num = 3
+
 #input_video_path = '/Users/alberto/Documents/UNIVERSITA/MAGISTRALE/tesi/robat video-foto/pdm 7 mic array/inverted_loop_pdm array_7mic_fast.mp4'  # replace with your input video path
 #input_video_path = '/Users/alberto/Desktop/test_swarmlab.mp4'
 input_path = '/Users/alberto/Documents/UNIVERSITA/MAGISTRALE/tesi/robat video-foto/tracking results/2024-08-29__18-55-34/cut/'
@@ -264,8 +266,19 @@ def update_polar(buffer):
     spatial_resp = (spatial_resp - min_val) / (max_val - min_val)
     return spatial_resp
 
-def distance(trajectories, positions):
-    dist = np.sqrt()
+def distance(robat_pos, obst_pos,ids):
+    print(robat_pos)
+    print('\n')
+    print(obst_pos)
+    print('\n')
+    print(ids)
+
+
+    # Estimate distance to each obstacle marker
+    for id in ids:
+        print('id',id)
+        #dist = np.sqrt(sum((robat_pos[0]-obst_pos[id,0])**2,(robat_pos[1]-obst_pos[0])**2))
+        #print(f"Distance to obstacle {obst_id} is {dist}")
     return dist
 #%%
 def draw_trajectories_on_video(input_video_path, output_video_path, aruco_tracker, overlay_img_path,audio_buffer):
@@ -317,8 +330,7 @@ def draw_trajectories_on_video(input_video_path, output_video_path, aruco_tracke
                     positions[markerID] = []
                     centers = np.mean(corner[0], axis=0)
                     positions[markerID].append(centers) #array that contains all the centers of the markers + id of the marker
-                #print('obst pos =', np.array(positions))
-
+                #print('len', len(positions[markerID]))
 
                 if markerID==robat_marker_number:
                     if markerID not in trajectories:
@@ -345,9 +357,6 @@ def draw_trajectories_on_video(input_video_path, output_video_path, aruco_tracke
                     #print(above_level)
                     av_above_level = np.mean(dBrms_channel)
                     #print(av_above_level)
-
-                    dist = distance(trajectories[robat_marker_number], np.array(positions))
-                    print('dist to obst =', dist)
 
                     for i in range(1, len(trajectories[markerID])):
                     
@@ -381,9 +390,9 @@ def draw_trajectories_on_video(input_video_path, output_video_path, aruco_tracke
                         # Put overlay on top of the current frame
                         frame = cv2.add(img_bg, img_fg)
 
-                    # Compute rotation angle around the z-axis (in-plane rotation)
-                    rotation_matrix, _ = cv2.Rodrigues(rvecs[0])
-                    angle = -np.degrees(np.arctan2(rotation_matrix[1, 0], rotation_matrix[0, 0]))
+                    ## Compute rotation angle around the z-axis (in-plane rotation)
+                    #rotation_matrix, _ = cv2.Rodrigues(rvecs[0])
+                    #angle = -np.degrees(np.arctan2(rotation_matrix[1, 0], rotation_matrix[0, 0]))
 
                     # Read and process spatial response data
                     spatial_resp = []
@@ -524,7 +533,24 @@ def draw_trajectories_on_video(input_video_path, output_video_path, aruco_tracke
 
                     frame[y:y+overlay_img_polar.shape[0], x:x+overlay_img_polar.shape[1]] = cv2.add(img_bg, overlay_img_polar)
                     
-                    
+                
+                traj = trajectories[robat_marker_number]
+                robat_pos = list(traj[0])
+
+                pos_matrix = []
+
+                # Iterate over the dictionary
+                for key, value in positions.items():
+                    # Create a row with the key as the first element, followed by the array values
+                    row = [key] + value[0].tolist()
+                    # Append the row to the matrix
+                    pos_matrix.append(row)
+
+                print('matrix', pos_matrix)
+                print('\n')
+                #dist = distance(robat_pos, pos_matrix, positions.keys())
+                #print('dist to obst =', dist)
+    
 
 
         out.write(frame)
