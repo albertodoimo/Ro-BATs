@@ -12,11 +12,9 @@ import soundfile as sf
 from scipy.fftpack import fft, ifft
 from scipy import signal
 
-
 method = 'CC'
+#method = 'PRA'
 doa_name = 'MUSIC'
-
-obstacle_num = 3
 
 #input_video_path = '/Users/alberto/Documents/UNIVERSITA/MAGISTRALE/tesi/robat video-foto/pdm 7 mic array/inverted_loop_pdm array_7mic_fast.mp4'  # replace with your input video path
 #input_video_path = '/Users/alberto/Desktop/test_swarmlab.mp4'
@@ -38,6 +36,7 @@ width = int(video.get(cv2.CAP_PROP_FRAME_WIDTH))
 height = int(video.get(cv2.CAP_PROP_FRAME_HEIGHT))
 fps = int(video.get(cv2.CAP_PROP_FPS))
 out_fps = fps
+pixel_conversion = 7.5 # pixels/cm
 
 robat_marker_number = 70
 
@@ -54,11 +53,11 @@ video.release()
 print('ch=', np.shape(data)[1])
 
 
-
 c = 343   # speed of sound
 fs = samplerate
 print('fs =', samplerate)
 block_size = samplerate//fps
+exp_block_size = 1024
 print('bs=', block_size)
 channels = np.shape(data)[1]
 mic_spacing = 0.015 #m
@@ -77,7 +76,7 @@ freq_range = [highpass_freq, lowpass_freq]
 nyq_freq = fs/2.0
 b, a = signal.butter(4, [highpass_freq/nyq_freq,lowpass_freq/nyq_freq],btype='bandpass') # to be 'allowed' in Hz.
 
-echo = pra.linear_2D_array(center=[(channels-1)*mic_spacing//2,0], M=channels, phi=0, d=mic_spacing)
+echo = pra.linear_2D_array(center=[(channels-1)*mic_spacing//2,0], M=channels, phi=-np.pi/2, d=mic_spacing)
 
 trigger_level = -50 # dB level ref max pdm to be matched with the one in the actual experiment
 
@@ -224,8 +223,12 @@ def avar_angle(delay_set,nchannels,mic_spacing):
 
 def update(buffer):
 
-    in_sig = buffer
-    print(np.shape(buffer))
+    in_sig = buffer[-exp_block_size:,:]
+    #print(buffer[2176,:])
+    #print()
+    #print(in_sig[0,:])
+    #print('buffer shape:', np.shape(buffer))
+    #print('in_sig=',np.shape(in_sig))
     ref_channels = in_sig
 
     #print('ref_channels=', np.shape(ref_channels))
@@ -246,7 +249,7 @@ def update_polar(buffer):
 
     # Your streaming data source logic goes here
 
-    in_sig = buffer
+    in_sig = buffer[-exp_block_size:,:]
 
     X = pra.transform.stft.analysis(in_sig, nfft, nfft // 2)
     X = X.transpose([2, 1, 0])
@@ -255,7 +258,7 @@ def update_polar(buffer):
     doa.locate_sources(X, freq_range=freq_range)
     #print('azimuth_recon=',doa.azimuth_recon) # rad value of detected angles
     theta_pra_deg = (doa.azimuth_recon * 180 / np.pi) 
-    #print('theta=',theta_pra_deg) #degrees value of detected angles
+    #print('\ntheta=',theta_pra_deg) #degrees value of detected angles
 
     spatial_resp = doa.grid.values # 360 values for plot
     #print('spat_resp',spatial_resp) 
@@ -267,19 +270,57 @@ def update_polar(buffer):
     return spatial_resp
 
 def distance(robat_pos, obst_pos,ids):
-    print(robat_pos)
-    print('\n')
-    print(obst_pos)
-    print('\n')
-    print(ids)
+    #print('rob pos', robat_pos)
+    #print('obst pos', obst_pos)
+    dist = []
 
-
-    # Estimate distance to each obstacle marker
+    # Iterate through the IDs and calculate the distance
     for id in ids:
-        print('id',id)
-        #dist = np.sqrt(sum((robat_pos[0]-obst_pos[id,0])**2,(robat_pos[1]-obst_pos[0])**2))
-        #print(f"Distance to obstacle {obst_id} is {dist}")
+        #print('Processing ID:', id)
+        
+        # Find the obstacle's position by matching the ID in the first column of the obst_pos matrix
+        id_pos = next((i for i, row in enumerate(obst_pos) if row[0] == id), None)
+        
+        if id_pos is not None:
+            # Extract obstacle's x and y coordinates
+            obstacle_x = obst_pos[id_pos][1]
+            obstacle_y = obst_pos[id_pos][2] 
+
+            # Calculate Euclidean distance
+            dist.append(np.sqrt((robat_pos[0] - obstacle_x) ** 2 + (robat_pos[1] - obstacle_y) ** 2)/pixel_conversion)
+
     return dist
+
+def calculate_direction_and_angle(corners, point):
+    # Corners of the marker
+    P1, P2, P3, P4 = corners #tl, tr, br, bl
+    
+    # Calculate the direction vector 
+    D41 = P1 - P4
+    D41_normalized = D41 / np.linalg.norm(D41)
+    
+    # Calculate the center of the marker
+    C_marker = (P1 + P2 + P3 + P4) / 4
+    
+    # Calculate the vector from the marker's center to the point in space
+    V_marker_space = point - C_marker
+    
+    # Calculate the angle between the direction vector and the vector to the point
+    dot_product = np.dot(D41_normalized, V_marker_space)
+    angle = np.arccos(dot_product / (np.linalg.norm(V_marker_space)))
+    
+    # Convert angle from radians to degrees
+    angle_degrees = np.degrees(angle)
+    
+    # Determine orientation (verse) using the cross product
+    D14 = P4 - P1
+    cross_product = np.cross(V_marker_space, D14)
+
+    verse = "Clockwise" if cross_product > 0 else "Counterclockwise"
+    
+    return D41_normalized, verse, angle_degrees
+
+
 #%%
 def draw_trajectories_on_video(input_video_path, output_video_path, aruco_tracker, overlay_img_path,audio_buffer):
     cap = cv2.VideoCapture(input_video_path)
@@ -313,11 +354,12 @@ def draw_trajectories_on_video(input_video_path, output_video_path, aruco_tracke
               
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         corners, ids, _ = cv2.aruco.detectMarkers(gray, aruco_tracker._aruco_dict, parameters=aruco_tracker._parameters)
+        #print('corners',corners)
 
         try:
             buffer = next(audio_buffer)
             iii=iii+1
-            print('current buffer read',iii)
+            print('\ncurrent buffer read',iii)
         except StopIteration:
             print("End of audio file reached.")
             break
@@ -326,13 +368,17 @@ def draw_trajectories_on_video(input_video_path, output_video_path, aruco_tracke
             ids = ids.flatten()
             for corner, markerID in zip(corners, ids):
                 
+                #print('\ncorners',corners)
+                #print('len pos',len(positions))
+                #print('len ids',len(ids)-5)
+
                 if markerID!=100 and markerID!=101 and markerID!=102 and markerID!=103 and markerID!=robat_marker_number:
                     positions[markerID] = []
                     centers = np.mean(corner[0], axis=0)
                     positions[markerID].append(centers) #array that contains all the centers of the markers + id of the marker
                 #print('len', len(positions[markerID]))
 
-                if markerID==robat_marker_number:
+                if markerID==robat_marker_number and len(positions)>=len(ids)-5:
                     if markerID not in trajectories:
                         trajectories[markerID] = []
                         #colors[markerID] = (np.random.randint(0, 255), np.random.randint(0, 255), np.random.randint(0, 255))
@@ -341,13 +387,42 @@ def draw_trajectories_on_video(input_video_path, output_video_path, aruco_tracke
                     # Estimate pose of each marker
                     rvecs, tvecs, _ = cv2.aruco.estimatePoseSingleMarkers(corner, 0.08, camera_matrix, dist_coeffs)
 
+                    #print('\ncorner=',corner)
+
                     # Draw 3D axis on the marker
                     #cv2.drawFrameAxes(frame, camera_matrix, dist_coeffs, rvecs, tvecs, 0.1)
-                    #print('buffer3=',buffer)
-                    center = np.mean(corner[0], axis=0)
-                    trajectories[markerID].append(center) #array that contains all the centers of the markers + id of the marker
 
-                    print('traj shape=', np.shape(trajectories[markerID])) #necessary for plotting line but slowes downa a lot the computation
+                    center = np.mean(corner[0], axis=0)
+                    #print('\ncenter=',center)
+                    #trajectories[markerID].append(center) #array that contains all the centers of the markers + id of the marker
+
+                    robat_pos = center
+
+                    pos_matrix = []
+                    # Iterate over the dictionary
+                    for key, value in positions.items():
+                        # Create a row with the key as the first element, followed by the array values
+                        row = [key] + value[0].tolist()
+                        # Append the row to the matrix
+                        pos_matrix.append(row)
+
+                    dist = distance(robat_pos, pos_matrix, list(positions.keys()))
+
+                    data_matrix = np.hstack((pos_matrix,np.array([dist]).transpose())) #matrix containing [id x y dist] for each obstacle
+
+                    index_min= next((i for i, row in enumerate(data_matrix) if row[3] == min(dist)), None)
+                    print( '\nclosest obst ID =', int(data_matrix[index_min][0])) #marker ID of the closest obst to the robat
+                    print('\ndistance = ',data_matrix[index_min][3]) #distance to closest obst
+
+                    # Example usage
+
+                    direction, verse, angle = calculate_direction_and_angle(corner[0], np.array([data_matrix[index_min][1], data_matrix[index_min][2]]))
+                    #print(f"\nMarker direction: {direction}")
+                    #print(f"\nMarker verse: {verse}")
+                    #print(f"\nAngle between marker and point: {angle} degrees")
+
+
+                    #print('\ntraj shape=', np.shape(trajectories[markerID])) #necessary for plotting line but slowes down a lot the computation
                     # calculate trigger level  
                     ref_channels = buffer
                     #print('ref_channels=', np.shape(ref_channels))
@@ -410,6 +485,18 @@ def draw_trajectories_on_video(input_video_path, output_video_path, aruco_tracke
                         linecolor = 'r'
                     else:
                         linecolor = 'b'
+
+                    if verse == 'Clockwise':
+                        angle = (360 - angle) % 360
+
+                    gt = np.zeros(360)
+                    for ii in range(len(gt)):
+                        if round(angle) == ii:
+                            gt[ii] = 1
+
+                        else:
+                            gt[ii] = 0
+
                     if method == 'CC':
                         spatial_resp = update(buffer)
                         spatial_resp = np.array(spatial_resp)
@@ -440,14 +527,15 @@ def draw_trajectories_on_video(input_video_path, output_video_path, aruco_tracke
 
                         values = np.zeros(360)
                         values1 = np.zeros(360)
+                        
                         jj=[]
                         for ii in range(len(values)):
-                            if round(90-spatial_resp) == ii:
+                            if int(180+spatial_resp) == ii:
                                 #print('not 90',spatial_resp)
                                 #print('round',round(90-spatial_resp))
                                 jj=ii
                                 values[ii] = 1
-                                values1[360-jj] = 1
+                                values1[180-jj] = 1
 
                             else:
                                 values[ii] = 0
@@ -457,14 +545,16 @@ def draw_trajectories_on_video(input_video_path, output_video_path, aruco_tracke
                         theta = np.linspace(0, 2*np.pi, 360)
                         line, = ax.plot(theta, values, color=linecolor, linewidth=6)
                         line2, = ax.plot(theta, values1, color=linecolor, linewidth=6)
+                        line3, = ax.plot(theta, gt, 'g', linewidth=6)
                         line.set_ydata(values)
                         line2.set_ydata(values1)
+                        line3.set_ydata(gt)
                         ax.set_theta_direction(1)
                         ax.set_title(f"DOA {method}",fontsize=30)
-                        #ax.set_theta_offset(np.pi/2)
+                        ax.set_theta_offset(np.pi/2)
                         ax.set_rticks([])
-                        #ax.set_thetagrids(range(0, 360, 30),fontsize=30)
-                        ax.set_thetagrids(range(0, 360, 30), ('90','60', '30', '0','-30', '-60', '-90', '-120','-150','±180','150','120'),fontsize=30)
+                        ax.set_thetagrids(range(0, 360, 30),fontsize=30)
+                        ax.set_thetagrids(range(0, 360, 30), ('0','-30      ', '-60     ', '-90        ', '-120      ','-150     ','±180','     150','     120','     90','      60', '      30'), fontsize=30)
                         ax.grid(True)
                         plt.savefig('polar_plot.png')
                         plt.close(fig)
@@ -475,13 +565,15 @@ def draw_trajectories_on_video(input_video_path, output_video_path, aruco_tracke
                         #print(np.shape(spatial_resp))
                         fig, ax = plt.subplots(subplot_kw={'projection': 'polar'},figsize=(8, 8))
                         theta = np.linspace(0, 2*np.pi, 360)
+                        line3, = ax.plot(theta, gt, 'g', linewidth=6)
+                        line3.set_ydata(gt)
                         #print('i3',i)
                         ax.plot(theta, spatial_resp,color = linecolor, linewidth=5)
-                        ax.set_theta_direction(1)
+                        ax.set_theta_direction(1) #1 = counter clockwise direction
                         ax.set_title(f"DOA {doa_name}",fontsize=30)
-                        #ax.set_theta_offset(np.pi)
+                        ax.set_theta_offset(np.pi/2)
                         ax.set_rticks([])
-                        ax.set_thetagrids(range(0, 360, 30), ('90','60', '30', '0','-30', '-60', '-90', '-120','-150','±180','150','120'), fontsize=30)
+                        ax.set_thetagrids(range(0, 360, 30), ('0','-30      ', '-60     ', '-90        ', '-120      ','-150     ','±180','     150','     120','     90','      60', '      30'), fontsize=30)
                         ax.grid(True)
                         plt.savefig('polar_plot.png')
                         plt.close(fig)
@@ -534,23 +626,7 @@ def draw_trajectories_on_video(input_video_path, output_video_path, aruco_tracke
                     frame[y:y+overlay_img_polar.shape[0], x:x+overlay_img_polar.shape[1]] = cv2.add(img_bg, overlay_img_polar)
                     
                 
-                traj = trajectories[robat_marker_number]
-                robat_pos = list(traj[0])
 
-                pos_matrix = []
-
-                # Iterate over the dictionary
-                for key, value in positions.items():
-                    # Create a row with the key as the first element, followed by the array values
-                    row = [key] + value[0].tolist()
-                    # Append the row to the matrix
-                    pos_matrix.append(row)
-
-                print('matrix', pos_matrix)
-                print('\n')
-                #dist = distance(robat_pos, pos_matrix, positions.keys())
-                #print('dist to obst =', dist)
-    
 
 
         out.write(frame)
@@ -614,6 +690,7 @@ class Aruco_tracker:
                 self._arena_corners = np.float32([[0, 0], [0, 0], [0, 0], [0, 0]])
                 self.detect_arena()
 
+  
     def detect_arena(self):
         cap_img = np.array(self._sct.grab(self._monitor))
         gray = cv2.cvtColor(cap_img, cv2.COLOR_BGR2GRAY)
@@ -749,5 +826,7 @@ aruco_tracker = Aruco_tracker(cam_id=-1, monitor_id=0, debug=False, debug_stream
 draw_trajectories_on_video(input_video_path, output_video_path, aruco_tracker, overlay_img_path,audio_buffer)
 
 
+
+# %%
 
 # %%
