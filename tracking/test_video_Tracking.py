@@ -1,3 +1,5 @@
+#%%
+
 import cv2
 import numpy as np
 from datetime import datetime
@@ -8,12 +10,13 @@ import csv
 import matplotlib.pyplot as plt
 import pyroomacoustics as pra
 import soundfile as sf
+import os
 
 from scipy.fftpack import fft, ifft
 from scipy import signal
 
 method = 'CC'
-#method = 'PRA'
+method = 'PRA'
 doa_name = 'MUSIC'
 
 #input_video_path = '/Users/alberto/Documents/UNIVERSITA/MAGISTRALE/tesi/robat video-foto/pdm 7 mic array/inverted_loop_pdm array_7mic_fast.mp4'  # replace with your input video path
@@ -29,6 +32,9 @@ overlay_img_path = '/Users/alberto/Documents/UNIVERSITA/MAGISTRALE/tesi/github/R
 #overlay_img_path = '/Ro-BATs/tracking/ROBAT LOGO.png'  # replace with your overlay image path
 
 audio_path = input_path + '2024-08-29__18-55-34 cut.wav'
+
+data_path = '/Users/alberto/Documents/UNIVERSITA/MAGISTRALE/tesi/github/Ro-BATs/tracking/'
+
 data, samplerate = sf.read(audio_path)
 
 video = cv2.VideoCapture(input_video_path)
@@ -46,9 +52,6 @@ print('fps=',fps)
 
 
 video.release()
-
-#%%
-
 
 print('ch=', np.shape(data)[1])
 
@@ -221,6 +224,13 @@ def avar_angle(delay_set,nchannels,mic_spacing):
     avar_theta = np.mean(theta)
     return avar_theta
 
+def save_data_to_csv(array, filename, path):
+    full_path = os.path.join(path, filename)
+    with open(full_path, "a", newline='') as file:
+        writer = csv.writer(file)
+        writer.writerows(array)
+    #print(f"Matrix has been saved as csv to {full_path}")
+
 def update(buffer):
 
     in_sig = buffer[-exp_block_size:,:]
@@ -267,7 +277,7 @@ def update_polar(buffer):
     min_val = spatial_resp.min()
     max_val = spatial_resp.max()
     spatial_resp = (spatial_resp - min_val) / (max_val - min_val)
-    return spatial_resp
+    return spatial_resp, theta_pra_deg
 
 def distance(robat_pos, obst_pos,ids):
     #print('rob pos', robat_pos)
@@ -320,8 +330,6 @@ def calculate_direction_and_angle(corners, point):
     
     return D41_normalized, verse, angle_degrees
 
-
-#%%
 def draw_trajectories_on_video(input_video_path, output_video_path, aruco_tracker, overlay_img_path,audio_buffer):
     cap = cv2.VideoCapture(input_video_path)
     frame_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
@@ -413,13 +421,11 @@ def draw_trajectories_on_video(input_video_path, output_video_path, aruco_tracke
                     index_min= next((i for i, row in enumerate(data_matrix) if row[3] == min(dist)), None)
                     print( '\nclosest obst ID =', int(data_matrix[index_min][0])) #marker ID of the closest obst to the robat
                     print('\ndistance = ',data_matrix[index_min][3]) #distance to closest obst
-
-                    # Example usage
-
-                    direction, verse, angle = calculate_direction_and_angle(corner[0], np.array([data_matrix[index_min][1], data_matrix[index_min][2]]))
+                    
+                    direction, verse, gt_angle = calculate_direction_and_angle(corner[0], np.array([data_matrix[index_min][1], data_matrix[index_min][2]]))
                     #print(f"\nMarker direction: {direction}")
                     #print(f"\nMarker verse: {verse}")
-                    #print(f"\nAngle between marker and point: {angle} degrees")
+                    #print(f"\nAngle between marker and point: {gt_angle} degrees")
 
 
                     #print('\ntraj shape=', np.shape(trajectories[markerID])) #necessary for plotting line but slowes down a lot the computation
@@ -487,11 +493,11 @@ def draw_trajectories_on_video(input_video_path, output_video_path, aruco_tracke
                         linecolor = 'b'
 
                     if verse == 'Clockwise':
-                        angle = (360 - angle) % 360
+                        gt_angle = (360 - gt_angle) % 360
 
                     gt = np.zeros(360)
                     for ii in range(len(gt)):
-                        if round(angle) == ii:
+                        if round(gt_angle) == ii:
                             gt[ii] = 1
 
                         else:
@@ -561,7 +567,7 @@ def draw_trajectories_on_video(input_video_path, output_video_path, aruco_tracke
                         #plt.show()
 
                     elif method == 'PRA':
-                        spatial_resp = update_polar(buffer)
+                        spatial_resp,theta_det = update_polar(buffer)
                         #print(np.shape(spatial_resp))
                         fig, ax = plt.subplots(subplot_kw={'projection': 'polar'},figsize=(8, 8))
                         theta = np.linspace(0, 2*np.pi, 360)
@@ -579,6 +585,16 @@ def draw_trajectories_on_video(input_video_path, output_video_path, aruco_tracke
                         plt.close(fig)
                         #plt.show()
                     
+                    if method == 'CC':
+                        robat_matrix = [[iii,data_matrix[index_min][3],gt_angle,float(spatial_resp),abs(gt_angle-float(spatial_resp))]] #matrix containing [ ] for  robat                    
+                    elif method == 'PRA':
+                        robat_matrix = [[iii,data_matrix[index_min][3],gt_angle,float(theta_det[0]),abs(gt_angle-float(theta_det[0]))]] #matrix containing [ ] for  robat
+
+
+                    filename = "robat_data_" + input_video_name +"_" + method + ".csv"
+                    save_data_to_csv(robat_matrix, filename, data_path)
+                    
+
                     # Load and resize the polar plot image
                     overlay_img_polar = cv2.imread('/Users/alberto/Documents/UNIVERSITA/MAGISTRALE/tesi/github/Ro-BATs/tracking/polar_plot.png')
                     #overlay_img_polar = cv2.imread('/Ro-BATs/tracking/polar_plot.png')
@@ -625,8 +641,6 @@ def draw_trajectories_on_video(input_video_path, output_video_path, aruco_tracke
 
                     frame[y:y+overlay_img_polar.shape[0], x:x+overlay_img_polar.shape[1]] = cv2.add(img_bg, overlay_img_polar)
                     
-                
-
 
 
         out.write(frame)
@@ -637,10 +651,6 @@ def draw_trajectories_on_video(input_video_path, output_video_path, aruco_tracke
     cap.release()
     out.release()
     cv2.destroyAllWindows()
-
-
-
-# Example usage 
 
 class Aruco_tracker:
     def __init__(self, cam_id=-1, monitor_id=0, debug=True, debug_stream=True, frame_width=width, frame_height=height, crop_img=False, num_tags=15, decision_margin=20, record_stream=False, publish_pos=False, print_pos=False, detect_arena=True):
@@ -824,9 +834,3 @@ aruco_tracker = Aruco_tracker(cam_id=-1, monitor_id=0, debug=False, debug_stream
 #overlay_img_robat_path = '/Users/alberto/'  # replace with your overlay image path
 
 draw_trajectories_on_video(input_video_path, output_video_path, aruco_tracker, overlay_img_path,audio_buffer)
-
-
-
-# %%
-
-# %%
