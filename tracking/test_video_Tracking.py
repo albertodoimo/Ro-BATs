@@ -41,7 +41,7 @@ video = cv2.VideoCapture(input_video_path)
 width = int(video.get(cv2.CAP_PROP_FRAME_WIDTH))
 height = int(video.get(cv2.CAP_PROP_FRAME_HEIGHT))
 fps = int(video.get(cv2.CAP_PROP_FPS))
-out_fps = fps
+out_fps = fps/2
 pixel_conversion = 7.5 # pixels/cm
 
 robat_marker_number = 70
@@ -354,6 +354,7 @@ def draw_trajectories_on_video(input_video_path, output_video_path, aruco_tracke
     #print('ab=',audio_buffer)
     i = 0
     iii = 0
+    trajectories = np.zeros((50,2))
     while True:
         ret, frame = cap.read()
 
@@ -388,7 +389,7 @@ def draw_trajectories_on_video(input_video_path, output_video_path, aruco_tracke
 
                 if markerID==robat_marker_number and len(positions)>=len(ids)-5:
                     if markerID not in trajectories:
-                        trajectories[markerID] = []
+                        #trajectories[markerID] = []
                         #colors[markerID] = (np.random.randint(0, 255), np.random.randint(0, 255), np.random.randint(0, 255))
                         colors[markerID] = [0,255,0]
                     #print('buffer2=',buffer)
@@ -399,10 +400,13 @@ def draw_trajectories_on_video(input_video_path, output_video_path, aruco_tracke
 
                     # Draw 3D axis on the marker
                     #cv2.drawFrameAxes(frame, camera_matrix, dist_coeffs, rvecs, tvecs, 0.1)
-
+                    #old_traj.append(center)
                     center = np.mean(corner[0], axis=0)
+
                     #print('\ncenter=',center)
-                    #trajectories[markerID].append(center) #array that contains all the centers of the markers + id of the marker
+                    for i in range(len(trajectories)-1,0,-1):
+                        trajectories[i] = trajectories[i-1]
+                    trajectories[0,:] = center #array that contains all the centers of the markers + id of the marker
 
                     robat_pos = center
 
@@ -418,7 +422,7 @@ def draw_trajectories_on_video(input_video_path, output_video_path, aruco_tracke
 
                     data_matrix = np.hstack((pos_matrix,np.array([dist]).transpose())) #matrix containing [id x y dist] for each obstacle
 
-                    index_min= next((i for i, row in enumerate(data_matrix) if row[3] == min(dist)), None)
+                    index_min = next((i for i, row in enumerate(data_matrix) if row[3] == min(dist)), None)
                     print( '\nclosest obst ID =', int(data_matrix[index_min][0])) #marker ID of the closest obst to the robat
                     print('\ndistance = ',data_matrix[index_min][3]) #distance to closest obst
                     
@@ -428,7 +432,7 @@ def draw_trajectories_on_video(input_video_path, output_video_path, aruco_tracke
                     #print(f"\nAngle between marker and point: {gt_angle} degrees")
 
 
-                    #print('\ntraj shape=', np.shape(trajectories[markerID])) #necessary for plotting line but slowes down a lot the computation
+                    print('\ntraj shape=', np.shape(trajectories)) #necessary for plotting line but slowes down a lot the computation
                     # calculate trigger level  
                     ref_channels = buffer
                     #print('ref_channels=', np.shape(ref_channels))
@@ -439,37 +443,39 @@ def draw_trajectories_on_video(input_video_path, output_video_path, aruco_tracke
                     av_above_level = np.mean(dBrms_channel)
                     #print(av_above_level)
 
-                    for i in range(1, len(trajectories[markerID])):
+                    for i in range(1, len(trajectories)):
+                    #for i in range(1, len(trajectories[markerID])):
                     
                         #print('i1',i)
-                        cv2.line(frame, tuple(trajectories[markerID][i-1].astype(int)), tuple(trajectories[markerID][i].astype(int)), colors[markerID], 3)
+                        #cv2.line(frame, tuple(trajectories[markerID][i-1].astype(int)), tuple(trajectories[markerID][i].astype(int)), colors[markerID], 3)
+                        cv2.line(frame, tuple(trajectories[i].astype(int)),tuple(trajectories[i-1].astype(int)), colors[markerID], 3)
                         #print('buffer4=',buffer)
 
-                        # Overlay image on marker
-                        # Compute the homography to warp the overlay image
-                        pts_dst = corner[0].astype(int)
-                        #print(pts_dst)
-                        pts_src = np.array([[0, 0], [overlay_img.shape[1], 0], [overlay_img.shape[1], overlay_img.shape[0]], [0, overlay_img.shape[0]]])
-                        h, _ = cv2.findHomography(pts_src, pts_dst)
+                    # Overlay image on marker
+                    # Compute the homography to warp the overlay image
+                    pts_dst = corner[0].astype(int)
+                    #print(pts_dst)
+                    pts_src = np.array([[0, 0], [overlay_img.shape[1], 0], [overlay_img.shape[1], overlay_img.shape[0]], [0, overlay_img.shape[0]]])
+                    h, _ = cv2.findHomography(pts_src, pts_dst)
 
-                        # Warp the overlay image onto the marker
-                        overlay_warped = cv2.warpPerspective(overlay_img, h, (frame.shape[1], frame.shape[0]))
+                    # Warp the overlay image onto the marker
+                    overlay_warped = cv2.warpPerspective(overlay_img, h, (frame.shape[1], frame.shape[0]))
 
-                        # Create a mask of the overlay image
-                        overlay_mask = cv2.cvtColor(overlay_warped, cv2.COLOR_BGR2GRAY)
-                        _, mask = cv2.threshold(overlay_mask, 1, 255, cv2.THRESH_BINARY)
+                    # Create a mask of the overlay image
+                    overlay_mask = cv2.cvtColor(overlay_warped, cv2.COLOR_BGR2GRAY)
+                    _, mask = cv2.threshold(overlay_mask, 1, 255, cv2.THRESH_BINARY)
 
-                        # Invert the mask for the overlay
-                        mask_inv = cv2.bitwise_not(mask)
+                    # Invert the mask for the overlay
+                    mask_inv = cv2.bitwise_not(mask)
 
-                        # Black-out the area of the overlay in the frame
-                        img_bg = cv2.bitwise_and(frame, frame, mask=mask_inv)
+                    # Black-out the area of the overlay in the frame
+                    img_bg = cv2.bitwise_and(frame, frame, mask=mask_inv)
 
-                        # Take only region of overlay from overlay image
-                        img_fg = cv2.bitwise_and(overlay_warped, overlay_warped, mask=mask)
+                    # Take only region of overlay from overlay image
+                    img_fg = cv2.bitwise_and(overlay_warped, overlay_warped, mask=mask)
 
-                        # Put overlay on top of the current frame
-                        frame = cv2.add(img_bg, img_fg)
+                    # Put overlay on top of the current frame
+                    frame = cv2.add(img_bg, img_fg)
 
                     ## Compute rotation angle around the z-axis (in-plane rotation)
                     #rotation_matrix, _ = cv2.Rodrigues(rvecs[0])
@@ -594,13 +600,17 @@ def draw_trajectories_on_video(input_video_path, output_video_path, aruco_tracke
                     filename = "robat_data_" + input_video_name +"_" + method + ".csv"
                     save_data_to_csv(robat_matrix, filename, data_path)
                     
+                   
 
                     # Load and resize the polar plot image
                     overlay_img_polar = cv2.imread('/Users/alberto/Documents/UNIVERSITA/MAGISTRALE/tesi/github/Ro-BATs/tracking/polar_plot.png')
                     #overlay_img_polar = cv2.imread('/Ro-BATs/tracking/polar_plot.png')
 
                     #overlay_img_polar = cv2.resize(overlay_img_polar, (frame_height//5,frame_height//5))
-                    overlay_img_polar = cv2.resize(overlay_img_polar,((overlay_img_polar.shape[0]//3),(overlay_img_polar.shape[1]//3)))
+                    overlay_img_polar = cv2.resize(overlay_img_polar,((overlay_img_polar.shape[1]//3),(overlay_img_polar.shape[0]//3)))
+
+                    overlay_img_logo= cv2.imread('/Users/alberto/Documents/UNIVERSITA/MAGISTRALE/tesi/github/Ro-BATs/tracking/CASCB-logo-vector.png')
+                    overlay_img_logo = cv2.resize(overlay_img_logo,((overlay_img_logo.shape[1]//2),(overlay_img_logo.shape[0]//2)))
 
                     # Calculate rotation matrix for in-plane rotation
                     #M = cv2.getRotationMatrix2D((overlay_img_polar.shape[1] // 2, overlay_img_polar.shape[0] // 2), angle, 1.0)
@@ -630,16 +640,36 @@ def draw_trajectories_on_video(input_video_path, output_video_path, aruco_tracke
                     ## Put the overlay on top of the current frame
                     #frame[y:y+rotated_overlay.shape[0], x:x+rotated_overlay.shape[1]] = cv2.add(img_bg, img_fg)
 
+
                     ## Create a mask of the overlay image
                     overlay_gray = cv2.cvtColor(overlay_img_polar, cv2.COLOR_BGR2GRAY)
+                    overlay_gray_1 = cv2.cvtColor(overlay_img_logo, cv2.COLOR_BGR2GRAY)
                     _, mask = cv2.threshold(overlay_gray, 1, 255, cv2.THRESH_BINARY)
+                    _, mask_1 = cv2.threshold(overlay_gray_1, 1, 255, cv2.THRESH_BINARY)
                     mask_inv = cv2.bitwise_not(mask)
-                    x,y  = (width-overlay_img_polar.shape[0], height-overlay_img_polar.shape[1]) # position of the image on the video
+                    mask_inv_1 = cv2.bitwise_not(mask_1)
+                    x,y  = (width-overlay_img_polar.shape[1], height-overlay_img_polar.shape[0]) # position of the image on the video
+                    x1,y1  = (width//2-overlay_img_logo.shape[1]//2, 20) # position of the image on the video
                     img_bg = cv2.bitwise_and(frame[y:y+overlay_img_polar.shape[0], x:x+overlay_img_polar.shape[1]], 
                                             frame[y:y+overlay_img_polar.shape[0], x:x+overlay_img_polar.shape[1]], 
                                             mask=mask_inv)
 
+                    img_bg_1 = cv2.bitwise_and(frame[y1:y1+overlay_img_logo.shape[0], x1:x1+overlay_img_logo.shape[1]], 
+                                            frame[y1:y1+overlay_img_logo.shape[0], x1:x1+overlay_img_logo.shape[1]], 
+                                            mask=mask_inv_1)
+
                     frame[y:y+overlay_img_polar.shape[0], x:x+overlay_img_polar.shape[1]] = cv2.add(img_bg, overlay_img_polar)
+                    frame[y1:y1+overlay_img_logo.shape[0], x1:x1+overlay_img_logo.shape[1]] = cv2.add(img_bg_1, overlay_img_logo)
+                    
+                    # add text 
+                    text = f"ROBAT PROJECT"
+                    legend1 = "GREEN line: ground truth direction"
+                    legend2 = "BLUE line: predicted direction"
+                    legend3 = "RED line: active avoidance"
+                    frame = cv2.putText(frame, text, (20, 50), cv2.FONT_HERSHEY_COMPLEX, 1.7, (255, 255, 255), 2, cv2.LINE_AA)
+                    frame = cv2.putText(frame, legend1, (width//2, y+80), cv2.FONT_HERSHEY_COMPLEX, 1, (255, 255, 255), 2, cv2.LINE_AA)
+                    frame = cv2.putText(frame, legend2, (width//2, y+160), cv2.FONT_HERSHEY_COMPLEX, 1, (255, 255, 255), 2, cv2.LINE_AA)
+                    frame = cv2.putText(frame, legend3, (width//2, y+240), cv2.FONT_HERSHEY_COMPLEX, 1, (255, 255, 255), 2, cv2.LINE_AA)
                     
 
 
