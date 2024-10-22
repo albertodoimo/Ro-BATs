@@ -17,13 +17,13 @@ from scipy import signal
 
 method = 'CC'
 method = 'PRA'
-doa_name = 'MUSIC'
+doa_name = 'SRP'
 
 #input_video_path = '/Users/alberto/Documents/UNIVERSITA/MAGISTRALE/tesi/robat video-foto/pdm 7 mic array/inverted_loop_pdm array_7mic_fast.mp4'  # replace with your input video path
 #input_video_path = '/Users/alberto/Desktop/test_swarmlab.mp4'
-input_path = '/Users/alberto/Documents/UNIVERSITA/MAGISTRALE/tesi/robat video-foto/tracking results/2024-08-29__18-55-34/cut/'
+input_path = '/Users/alberto/Documents/UNIVERSITA/MAGISTRALE/tesi/robat video-foto/tracking results/2024-10-22__16-36-26_MULTIWAV/'
 #input_path = '/home/adoimo/Desktop/tracking results/2024-08-29__18-55-34/cut/'
-input_video_name = '2024-08-29__18-55-34 cut3'
+input_video_name = '2024-10-22__16-36-26_SRP'
 input_video_path = input_path +input_video_name+'.mp4'
 
 output_video_name = input_video_name +'_tracked_' + method +'.MP4'
@@ -31,7 +31,7 @@ output_video_path = input_path+output_video_name  # replace with your desired ou
 overlay_img_path = '/Users/alberto/Documents/UNIVERSITA/MAGISTRALE/tesi/github/Ro-BATs/tracking/ROBAT LOGO.png'  # replace with your overlay image path
 #overlay_img_path = '/Ro-BATs/tracking/ROBAT LOGO.png'  # replace with your overlay image path
 
-audio_path = input_path + '2024-08-29__18-55-34 cut.wav'
+audio_path = input_path + '2024-10-22__16-36-26 cut.wav'
 
 data_path = '/Users/alberto/Documents/UNIVERSITA/MAGISTRALE/tesi/github/Ro-BATs/tracking/'
 
@@ -42,6 +42,7 @@ width = int(video.get(cv2.CAP_PROP_FRAME_WIDTH))
 height = int(video.get(cv2.CAP_PROP_FRAME_HEIGHT))
 fps = int(video.get(cv2.CAP_PROP_FPS))
 out_fps = fps/2
+#out_fps = 3
 pixel_conversion = 7.5 # pixels/cm
 
 robat_marker_number = 70
@@ -73,15 +74,15 @@ print('HP frequency:', auto_hipas_freq)
 auto_lowpas_freq = int(343/(2*mic_spacing))
 print('LP frequency:', auto_lowpas_freq)
 
-highpass_freq, lowpass_freq = [auto_hipas_freq ,7900]
+highpass_freq, lowpass_freq = [auto_hipas_freq ,3900]
 freq_range = [highpass_freq, lowpass_freq]
 
 nyq_freq = fs/2.0
 b, a = signal.butter(4, [highpass_freq/nyq_freq,lowpass_freq/nyq_freq],btype='bandpass') # to be 'allowed' in Hz.
 
-echo = pra.linear_2D_array(center=[(channels-1)*mic_spacing//2,0], M=channels, phi=-np.pi/2, d=mic_spacing)
+mic_array = pra.linear_2D_array(center=[(channels-1)*mic_spacing//2,0], M=channels, phi=-np.pi/2, d=mic_spacing)
 
-trigger_level = -50 # dB level ref max pdm to be matched with the one in the actual experiment
+trigger_level = -53 # dB level ref max pdm to be matched with the one in the actual experiment
 
 audio_buffer = sf.blocks(audio_path, blocksize=block_size, overlap=0)
 
@@ -264,7 +265,8 @@ def update_polar(buffer):
     X = pra.transform.stft.analysis(in_sig, nfft, nfft // 2)
     X = X.transpose([2, 1, 0])
 
-    doa = pra.doa.algorithms[doa_name](echo, fs, nfft, c=c, num_src=1, max_four=4)
+    doa = pra.doa.algorithms[doa_name](mic_array, fs, nfft, c=c, num_src=1, max_four=2)
+    #doa = pra.doa.srp.SRP(echo, fs, nfft, c=343.0, num_src=1, mode='near', r=None, azimuth=None, colatitude=None)
     doa.locate_sources(X, freq_range=freq_range)
     #print('azimuth_recon=',doa.azimuth_recon) # rad value of detected angles
     theta_pra_deg = (doa.azimuth_recon * 180 / np.pi) 
