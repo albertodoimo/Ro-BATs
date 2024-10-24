@@ -16,26 +16,33 @@ from scipy.fftpack import fft, ifft
 from scipy import signal
 
 method = 'CC'
-method = 'PRA'
-doa_name = 'SRP'
+#method = 'PRA'
+doa_name = 'MUSIC'
+#doa_name = 'SRP'
 
 #input_video_path = '/Users/alberto/Documents/UNIVERSITA/MAGISTRALE/tesi/robat video-foto/pdm 7 mic array/inverted_loop_pdm array_7mic_fast.mp4'  # replace with your input video path
 #input_video_path = '/Users/alberto/Desktop/test_swarmlab.mp4'
-input_path = '/Users/alberto/Documents/UNIVERSITA/MAGISTRALE/tesi/robat video-foto/tracking results/2024-10-22__16-36-26_MULTIWAV/'
+input_path = '/Users/alberto/Documents/UNIVERSITA/MAGISTRALE/tesi/robat video-foto/tracking results/2024-10-24__16-23-05/'
 #input_path = '/home/adoimo/Desktop/tracking results/2024-08-29__18-55-34/cut/'
-input_video_name = '2024-10-22__16-36-26_SRP'
+input_video_name = 'gcc_20241024_162305'
 input_video_path = input_path +input_video_name+'.mp4'
 
-output_video_name = input_video_name +'_tracked_' + method +'.MP4'
+if method == 'CC':
+    output_video_name = input_video_name +'_tracked_' + method +'.MP4'
+    data_filename = "robat_data_" + input_video_name +"_" + method + ".csv"
+else:
+    output_video_name = input_video_name +'_tracked_' + doa_name +'.MP4'
+    data_filename = "robat_data_" + input_video_name +"_" + doa_name + ".csv"
+
 output_video_path = input_path+output_video_name  # replace with your desired output video path
 overlay_img_path = '/Users/alberto/Documents/UNIVERSITA/MAGISTRALE/tesi/github/Ro-BATs/tracking/ROBAT LOGO.png'  # replace with your overlay image path
 #overlay_img_path = '/Ro-BATs/tracking/ROBAT LOGO.png'  # replace with your overlay image path
 
-audio_path = input_path + '2024-10-22__16-36-26 cut.wav'
+audio_path = input_path + 'gcc_20241024_162305.wav'
 
 data_path = '/Users/alberto/Documents/UNIVERSITA/MAGISTRALE/tesi/github/Ro-BATs/tracking/'
 
-data, samplerate = sf.read(audio_path)
+data, samplerate = sf.read(audio_path) 
 
 video = cv2.VideoCapture(input_video_path)
 width = int(video.get(cv2.CAP_PROP_FRAME_WIDTH))
@@ -70,19 +77,21 @@ ref = channels//2 #central mic in odd array as ref
 nfft = 32  # FFT size
 
 auto_hipas_freq = int(343/(2*(mic_spacing*(channels-1))))
-print('HP frequency:', auto_hipas_freq)
+print('auto HP frequency:', auto_hipas_freq)
 auto_lowpas_freq = int(343/(2*mic_spacing))
-print('LP frequency:', auto_lowpas_freq)
+print('auto LP frequency:', auto_lowpas_freq)
 
-highpass_freq, lowpass_freq = [auto_hipas_freq ,3900]
+highpass_freq, lowpass_freq = [auto_hipas_freq ,fs//2-100]
+print('HP frequency:', highpass_freq)
+print('LP frequency:', lowpass_freq)
 freq_range = [highpass_freq, lowpass_freq]
-
+#%%
 nyq_freq = fs/2.0
 b, a = signal.butter(4, [highpass_freq/nyq_freq,lowpass_freq/nyq_freq],btype='bandpass') # to be 'allowed' in Hz.
 
 mic_array = pra.linear_2D_array(center=[(channels-1)*mic_spacing//2,0], M=channels, phi=-np.pi/2, d=mic_spacing)
 
-trigger_level = -53 # dB level ref max pdm to be matched with the one in the actual experiment
+trigger_level = -50 # dB level ref max pdm to be matched with the one in the actual experiment
 
 audio_buffer = sf.blocks(audio_path, blocksize=block_size, overlap=0)
 
@@ -265,7 +274,7 @@ def update_polar(buffer):
     X = pra.transform.stft.analysis(in_sig, nfft, nfft // 2)
     X = X.transpose([2, 1, 0])
 
-    doa = pra.doa.algorithms[doa_name](mic_array, fs, nfft, c=c, num_src=1, max_four=2)
+    doa = pra.doa.algorithms[doa_name](mic_array, fs, nfft, c=c, num_src=2, max_four=2)
     #doa = pra.doa.srp.SRP(echo, fs, nfft, c=343.0, num_src=1, mode='near', r=None, azimuth=None, colatitude=None)
     doa.locate_sources(X, freq_range=freq_range)
     #print('azimuth_recon=',doa.azimuth_recon) # rad value of detected angles
@@ -350,7 +359,7 @@ def draw_trajectories_on_video(input_video_path, output_video_path, aruco_tracke
     dist_coeffs = np.array([-0.2380769334, 0.0931325835, 0, 0, 0])
     
     overlay_img = cv2.imread(overlay_img_path)
-    overlay_img = cv2.resize(overlay_img, (100, 100))  # Adjust size as needed of the overlay robot image
+    overlay_img = cv2.resize(overlay_img, (100, 100))  # Adjust size as needed of the overlay robot image 
 
     #audio_buffer = sf.blocks('/Users/alberto/Desktop/2024-08-16__17-11-42_MULTIWAV/1.wav', blocksize=block_size, overlap=0)
     #print('ab=',audio_buffer)
@@ -370,7 +379,7 @@ def draw_trajectories_on_video(input_video_path, output_video_path, aruco_tracke
         try:
             buffer = next(audio_buffer)
             iii=iii+1
-            print('\ncurrent buffer read',iii)
+            #print('\ncurrent buffer read',iii)
         except StopIteration:
             print("End of audio file reached.")
             break
@@ -425,8 +434,8 @@ def draw_trajectories_on_video(input_video_path, output_video_path, aruco_tracke
                     data_matrix = np.hstack((pos_matrix,np.array([dist]).transpose())) #matrix containing [id x y dist] for each obstacle
 
                     index_min = next((i for i, row in enumerate(data_matrix) if row[3] == min(dist)), None)
-                    print( '\nclosest obst ID =', int(data_matrix[index_min][0])) #marker ID of the closest obst to the robat
-                    print('\ndistance = ',data_matrix[index_min][3]) #distance to closest obst
+                    #print( '\nclosest obst ID =', int(data_matrix[index_min][0])) #marker ID of the closest obst to the robat
+                    #print('\ndistance = ',data_matrix[index_min][3]) #distance to closest obst
                     
                     direction, verse, gt_angle = calculate_direction_and_angle(corner[0], np.array([data_matrix[index_min][1], data_matrix[index_min][2]]))
                     #print(f"\nMarker direction: {direction}")
@@ -434,7 +443,7 @@ def draw_trajectories_on_video(input_video_path, output_video_path, aruco_tracke
                     #print(f"\nAngle between marker and point: {gt_angle} degrees")
 
 
-                    print('\ntraj shape=', np.shape(trajectories)) #necessary for plotting line but slowes down a lot the computation
+                    #print('\ntraj shape=', np.shape(trajectories)) #necessary for plotting line but slowes down a lot the computation
                     # calculate trigger level  
                     ref_channels = buffer
                     #print('ref_channels=', np.shape(ref_channels))
@@ -551,10 +560,14 @@ def draw_trajectories_on_video(input_video_path, output_video_path, aruco_tracke
                                 values[ii] = 1
                                 values1[180-jj] = 1
 
+
                             else:
                                 values[ii] = 0
                                 values1[jj] = 0
-                        
+
+                        theta_det = [int(np.where(values == 1)[0]), int(np.where(values1 == 1)[0])]
+
+                        print(theta_det)
                         fig, ax = plt.subplots(subplot_kw={'projection': 'polar'},figsize=(8, 8))
                         theta = np.linspace(0, 2*np.pi, 360)
                         line, = ax.plot(theta, values, color=linecolor, linewidth=6)
@@ -576,7 +589,6 @@ def draw_trajectories_on_video(input_video_path, output_video_path, aruco_tracke
 
                     elif method == 'PRA':
                         spatial_resp,theta_det = update_polar(buffer)
-                        #print(np.shape(spatial_resp))
                         fig, ax = plt.subplots(subplot_kw={'projection': 'polar'},figsize=(8, 8))
                         theta = np.linspace(0, 2*np.pi, 360)
                         line3, = ax.plot(theta, gt, 'g', linewidth=6)
@@ -592,15 +604,65 @@ def draw_trajectories_on_video(input_video_path, output_video_path, aruco_tracke
                         plt.savefig('polar_plot.png')
                         plt.close(fig)
                         #plt.show()
+
+                    #if method == 'CC':
+                        
+                        # DELTA angle calculation
+                        #if gt_angle <= 180:
+                        #    if gt_angle > 0 and gt_angle < 90:
+                        #        delta_angle = abs(gt_angle - float(min(spatial_resp)))
+                        #    else:
+                        #        delta_angle = abs(gt_angle - float(max(spatial_resp)))
+                        #
+                        #if gt_angle > 180:
+                        #    if gt_angle > 180 and gt_angle < 270:
+                        #        delta_angle = abs(gt_angle - float(min(spatial_resp)))
+                        #    else:
+                        #        delta_angle = abs(gt_angle - float(max(spatial_resp)))
+#
+                        #
+                        #print('gt:', gt_angle)
+                        #print('delta_angle:', delta_angle, '\n')                                
+
+                        #robat_matrix = [[iii,data_matrix[index_min][3],gt_angle,float(spatial_resp),abs(gt_angle-float(spatial_resp))]] #matrix containing [ ] for  robat                    
+                        #robat_matrix = [[iii,data_matrix[index_min][3],gt_angle,float(theta_det[0]),delta_angle]] #matrix containing [ ] for  robat
+
+                    #elif method == 'PRA':
+
+                    # DELTA angle calculation
+#                    if gt_angle <= 180:
+#                        if gt_angle > 0 and gt_angle < 90:
+#                            delta_angle = abs(gt_angle - float(min(theta_det)))
+#                        else:
+#                            delta_angle = abs(gt_angle - float(max(theta_det)))
+#                    
+#                    if gt_angle > 180:
+#                        if gt_angle > 180 and gt_angle < 270:
+#                            delta_angle = abs(gt_angle - float(min(theta_det)))
+#                        else:
+#                            delta_angle = abs(gt_angle - float(max(theta_det)))
+#
+                    theta_det = np.array(theta_det)
+
+                    # Find the difference between each angle in theta_det and the gt_angle
+                    differences = np.abs(theta_det - gt_angle)
+
+                    # Find the index of the minimum difference (the closest angle)
+                    closest_index = np.argmin(differences)
+
+                    # Calculate delta_angle as the smallest difference
+                    delta_angle = differences[closest_index]
+
+                    print(theta_det)
+                    print('gt:', gt_angle)
+                    print('delta_angle:', delta_angle, '\n')
+
+                    #robat_matrix = [[iii,data_matrix[index_min][3],gt_angle,float(theta_det[0]),abs(gt_angle-float(theta_det[0]))]] #matrix containing [ ] for  robat
+                    robat_matrix = [[iii,data_matrix[index_min][3],gt_angle,float(theta_det[0]),delta_angle]] #matrix containing [ ] for  robat
+
+
                     
-                    if method == 'CC':
-                        robat_matrix = [[iii,data_matrix[index_min][3],gt_angle,float(spatial_resp),abs(gt_angle-float(spatial_resp))]] #matrix containing [ ] for  robat                    
-                    elif method == 'PRA':
-                        robat_matrix = [[iii,data_matrix[index_min][3],gt_angle,float(theta_det[0]),abs(gt_angle-float(theta_det[0]))]] #matrix containing [ ] for  robat
-
-
-                    filename = "robat_data_" + input_video_name +"_" + method + ".csv"
-                    save_data_to_csv(robat_matrix, filename, data_path)
+                    save_data_to_csv(robat_matrix, data_filename, data_path)
                     
                    
 
@@ -866,3 +928,4 @@ aruco_tracker = Aruco_tracker(cam_id=-1, monitor_id=0, debug=False, debug_stream
 #overlay_img_robat_path = '/Users/alberto/'  # replace with your overlay image path
 
 draw_trajectories_on_video(input_video_path, output_video_path, aruco_tracker, overlay_img_path,audio_buffer)
+# %%
