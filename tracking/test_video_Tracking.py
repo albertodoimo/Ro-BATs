@@ -16,29 +16,29 @@ from scipy.fftpack import fft, ifft
 from scipy import signal
 
 method = 'CC'
-#method = 'PRA'
+method = 'PRA'
 doa_name = 'MUSIC'
 #doa_name = 'SRP'
 
 #input_video_path = '/Users/alberto/Documents/UNIVERSITA/MAGISTRALE/tesi/robat video-foto/pdm 7 mic array/inverted_loop_pdm array_7mic_fast.mp4'  # replace with your input video path
 #input_video_path = '/Users/alberto/Desktop/test_swarmlab.mp4'
-input_path = '/Users/alberto/Documents/UNIVERSITA/MAGISTRALE/tesi/robat video-foto/tracking results/2024-10-24__16-23-05/'
+input_path = '/Users/alberto/Documents/UNIVERSITA/MAGISTRALE/tesi/robat video-foto/tracking results/RUN2/2024-10-24__17-05-19/'
 #input_path = '/home/adoimo/Desktop/tracking results/2024-08-29__18-55-34/cut/'
-input_video_name = 'gcc_20241024_162305'
+input_video_name = 'music_20241024_170519'
 input_video_path = input_path +input_video_name+'.mp4'
 
 if method == 'CC':
-    output_video_name = input_video_name +'_tracked_' + method +'.MP4'
+    output_video_name = input_video_name +'_tracked_3' + method +'.MP4'
     data_filename = "robat_data_" + input_video_name +"_" + method + ".csv"
 else:
-    output_video_name = input_video_name +'_tracked_' + doa_name +'.MP4'
-    data_filename = "robat_data_" + input_video_name +"_" + doa_name + ".csv"
+    output_video_name = input_video_name +'_tracked_3' + doa_name +'.MP4'
+    data_filename = "robat_data_" + input_video_name +"_3" + doa_name + ".csv"
 
 output_video_path = input_path+output_video_name  # replace with your desired output video path
 overlay_img_path = '/Users/alberto/Documents/UNIVERSITA/MAGISTRALE/tesi/github/Ro-BATs/tracking/ROBAT LOGO.png'  # replace with your overlay image path
 #overlay_img_path = '/Ro-BATs/tracking/ROBAT LOGO.png'  # replace with your overlay image path
 
-audio_path = input_path + 'gcc_20241024_162305.wav'
+audio_path = input_path + 'music_20241024_170519.wav'
 
 data_path = '/Users/alberto/Documents/UNIVERSITA/MAGISTRALE/tesi/github/Ro-BATs/tracking/'
 
@@ -50,7 +50,9 @@ height = int(video.get(cv2.CAP_PROP_FRAME_HEIGHT))
 fps = int(video.get(cv2.CAP_PROP_FPS))
 out_fps = fps/2
 #out_fps = 3
-pixel_conversion = 7.5 # pixels/cm
+pixel_conversion = [] # pixels/cm
+arena_x_m = 2.25 #m
+arena_y_m = 1.45 #m
 
 robat_marker_number = 70
 
@@ -350,6 +352,8 @@ def draw_trajectories_on_video(input_video_path, output_video_path, aruco_tracke
     trajectories = {}
     positions = {}
     colors = {}
+    arena_markers = {}
+    arena_corners = {}
     
     # Camera calibration parameters (you might need to calibrate your camera)
     camera_matrix = np.array([[1406.08415449821, 0, 0],
@@ -374,7 +378,7 @@ def draw_trajectories_on_video(input_video_path, output_video_path, aruco_tracke
               
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         corners, ids, _ = cv2.aruco.detectMarkers(gray, aruco_tracker._aruco_dict, parameters=aruco_tracker._parameters)
-        #print('corners',corners)
+        print('corners',corners)
 
         try:
             buffer = next(audio_buffer)
@@ -397,6 +401,35 @@ def draw_trajectories_on_video(input_video_path, output_video_path, aruco_tracke
                     centers = np.mean(corner[0], axis=0)
                     positions[markerID].append(centers) #array that contains all the centers of the markers + id of the marker
                 #print('len', len(positions[markerID]))
+
+                if markerID==100: #top left
+                    arena_markers[markerID] = []
+                    arena_markers[markerID].append(corner)  
+                    arena_corners[0] = arena_markers[markerID][0][0][2] #top left                      
+                    print(f'corner id = {markerID}',arena_corners[0])
+                elif markerID==101: #top right
+                    arena_markers[markerID] = []
+                    arena_markers[markerID].append(corner)
+                    arena_corners[1] = arena_markers[markerID][0][0][3]
+                    print(f'corner id = {markerID}',arena_corners[1])
+                elif markerID==102: #bottom left
+                    arena_markers[markerID] = []
+                    arena_markers[markerID].append(corner)
+                    arena_corners[2] = arena_markers[markerID][0][0][1]
+                    print(f'corner id = {markerID}',arena_corners[2])
+                elif markerID==103: #bottom right
+                    arena_markers[markerID] = []
+                    arena_markers[markerID].append(corner)
+                    arena_corners[3] = arena_markers[markerID][0][0][0]
+                    print(f'corner id = {markerID}',arena_corners[3])
+
+
+
+                    arena_x_px = np.mean([int(arena_corners[1][0]-arena_corners[0][0]),int(arena_corners[3][0]-arena_corners[2][0])])
+                    arena_y_px = np.mean([int(arena_corners[2][1]-arena_corners[0][1]),int(arena_corners[3][1]-arena_corners[1][1])])
+
+                    pixel_conversion = np.mean([int(arena_x_px/arena_x_m), int(arena_y_px/arena_y_m)])
+                    print('pixel conv:',  pixel_conversion)
 
                 if markerID==robat_marker_number and len(positions)>=len(ids)-5:
                     if markerID not in trajectories:

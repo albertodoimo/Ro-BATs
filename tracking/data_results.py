@@ -6,7 +6,7 @@ import numpy as np
 # Load the data from the CSV file
 global_path = '/Users/alberto/Documents/UNIVERSITA/MAGISTRALE/tesi/github/Ro-BATs/tracking/'
 save_path = '/Users/alberto/Documents/UNIVERSITA/MAGISTRALE/tesi/github/Ro-BATs/tracking/figures/'
-name = 'robat_data_gcc_20241024_162305_CC'
+name = 'robat_data_music_20241024_170519_MUSIC'
 #name = 'robat_data_music_20241023_175337 cut_PRA'
 filename = name +'.csv'
 

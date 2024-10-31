@@ -3,6 +3,15 @@ import matplotlib.pyplot as plt
 import soundfile as wav
 from scipy.signal import butter, lfilter, freqz
 
+import matplotlib as mpl
+import soundfile as wav
+
+# Function to compute RMS of audio signal
+# Set font to Times New Roman
+mpl.rcParams['font.family'] = 'serif'
+mpl.rcParams['font.serif'] = ['Times New Roman']
+mpl.rcParams['text.usetex'] = False  # Use if LaTeX is not required
+
 def compute_rms(audio_signal):
     """Compute the RMS of the audio signal."""
     return np.sqrt(np.mean(audio_signal**2))
@@ -57,10 +66,10 @@ R = 0.5  # Reference distance (if used for calculations)
 angles = np.arange(0, 210, 30)
 
 freq_bands = {
-    '0-2kHz': (1, 2000),
-    '2-4kHz': (2000, 4000),
-    '4-6kHz': (4000, 6000),
-    '6-8kHz': (6000, 8000)
+    '0-1kHz': (1, 1000),
+    '1-2kHz': (1000, 2000),
+    '2-3Hz': (2000, 3000),
+    '3-4kHz': (3000, 4000)
 }
 
 for i in range(1, 7):
@@ -131,14 +140,14 @@ for i in range(1, 7):
     print('\ndb values = ',db_values)
 
     angles_rad = np.deg2rad(angles)
-    plt.figure(figsize = (10, 5))
-    plt.suptitle(f'Thymio Speaker Polar Plot of RMS Amplitudes for ukon{ukon_number}', fontsize=16)
+    plt.figure(figsize = (12,8))
+    plt.suptitle(f'Thymio Speaker Polar Plot of dB RMS Amplitudes for ukon{ukon_number}', fontsize=20)
 
 
     ax = plt.subplot(121, polar=True)
     # Plot RMS values
     #ax.plot(angles_rad, db_values - db_values[0], 'bo-', label='Overall RMS')
-    ax.plot(angles_rad, db_values , 'b-', label='Overall RMS')
+    ax.plot(angles_rad, db_values , 'b-', label='Overall dB RMS')
     # Improve plot aesthetics
     #ax.set_title(f'Thymio Speaker Polar Plot of RMS Amplitudes\nfor ukon{ukon_number}')
     ax.set_theta_direction(-1)  # Clockwise
@@ -147,34 +156,37 @@ for i in range(1, 7):
     #ax.set_yticks([3,2,1,0,-1,-2,-3])
     ax.set_thetamax(np.pi)
     ax.set_thetamin(0)
+    ax.set_ylabel('dB RMS',fontsize=15)
     ax.set_xticks(np.deg2rad(np.arange(0, 181, 30)))
-    ax.set_xticklabels([f"{angle}°" for angle in range(0, 181, 30)])
-    ax.legend(loc='upper right')
+    ax.set_xticklabels([f"{angle}°" for angle in range(0, 181, 30)],fontsize=15)
+    ax.legend(loc='upper right',fontsize=15)
     
     # Plot frequency bands
     ax = plt.subplot(122, polar=True)
 
     for band, db_band in freq_bands_db.items():
+        print('\nref0=',freq_bands_db['0-1kHz'][0])
         print('\nref=',freq_bands_db_ref[band])
-        print('\nband=',db_band)
-        #ax.plot(angles_rad, db_band - freq_bands_db_ref[band], label=f'Band {band}')
-        ax.plot(angles_rad, db_band , label=f'{band}')
-        #ax.plot(angles_rad, db_band-db_band[0], label=f'Band {band}')
+        print('\n delta band=',db_band-db_band[0])
+        #ax.plot(angles_rad, db_band - db_band[0], linewidth=0.5, label=f'Band {band}')
+        #ax.plot(angles_rad, db_band , label=f'{band}')
+        ax.plot(angles_rad, db_band-freq_bands_db['0-1kHz'][0], '-', label=f'Band {band}')
     
     # Improve plot aesthetics
     #ax.set_title(f'Thymio Speaker Polar Plot of RMS Amplitudes\nfor ukon{ukon_number}')
     ax.set_theta_direction(-1)  # Clockwise
     ax.set_theta_offset(np.pi / 2)  # Start from the top
-    #ax.set_ylim(-2, 2)
-    #ax.set_yticks([3,2,1,0,-1,-2,-3])
+    #ax.set_ylim(-1, 1)
+    #ax.set_yticks(fontsize=15)
     ax.set_thetamax(np.pi)
     ax.set_thetamin(0)
+    ax.set_ylabel('dB RMS',fontsize=15)
     ax.set_xticks(np.deg2rad(np.arange(0, 181, 30)))
-    ax.set_xticklabels([f"{angle}°" for angle in range(0, 181, 30)])
-    ax.legend(loc='upper right')
+    ax.set_xticklabels([f"{angle}°" for angle in range(0, 181, 30)],fontsize=10)
+    ax.legend(loc='upper right',fontsize=10)
     
-    plt.savefig(f'polar plots/{ukon_number}/rms_ukon{ukon_number}.png', dpi=300, bbox_inches='tight')
-    #plt.show()
+    #plt.savefig(f'polar plots/ukon{ukon_number}/rms_ukon{ukon_number}_freq.png', dpi=300, bbox_inches='tight')
+    plt.show()
     
     #if db_values:
     #    #ref_db_all = db_values[0] # Reference value for normalization
