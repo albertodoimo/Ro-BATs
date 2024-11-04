@@ -16,31 +16,31 @@ from scipy.fftpack import fft, ifft
 from scipy import signal
 
 method = 'CC'
-method = 'PRA'
+#method = 'PRA'
 doa_name = 'MUSIC'
-#doa_name = 'SRP'
+doa_name = 'SRP'
 
 #input_video_path = '/Users/alberto/Documents/UNIVERSITA/MAGISTRALE/tesi/robat video-foto/pdm 7 mic array/inverted_loop_pdm array_7mic_fast.mp4'  # replace with your input video path
 #input_video_path = '/Users/alberto/Desktop/test_swarmlab.mp4'
-input_path = '/Users/alberto/Documents/UNIVERSITA/MAGISTRALE/tesi/robat video-foto/tracking results/RUN2/2024-10-24__17-05-19/'
+input_path = '/Users/alberto/Documents/UNIVERSITA/MAGISTRALE/tesi/robat video-foto/tracking results/RUN4/2024-10-25__13-06-12/'
 #input_path = '/home/adoimo/Desktop/tracking results/2024-08-29__18-55-34/cut/'
-input_video_name = 'music_20241024_170519'
+input_video_name = 'gcc 2024-10-25__13-06-12'
 input_video_path = input_path +input_video_name+'.mp4'
 
 if method == 'CC':
-    output_video_name = input_video_name +'_tracked_3' + method +'.MP4'
+    output_video_name = input_video_name +'_tracked_' + method +'.MP4'
     data_filename = "robat_data_" + input_video_name +"_" + method + ".csv"
 else:
-    output_video_name = input_video_name +'_tracked_3' + doa_name +'.MP4'
-    data_filename = "robat_data_" + input_video_name +"_3" + doa_name + ".csv"
+    output_video_name = input_video_name +'_tracked_' + doa_name +'.MP4'
+    data_filename = "robat_data_" + input_video_name +"_" + doa_name + ".csv"
 
 output_video_path = input_path+output_video_name  # replace with your desired output video path
 overlay_img_path = '/Users/alberto/Documents/UNIVERSITA/MAGISTRALE/tesi/github/Ro-BATs/tracking/ROBAT LOGO.png'  # replace with your overlay image path
 #overlay_img_path = '/Ro-BATs/tracking/ROBAT LOGO.png'  # replace with your overlay image path
 
-audio_path = input_path + 'music_20241024_170519.wav'
+audio_path = input_path + 'gcc 2024-10-25__13-06-12.wav'
 
-data_path = '/Users/alberto/Documents/UNIVERSITA/MAGISTRALE/tesi/github/Ro-BATs/tracking/'
+data_path = '/Users/alberto/Documents/UNIVERSITA/MAGISTRALE/tesi/github/Ro-BATs/tracking/csv/'
 
 data, samplerate = sf.read(audio_path) 
 
@@ -51,8 +51,8 @@ fps = int(video.get(cv2.CAP_PROP_FPS))
 out_fps = fps/2
 #out_fps = 3
 pixel_conversion = [] # pixels/cm
-arena_x_m = 2.25 #m
-arena_y_m = 1.45 #m
+arena_x_m = 225 #cm
+arena_y_m = 145 #cm
 
 robat_marker_number = 70
 
@@ -292,7 +292,7 @@ def update_polar(buffer):
     spatial_resp = (spatial_resp - min_val) / (max_val - min_val)
     return spatial_resp, theta_pra_deg
 
-def distance(robat_pos, obst_pos,ids):
+def distance(robat_pos, obst_pos,ids,pixel_conversion):
     #print('rob pos', robat_pos)
     #print('obst pos', obst_pos)
     dist = []
@@ -310,7 +310,7 @@ def distance(robat_pos, obst_pos,ids):
             obstacle_y = obst_pos[id_pos][2] 
 
             # Calculate Euclidean distance
-            dist.append(np.sqrt((robat_pos[0] - obstacle_x) ** 2 + (robat_pos[1] - obstacle_y) ** 2)/pixel_conversion)
+            dist.append(np.sqrt((robat_pos[0] - obstacle_x) ** 2 + (robat_pos[1] - obstacle_y) ** 2)//pixel_conversion)
 
     return dist
 
@@ -371,7 +371,7 @@ def draw_trajectories_on_video(input_video_path, output_video_path, aruco_tracke
     iii = 0
     trajectories = np.zeros((50,2))
     while True:
-        ret, frame = cap.read()
+        ret, frame = cap.read() 
 
         if not ret:
             break
@@ -400,38 +400,36 @@ def draw_trajectories_on_video(input_video_path, output_video_path, aruco_tracke
                     positions[markerID] = []
                     centers = np.mean(corner[0], axis=0)
                     positions[markerID].append(centers) #array that contains all the centers of the markers + id of the marker
-                #print('len', len(positions[markerID]))
+                #print('len', len(positions))
 
                 if markerID==100: #top left
                     arena_markers[markerID] = []
                     arena_markers[markerID].append(corner)  
                     arena_corners[0] = arena_markers[markerID][0][0][2] #top left                      
-                    print(f'corner id = {markerID}',arena_corners[0])
+                    #print(f'corner id = {markerID}',arena_corners[0])
                 elif markerID==101: #top right
                     arena_markers[markerID] = []
                     arena_markers[markerID].append(corner)
                     arena_corners[1] = arena_markers[markerID][0][0][3]
-                    print(f'corner id = {markerID}',arena_corners[1])
+                    #print(f'corner id = {markerID}',arena_corners[1])
                 elif markerID==102: #bottom left
                     arena_markers[markerID] = []
                     arena_markers[markerID].append(corner)
                     arena_corners[2] = arena_markers[markerID][0][0][1]
-                    print(f'corner id = {markerID}',arena_corners[2])
+                    #print(f'corner id = {markerID}',arena_corners[2])
                 elif markerID==103: #bottom right
                     arena_markers[markerID] = []
                     arena_markers[markerID].append(corner)
                     arena_corners[3] = arena_markers[markerID][0][0][0]
-                    print(f'corner id = {markerID}',arena_corners[3])
-
-
+                    #print(f'corner id = {markerID}',arena_corners[3])
 
                     arena_x_px = np.mean([int(arena_corners[1][0]-arena_corners[0][0]),int(arena_corners[3][0]-arena_corners[2][0])])
                     arena_y_px = np.mean([int(arena_corners[2][1]-arena_corners[0][1]),int(arena_corners[3][1]-arena_corners[1][1])])
 
                     pixel_conversion = np.mean([int(arena_x_px/arena_x_m), int(arena_y_px/arena_y_m)])
-                    print('pixel conv:',  pixel_conversion)
+                    #print('pixel conv:',  pixel_conversion)
 
-                if markerID==robat_marker_number and len(positions)>=len(ids)-5:
+                if markerID==robat_marker_number and len(positions)>=len(ids)-len(positions):
                     if markerID not in trajectories:
                         #trajectories[markerID] = []
                         #colors[markerID] = (np.random.randint(0, 255), np.random.randint(0, 255), np.random.randint(0, 255))
@@ -462,9 +460,9 @@ def draw_trajectories_on_video(input_video_path, output_video_path, aruco_tracke
                         # Append the row to the matrix
                         pos_matrix.append(row)
 
-                    dist = distance(robat_pos, pos_matrix, list(positions.keys()))
+                    dist = distance(robat_pos, pos_matrix, list(positions.keys()), pixel_conversion)
 
-                    data_matrix = np.hstack((pos_matrix,np.array([dist]).transpose())) #matrix containing [id x y dist] for each obstacle
+                    data_matrix = np.hstack((pos_matrix, np.array([dist]).transpose())) #matrix containing [id x y dist] for each obstacle
 
                     index_min = next((i for i, row in enumerate(data_matrix) if row[3] == min(dist)), None)
                     #print( '\nclosest obst ID =', int(data_matrix[index_min][0])) #marker ID of the closest obst to the robat

@@ -6,8 +6,7 @@ import numpy as np
 # Load the data from the CSV file
 global_path = '/Users/alberto/Documents/UNIVERSITA/MAGISTRALE/tesi/github/Ro-BATs/tracking/'
 save_path = '/Users/alberto/Documents/UNIVERSITA/MAGISTRALE/tesi/github/Ro-BATs/tracking/figures/'
-name = 'robat_data_music_20241024_170519_MUSIC'
-#name = 'robat_data_music_20241023_175337 cut_PRA'
+name = 'robat_data_gcc 2024-10-25__13-06-12_CC'
 filename = name +'.csv'
 
 df = pd.read_csv(global_path + filename)
@@ -36,7 +35,7 @@ plt.grid(True)
 # Compute and plot the overall mean line
 overall_mean_error = np.mean(error)  # Compute the overall mean of the error
 plt.axhline(y=overall_mean_error, color='green', linestyle='--', label=f'Mean Error = {overall_mean_error:.2f}')
-
+plt.ylim([0,250])
 
 
 # Show the legend and the plot

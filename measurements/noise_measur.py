@@ -13,17 +13,19 @@ mpl.rcParams['font.serif'] = ['Times New Roman']
 mpl.rcParams['text.usetex'] = False  # Use if LaTeX is not required
 
 labelsize = 18
-legendsize = 13
+legendsize = 10
 R = 0.5  # Reference distance (if used for calculations)
 angles = np.arange(0, 210, 30)
 line_styles = ['-', '--', '-.', ':']
 
 freq_bands = {
-    '0-1': (1, 1000),
+    '0-1': (100, 1000),
     '1-2': (1000, 2000),
     '2-3': (2000, 3000),
     '3-4': (3000, 4000)
 }
+
+frequencies = [700, 1400,2100, 2800, 3500]
 
 def compute_rms(audio_signal):
     """Compute the RMS of the audio signal."""
@@ -47,6 +49,18 @@ def butter_bandpass_filter(data, lowcut, highcut, fs, order=5):
     
     return lfilter(b, a, data)
 
+def get_amplitude_at_frequency(data, sample_rate, target_freq):
+    # Perform FFT
+    N = len(data)
+    yf = np.fft.fft(data)
+    xf = np.fft.fftfreq(N, 1 / sample_rate)
+    
+    # Find the index of the closest frequency in the FFT result
+    idx = np.argmin(np.abs(xf - target_freq))
+    
+    # Compute the amplitude at the target frequency
+    amplitude = np.abs(yf[idx]) / N
+    return 20 * np.log10(amplitude)  # Convert to dB
 
 for i in range (1,7):
     angles = np.arange(0, 210, 30)
@@ -123,8 +137,8 @@ for i in range (1,7):
     ax.set_thetamax(np.pi)
     ax.set_thetamin(0)
     ax.set_ylabel('dB RMS',fontsize=labelsize)
-    ax.set_yticks([3,2,1,0,-1,-2,-3,-4,-5,-6,-7,-8,-9,-10])
-    ax.set_yticklabels(['','','','0','','','','','-5','','','','','-10'],fontsize=labelsize)
+    ax.set_yticks([5,0,-20,-40])
+    ax.set_yticklabels(['','0','-20','-40'],fontsize=labelsize)
     ax.tick_params(axis='y', labelsize=labelsize)
     # Set ticks at every 30 degrees
     ax.set_xticks(np.deg2rad(np.arange(0, 181, 30)))
@@ -155,7 +169,7 @@ for i in range (1,7):
     ax.set_xticklabels([f"{angle}°" for angle in range(0, 181, 30)],fontsize=labelsize)
     ax.legend(loc='upper right',fontsize=legendsize)
     #plt.savefig(f'polar plots/ukon{ukon_number}/SPL_ukon{ukon_number}.png', dpi=300, bbox_inches='tight')
-    plt.show(block=False)
+    #plt.show(block=False)
 
 #________________________________
 # from noise_measur_freq.py
@@ -163,7 +177,9 @@ for i in range (1,7):
 
     db_values = []
     rms_values = []
+    amp_bands = {band: [] for band in freq_bands.keys()}
     freq_bands_db = {band: [] for band in freq_bands.keys()}
+    amplitudes = {freq: [] for freq in frequencies}
     ukon_number = i
 
     for angle in angles:
@@ -176,19 +192,45 @@ for i in range (1,7):
             continue
 
         # Compute overall RMS and convert to dB
-        rms_value = compute_rms(audio_signal)
+        rms_value = compute_rms(audio_signal[:,0])
         print('\nrms value=',rms_value)
 
         rms_values.append(rms_value)
         #print(rms_values)
         db_value = rms_to_db(rms_value)
         db_values.append(db_value)
-        
+        amplitude = 4*np.pi*R*np.abs(np.fft.fft(audio_signal[:,0]))
+
+
+        for freq in frequencies:
+            amplitude = get_amplitude_at_frequency(audio_signal[:,0], sample_rate, freq)
+            amplitudes[freq].append(amplitude)
+
+        print(f'amp',amplitudes)
+
+        #plt.figure()
         # Compute RMS for each frequency band
         for band, (lowcut, highcut) in freq_bands.items():
-            filtered_signal = butter_bandpass_filter(audio_signal, lowcut, highcut, sample_rate) #time signal 
+            filtered_signal = butter_bandpass_filter(audio_signal[:,0], lowcut, highcut, sample_rate) #time signal
+            
+            print('freq',lowcut, highcut)
+            freqs = np.fft.fftfreq(len(filtered_signal), 1/sample_rate)
+            band1 = compute_rms(np.abs(np.fft.fft(filtered_signal)))
+            #print('band1',band1)
+            #plt.plot(freqs, np.abs(audio_signal[:,0]))
+            #plt.plot(freqs, band1)
+            #plt.show()
 
-            band_rms = compute_rms(filtered_signal)
+            amplitude_bands = 4*np.pi*R*np.abs(np.fft.fft(filtered_signal)) 
+            amplitude = 4*np.pi*R*np.abs(np.fft.fft(audio_signal[:,0]))
+            amplitude = butter_bandpass_filter(amplitude, lowcut, highcut, sample_rate)
+            amp_bands[band].append(amplitude)
+
+            freqs = np.fft.fftfreq(len(filtered_signal), 1/sample_rate)
+            #plt.plot(freqs, np.mean(amplitude))
+            #plt.show()
+            
+            band_rms = compute_rms(band1)
             band_db = rms_to_db(band_rms)
             freq_bands_db[band].append(band_db)
         if angle == 0:
@@ -233,21 +275,25 @@ for i in range (1,7):
         print('\nref0=',freq_bands_db['0-1'][0])
         print('\nref=',freq_bands_db_ref[band])
         print(f'\n delta band {band} kHz',db_band-db_band[0])
-        #ax.plot(angles_rad, db_band - db_band[0], linewidth=0.5, label=f'Band {band}')
+        #ax.plot(angles_rad, db_band - db_band[0],'k', linewidth=1, linestyle=linestyle, label=f'Band {band}')
         #ax.plot(angles_rad, db_band , label=f'{band}')
-        ax.plot(angles_rad, db_band-freq_bands_db['0-1'][0], 'k',  linestyle=linestyle, label=f'{band}')
+        #ax.plot(angles_rad, db_band-freq_bands_db['0-1'][0], 'k',  linestyle=linestyle, label=f'{band}')
+    #for (i,freq),linestyle in zip(enumerate(frequencies), line_styles):
+    #    ax.plot(angles_rad, amplitudes[freq]-amplitudes[freq][0], 'k',linestyle=linestyle, label=f"{freq / 1000:.0f}")
+    for i,freq in enumerate(frequencies):
+        ax.plot(angles_rad, amplitudes[freq]-amplitudes[freq][0], label=f"{freq / 1000 }")
     
     # Improve plot aesthetics
     #ax.set_title(f'Thymio Speaker Polar Plot of RMS Amplitudes\nfor ukon{ukon_number}')
     ax.set_theta_direction(-1)  # Clockwise
     ax.set_theta_offset(np.pi / 2)  # Start from the top
-    #ax.set_ylim(-1, 1)
+    ax.set_ylim(-50, 20)
     #ax.set_yticks(fontsize=15)
     ax.set_thetamax(np.pi)
     ax.set_thetamin(0)
-    ax.set_ylabel('dB RMS',fontsize=labelsize)
-    ax.set_yticks([3,2,1,0,-1,-2,-3,-4,-5,-6,-7,-8,-9,-10])
-    ax.set_yticklabels(['','','','0','','','','','-5','','','','','-10'],fontsize=labelsize)
+    ax.set_ylabel('dB',fontsize=labelsize)
+    #ax.set_yticks([20,10,0,-10,-20])
+    #ax.set_yticklabels(['5','','','','','0','','','','','-5','','','','','-10',-20],fontsize=labelsize)
     ax.tick_params(axis='y', labelsize=labelsize)
     ax.set_xticks(np.deg2rad(np.arange(0, 181, 30)))
     ax.set_xticklabels([f"{angle}°" for angle in range(0, 181, 30)],fontsize=labelsize)
