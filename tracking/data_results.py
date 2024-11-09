@@ -2,46 +2,126 @@
 import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
+import matplotlib as mpl
+import soundfile as wav
+
+# Function to compute RMS of audio signal
+# Set font to Times New Roman
+mpl.rcParams['font.family'] = 'serif'
+mpl.rcParams['font.serif'] = ['Times New Roman']
+mpl.rcParams['text.usetex'] = False  # Use if LaTeX is not required
 
 # Load the data from the CSV file
-global_path = '/Users/alberto/Documents/UNIVERSITA/MAGISTRALE/tesi/github/Ro-BATs/tracking/'
+global_path = '/Users/alberto/Documents/UNIVERSITA/MAGISTRALE/tesi/github/Ro-BATs/tracking/csv/'
 save_path = '/Users/alberto/Documents/UNIVERSITA/MAGISTRALE/tesi/github/Ro-BATs/tracking/figures/'
-name = 'robat_data_gcc 2024-10-25__13-06-12_CC'
-filename = name +'.csv'
 
-df = pd.read_csv(global_path + filename)
+#save_name = 'RUN 1'
+#name1 = 'robat_data_gcc_20241023_165510 cut_3_CC'
+#filename1 = name1 +'.csv'
+#name2 = 'robat_data_srp_20241023_172103 cut_SRP'
+#filename2 = name2 +'.csv'
+#name3 = 'robat_data_music_20241023_175337 cut_MUSIC'
+#filename3 = name3 +'.csv'
+
+#save_name = 'RUN 3'
+#name1 = 'robat_data_gcc_20241025_100745_CC'
+#filename1 = name1 +'.csv'
+#name2 = 'robat_data_srp_20241025_102503_SRP'
+#filename2 = name2 +'.csv'
+#name3 = 'robat_data_music_20241025_104942_MUSIC'
+#filename3 = name3 +'.csv'
+
+save_name = 'RUN 4'
+name1 = 'robat_data_gcc 2024-10-25__13-06-12_CC'
+filename1 = name1 +'.csv'
+name2 = 'robat_data_srp 2024-10-25__12-49-27_SRP'
+filename2 = name2 +'.csv'
+name3 = 'robat_data_music 2024-10-25__11-46-11_MUSIC'
+filename3 = name3 +'.csv'
+
+df1 = pd.read_csv(global_path + filename1)
+df2 = pd.read_csv(global_path + filename2)
+df3 = pd.read_csv(global_path + filename3)
+
+labelsize = 15
+legendsize = 8
+titlesize = 18
+pad = 15
+s = 20
+line_styles = ['-', '--', '-.', ':']
 
 #%%
-
-angle_deg = np.linspace(0, 360, len(df))  # Adjust x-axis based on the number of rows in df
+angle_deg = np.linspace(0, 360, len(df1))  # Adjust x-axis based on the number of rows in df
+angle_deg2 = np.linspace(0, 360, len(df2)) 
+angle_deg3 = np.linspace(0, 360, len(df3)) 
 
 # Extract the error and detected angle columns
-error = df.iloc[:, -1]  # Last column contains error values
-gt_angle = df.iloc[:, 2]  # gt angle from 3rd column
+error1 = df1.iloc[:, -1]  # Last column contains error values
+gt_angle1 = df1.iloc[:, 2]  # gt angle from 3rd column
+error2 = df2.iloc[:, -1]  # Last column contains error values
+gt_angle2 = df2.iloc[:, 2]  # gt angle from 3rd column
+error3 = df3.iloc[:, -1]  # Last column contains error values
+gt_angle3 = df3.iloc[:, 2]  # gt angle from 3rd column
 
 # Create the scatter plot with all detected values
-plt.figure(figsize=(10, 6))
-plt.scatter(gt_angle, error, label='Error', color='red', marker='.', alpha=0.7)
+plt.figure(figsize=(18, 5))
+plt.suptitle(f'{save_name} COMPARISON', fontsize=20)
 
+
+plt.subplot(131)
+plt.scatter(gt_angle1, error1, label='Error', color='red', marker='.', alpha=0.3, s=s)
+plt.subplots_adjust(left=0.05, right=0.95, top=0.8, bottom=0.2, wspace=0.2, hspace=0.3)
 
 # Add labels and title
-plt.xlabel('gt (degrees)')
-plt.ylabel('error (degrees)')
-plt.title(f'Scatter Plot of Error in: \n {filename}' )
-
-# Optional: Add a grid for better readability
+plt.xlabel('\nVideo ground truth angle [degrees]\n',fontsize=labelsize)
+plt.ylabel('Error [degrees]',fontsize=labelsize)
+plt.ylim([0,210])
+plt.xticks(np.arange(0, 361, 30))
+plt.yticks(np.arange(0, 211, 30))
 plt.grid(True)
+plt.title(f'GCC-PHAT', fontsize=titlesize, pad=pad)
+#plt.legend(loc='upper right', fontsize=legendsize, title_fontsize= legendsize)
 
 # Compute and plot the overall mean line
-overall_mean_error = np.mean(error)  # Compute the overall mean of the error
-plt.axhline(y=overall_mean_error, color='green', linestyle='--', label=f'Mean Error = {overall_mean_error:.2f}')
-plt.ylim([0,250])
+#overall_mean_error = np.mean(error)  # Compute the overall mean of the error
+#plt.axhline(y=overall_mean_error, color='green', linestyle='--', label=f'Mean Error = {overall_mean_error:.2f}')
+
+plt.subplot(132)
+plt.scatter(gt_angle2, error2, label='Error', color='red', marker='.', alpha=0.3, s=s)
+
+# Add labels and title
+plt.xlabel('\nVideo ground truth angle [degrees]\n',fontsize=labelsize)
+plt.ylim([0,210])
+plt.xticks(np.arange(0, 361, 30))
+plt.yticks(np.arange(0, 211, 30))
+plt.grid(True)
+plt.title(f'SRP-PHAT', fontsize=titlesize, pad=pad)
+#plt.legend(loc='upper right', fontsize=legendsize, title_fontsize= legendsize)
+
+# Compute and plot the overall mean line
+#overall_mean_error = np.mean(error)  # Compute the overall mean of the error
+#plt.axhline(y=overall_mean_error, color='green', linestyle='--', label=f'Mean Error = {overall_mean_error:.2f}')
+
+plt.subplot(133)
+plt.scatter(gt_angle3, error3, label='Error', color='red', marker='.', alpha=0.3, s=s)
+
+# Add labels and title
+plt.xlabel('\nVideo ground truth angle [degrees]',fontsize=labelsize)
+plt.ylim([0,210])
+plt.xticks(np.arange(0, 361, 30))
+plt.yticks(np.arange(0, 211, 30))
+plt.grid(True)
+plt.title(f'MU.SI.C', fontsize=titlesize, pad=pad)
+#plt.legend(loc='upper right', fontsize=legendsize, title_fontsize= legendsize)
+
+# Compute and plot the overall mean line
+#overall_mean_error = np.mean(error)  # Compute the overall mean of the error
+#plt.axhline(y=overall_mean_error, color='green', linestyle='--', label=f'Mean Error = {overall_mean_error:.2f}')
 
 
 # Show the legend and the plot
-plt.legend()
 
-plt.savefig(save_path+name)
-
+plt.savefig(save_path+save_name)
 plt.show()
+
 # %%

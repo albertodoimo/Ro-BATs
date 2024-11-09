@@ -16,29 +16,29 @@ from scipy.fftpack import fft, ifft
 from scipy import signal
 
 method = 'CC'
-#method = 'PRA'
+method = 'PRA'
 doa_name = 'MUSIC'
 doa_name = 'SRP'
 
 #input_video_path = '/Users/alberto/Documents/UNIVERSITA/MAGISTRALE/tesi/robat video-foto/pdm 7 mic array/inverted_loop_pdm array_7mic_fast.mp4'  # replace with your input video path
 #input_video_path = '/Users/alberto/Desktop/test_swarmlab.mp4'
-input_path = '/Users/alberto/Documents/UNIVERSITA/MAGISTRALE/tesi/robat video-foto/tracking results/RUN4/2024-10-25__13-06-12/'
+input_path = '/Users/alberto/Documents/UNIVERSITA/MAGISTRALE/tesi/robat video-foto/tracking results/RUN2/2024-10-24__16-44-12/'
 #input_path = '/home/adoimo/Desktop/tracking results/2024-08-29__18-55-34/cut/'
-input_video_name = 'gcc 2024-10-25__13-06-12'
+input_video_name = 'spr_20241024_164412'
 input_video_path = input_path +input_video_name+'.mp4'
 
 if method == 'CC':
-    output_video_name = input_video_name +'_tracked_' + method +'.MP4'
+    output_video_name = input_video_name +'_tracked_2' + method +'.MP4'
     data_filename = "robat_data_" + input_video_name +"_" + method + ".csv"
 else:
-    output_video_name = input_video_name +'_tracked_' + doa_name +'.MP4'
-    data_filename = "robat_data_" + input_video_name +"_" + doa_name + ".csv"
+    output_video_name = input_video_name +'_tracked_2' + doa_name +'.MP4'
+    data_filename = "robat_data_" + input_video_name +"_2" + doa_name + ".csv"
 
 output_video_path = input_path+output_video_name  # replace with your desired output video path
 overlay_img_path = '/Users/alberto/Documents/UNIVERSITA/MAGISTRALE/tesi/github/Ro-BATs/tracking/ROBAT LOGO.png'  # replace with your overlay image path
 #overlay_img_path = '/Ro-BATs/tracking/ROBAT LOGO.png'  # replace with your overlay image path
 
-audio_path = input_path + 'gcc 2024-10-25__13-06-12.wav'
+audio_path = input_path + 'spr_20241024_164412.wav'
 
 data_path = '/Users/alberto/Documents/UNIVERSITA/MAGISTRALE/tesi/github/Ro-BATs/tracking/csv/'
 
@@ -378,7 +378,7 @@ def draw_trajectories_on_video(input_video_path, output_video_path, aruco_tracke
               
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         corners, ids, _ = cv2.aruco.detectMarkers(gray, aruco_tracker._aruco_dict, parameters=aruco_tracker._parameters)
-        print('corners',corners)
+        #print('corners',corners)
 
         try:
             buffer = next(audio_buffer)
@@ -542,7 +542,12 @@ def draw_trajectories_on_video(input_video_path, output_video_path, aruco_tracke
 
                     if verse == 'Clockwise':
                         gt_angle = (360 - gt_angle) % 360
-
+                        if math.isnan(gt_angle):
+                            gt_angle = 0
+                            
+                    if math.isnan(gt_angle):
+                        gt_angle = 0
+                            
                     gt = np.zeros(360)
                     for ii in range(len(gt)):
                         if round(gt_angle) == ii:
