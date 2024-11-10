@@ -23,6 +23,14 @@ save_path = '/Users/alberto/Documents/UNIVERSITA/MAGISTRALE/tesi/github/Ro-BATs/
 #name3 = 'robat_data_music_20241023_175337 cut_MUSIC'
 #filename3 = name3 +'.csv'
 
+#save_name = 'RUN 2'
+#name1 = 'robat_data_gcc_20241024_162305_CC'
+#filename1 = name1 +'.csv'
+#name2 = 'robat_data_spr_20241024_164412_SRP'
+#filename2 = name2 +'.csv'
+#name3 = 'robat_data_music_20241024_170519_MUSIC'
+#filename3 = name3 +'.csv'
+
 #save_name = 'RUN 3'
 #name1 = 'robat_data_gcc_20241025_100745_CC'
 #filename1 = name1 +'.csv'
@@ -31,23 +39,32 @@ save_path = '/Users/alberto/Documents/UNIVERSITA/MAGISTRALE/tesi/github/Ro-BATs/
 #name3 = 'robat_data_music_20241025_104942_MUSIC'
 #filename3 = name3 +'.csv'
 
-save_name = 'RUN 4'
-name1 = 'robat_data_gcc 2024-10-25__13-06-12_CC'
+#save_name = 'RUN 4'
+#name1 = 'robat_data_gcc 2024-10-25__13-06-12_CC'
+#filename1 = name1 +'.csv'
+#name2 = 'robat_data_srp 2024-10-25__12-49-27_SRP'
+#filename2 = name2 +'.csv'
+#name3 = 'robat_data_music 2024-10-25__11-46-11_MUSIC'
+#filename3 = name3 +'.csv'
+
+save_name = 'SUMMARY'
+name1 = 'robat_gcc_sum'
 filename1 = name1 +'.csv'
-name2 = 'robat_data_srp 2024-10-25__12-49-27_SRP'
+name2 = 'robat_srp_sum'
 filename2 = name2 +'.csv'
-name3 = 'robat_data_music 2024-10-25__11-46-11_MUSIC'
+name3 = 'robat_music_sum'
 filename3 = name3 +'.csv'
 
 df1 = pd.read_csv(global_path + filename1)
 df2 = pd.read_csv(global_path + filename2)
 df3 = pd.read_csv(global_path + filename3)
 
-labelsize = 15
+labelsize = 13
 legendsize = 8
-titlesize = 18
+titlesize = 15
 pad = 15
-s = 20
+s = 1
+alpha = 0.2
 line_styles = ['-', '--', '-.', ':']
 
 #%%
@@ -64,16 +81,16 @@ error3 = df3.iloc[:, -1]  # Last column contains error values
 gt_angle3 = df3.iloc[:, 2]  # gt angle from 3rd column
 
 # Create the scatter plot with all detected values
-plt.figure(figsize=(18, 5))
+plt.figure(figsize=(6, 10))
 plt.suptitle(f'{save_name} COMPARISON', fontsize=20)
 
 
-plt.subplot(131)
-plt.scatter(gt_angle1, error1, label='Error', color='red', marker='.', alpha=0.3, s=s)
-plt.subplots_adjust(left=0.05, right=0.95, top=0.8, bottom=0.2, wspace=0.2, hspace=0.3)
+plt.subplot(311)
+plt.scatter(gt_angle1, error1, label='Error', color='red', marker='o', alpha=alpha, s=s)
+plt.subplots_adjust(left=0.15, right=0.9, top=0.9, bottom=0.1, wspace=0.3, hspace=0.4)
 
 # Add labels and title
-plt.xlabel('\nVideo ground truth angle [degrees]\n',fontsize=labelsize)
+#plt.xlabel('\nGround truth angle [degrees]\n',fontsize=labelsize)
 plt.ylabel('Error [degrees]',fontsize=labelsize)
 plt.ylim([0,210])
 plt.xticks(np.arange(0, 361, 30))
@@ -86,11 +103,12 @@ plt.title(f'GCC-PHAT', fontsize=titlesize, pad=pad)
 #overall_mean_error = np.mean(error)  # Compute the overall mean of the error
 #plt.axhline(y=overall_mean_error, color='green', linestyle='--', label=f'Mean Error = {overall_mean_error:.2f}')
 
-plt.subplot(132)
-plt.scatter(gt_angle2, error2, label='Error', color='red', marker='.', alpha=0.3, s=s)
+plt.subplot(312)
+plt.scatter(gt_angle2, error2, label='Error', color='red', marker='o', alpha=alpha, s=s)
 
 # Add labels and title
-plt.xlabel('\nVideo ground truth angle [degrees]\n',fontsize=labelsize)
+#plt.xlabel('\nGround truth angle [degrees]\n',fontsize=labelsize)
+plt.ylabel('Error [degrees]',fontsize=labelsize)
 plt.ylim([0,210])
 plt.xticks(np.arange(0, 361, 30))
 plt.yticks(np.arange(0, 211, 30))
@@ -102,11 +120,12 @@ plt.title(f'SRP-PHAT', fontsize=titlesize, pad=pad)
 #overall_mean_error = np.mean(error)  # Compute the overall mean of the error
 #plt.axhline(y=overall_mean_error, color='green', linestyle='--', label=f'Mean Error = {overall_mean_error:.2f}')
 
-plt.subplot(133)
-plt.scatter(gt_angle3, error3, label='Error', color='red', marker='.', alpha=0.3, s=s)
+plt.subplot(313)
+plt.scatter(gt_angle3, error3, label='Error', color='red', marker='o', alpha=alpha, s=s)
 
 # Add labels and title
-plt.xlabel('\nVideo ground truth angle [degrees]',fontsize=labelsize)
+plt.xlabel('\nGround truth angle [degrees]\n',fontsize=labelsize)
+plt.ylabel('Error [degrees]',fontsize=labelsize)
 plt.ylim([0,210])
 plt.xticks(np.arange(0, 361, 30))
 plt.yticks(np.arange(0, 211, 30))
@@ -121,7 +140,7 @@ plt.title(f'MU.SI.C', fontsize=titlesize, pad=pad)
 
 # Show the legend and the plot
 
-plt.savefig(save_path+save_name)
+plt.savefig(save_path+save_name, dpi=300, bbox_inches='tight')
 plt.show()
 
 # %%
