@@ -23,13 +23,13 @@ save_path = '/Users/alberto/Documents/UNIVERSITA/MAGISTRALE/tesi/github/Ro-BATs/
 #name3 = 'robat_data_music_20241023_175337 cut_MUSIC'
 #filename3 = name3 +'.csv'
 
-#save_name = 'RUN 2'
-#name1 = 'robat_data_gcc_20241024_162305_CC'
-#filename1 = name1 +'.csv'
-#name2 = 'robat_data_spr_20241024_164412_SRP'
-#filename2 = name2 +'.csv'
-#name3 = 'robat_data_music_20241024_170519_MUSIC'
-#filename3 = name3 +'.csv'
+save_name = 'RUN 2'
+name1 = 'robat_data_gcc_20241024_162305_CC'
+filename1 = name1 +'.csv'
+name2 = 'robat_data_spr_20241024_164412_2_SRP'
+filename2 = name2 +'.csv'
+name3 = 'robat_data_music_20241024_170519_MUSIC'
+filename3 = name3 +'.csv'
 
 #save_name = 'RUN 3'
 #name1 = 'robat_data_gcc_20241025_100745_CC'
@@ -47,13 +47,13 @@ save_path = '/Users/alberto/Documents/UNIVERSITA/MAGISTRALE/tesi/github/Ro-BATs/
 #name3 = 'robat_data_music 2024-10-25__11-46-11_MUSIC'
 #filename3 = name3 +'.csv'
 
-save_name = 'SUMMARY'
-name1 = 'robat_gcc_sum'
-filename1 = name1 +'.csv'
-name2 = 'robat_srp_sum'
-filename2 = name2 +'.csv'
-name3 = 'robat_music_sum'
-filename3 = name3 +'.csv'
+# save_name = 'SUMMARY'
+# name1 = 'robat_gcc_sum'
+# filename1 = name1 +'.csv'
+# name2 = 'robat_srp_sum'
+# filename2 = name2 +'.csv'
+# name3 = 'robat_music_sum'
+# filename3 = name3 +'.csv'
 
 df1 = pd.read_csv(global_path + filename1)
 df2 = pd.read_csv(global_path + filename2)
@@ -140,7 +140,7 @@ plt.title(f'MU.SI.C', fontsize=titlesize, pad=pad)
 
 # Show the legend and the plot
 
-plt.savefig(save_path+save_name, dpi=300, bbox_inches='tight')
+#plt.savefig(save_path+save_name, dpi=300, bbox_inches='tight')
 plt.show()
 
 # %%

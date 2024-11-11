@@ -32,7 +32,7 @@ if method == 'CC':
     data_filename = "robat_data_" + input_video_name +"_" + method + ".csv"
 else:
     output_video_name = input_video_name +'_tracked_2' + doa_name +'.MP4'
-    data_filename = "robat_data_" + input_video_name +"_2" + doa_name + ".csv"
+    data_filename = "robat_data_2_" + input_video_name +"_" + doa_name + ".csv"
 
 output_video_path = input_path+output_video_name  # replace with your desired output video path
 overlay_img_path = '/Users/alberto/Documents/UNIVERSITA/MAGISTRALE/tesi/github/Ro-BATs/tracking/ROBAT LOGO.png'  # replace with your overlay image path
@@ -680,14 +680,29 @@ def draw_trajectories_on_video(input_video_path, output_video_path, aruco_tracke
 #
                     theta_det = np.array(theta_det)
 
+                    def circular_distance(theta_det, gt_angle):
+                        # Define a function to calculate the circular distance between two angles
+                        def angle_distance(x, y):
+                            return min(abs(x - y), 360 - abs(x - y))
+                        
+                        # Calculate circular distance for each value in the array
+                        distances = [angle_distance(a, gt_angle) for a in theta_det]
+                        
+                        # Return the minimum distance
+                        return min(distances)
+
+                    
+                    delta_angle = circular_distance(theta_det, gt_angle)
+                    
+
                     # Find the difference between each angle in theta_det and the gt_angle
-                    differences = np.abs(theta_det - gt_angle)
+                    #differences = np.abs(theta_det - gt_angle)
 
                     # Find the index of the minimum difference (the closest angle)
-                    closest_index = np.argmin(differences)
+                    #closest_index = np.argmin(differences)
 
                     # Calculate delta_angle as the smallest difference
-                    delta_angle = differences[closest_index]
+                    #delta_angle = differences[closest_index]
 
                     print(theta_det)
                     print('gt:', gt_angle)
@@ -773,7 +788,7 @@ def draw_trajectories_on_video(input_video_path, output_video_path, aruco_tracke
                     
 
 
-        out.write(frame)
+        #out.write(frame)
         cv2.imshow('Trajectories', frame)
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break
