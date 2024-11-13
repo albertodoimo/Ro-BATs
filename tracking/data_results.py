@@ -23,13 +23,13 @@ save_path = '/Users/alberto/Documents/UNIVERSITA/MAGISTRALE/tesi/github/Ro-BATs/
 #name3 = 'robat_data_music_20241023_175337 cut_MUSIC'
 #filename3 = name3 +'.csv'
 
-save_name = 'RUN 2'
-name1 = 'robat_data_gcc_20241024_162305_CC'
-filename1 = name1 +'.csv'
-name2 = 'robat_data_spr_20241024_164412_2_SRP'
-filename2 = name2 +'.csv'
-name3 = 'robat_data_music_20241024_170519_MUSIC'
-filename3 = name3 +'.csv'
+#zsave_name = 'RUN 2'
+#name1 = 'robat_data_gcc_20241024_162305_CC'
+#filename1 = name1 +'.csv'
+#name2 = 'robat_data_spr_20241024_164412_SRP'
+#filename2 = name2 +'.csv'
+#name3 = 'robat_data_music_20241024_170519_MUSIC'
+#filename3 = name3 +'.csv'
 
 #save_name = 'RUN 3'
 #name1 = 'robat_data_gcc_20241025_100745_CC'
@@ -47,13 +47,47 @@ filename3 = name3 +'.csv'
 #name3 = 'robat_data_music 2024-10-25__11-46-11_MUSIC'
 #filename3 = name3 +'.csv'
 
-# save_name = 'SUMMARY'
-# name1 = 'robat_gcc_sum'
+# CORRECTED ERROR
+
+save_name = 'RUN 1'
+name1 = 'robat_data_linux_gcc_20241023_165510 cut_CC'
+filename1 = name1 +'.csv'
+name2 = 'robat_data_linux_srp_20241023_172103 cut_SRP'
+filename2 = name2 +'.csv'
+name3 = 'robat_data_linux_music_20241023_175337 cut_MUSIC'
+filename3 = name3 +'.csv'
+
+# save_name = 'RUN 2'
+# name1 = 'robat_data_linux_gcc_20241024_162305_CC'
 # filename1 = name1 +'.csv'
-# name2 = 'robat_srp_sum'
+# name2 = 'robat_data_linux_spr_20241024_164412_SRP'
 # filename2 = name2 +'.csv'
-# name3 = 'robat_music_sum'
+# name3 = 'robat_data_linux_music_20241024_170519_MUSIC'
 # filename3 = name3 +'.csv'
+
+# save_name = 'RUN 3'
+# name1 = 'robat_data_linux_gcc_20241025_100745_CC'
+# filename1 = name1 +'.csv'
+# name2 = 'robat_data_linux_srp_20241025_102503_SRP'
+# filename2 = name2 +'.csv'
+# name3 = 'robat_data_linux_music_20241025_104942_MUSIC'
+# filename3 = name3 +'.csv'
+
+# save_name = 'RUN 4'
+# name1 = 'robat_data_linux_gcc 2024-10-25__13-06-12_CC'
+# filename1 = name1 +'.csv'
+# name2 = 'robat_data_linux_srp 2024-10-25__12-49-27_SRP'
+# filename2 = name2 +'.csv'
+# name3 = 'robat_data_linux_music 2024-10-25__11-46-11_MUSIC'
+# filename3 = name3 +'.csv'
+
+save_name = 'SUMMARY'
+name1 = 'robat_gcc_sum_linux'
+filename1 = name1 +'.csv'
+name2 = 'robat_srp_sum_linux'
+filename2 = name2 +'.csv'
+name3 = 'robat_music_sum_linux'
+filename3 = name3 +'.csv'
 
 df1 = pd.read_csv(global_path + filename1)
 df2 = pd.read_csv(global_path + filename2)
@@ -63,8 +97,8 @@ labelsize = 13
 legendsize = 8
 titlesize = 15
 pad = 15
-s = 1
-alpha = 0.2
+s = 5
+alpha = 0.3
 line_styles = ['-', '--', '-.', ':']
 
 #%%
@@ -92,9 +126,9 @@ plt.subplots_adjust(left=0.15, right=0.9, top=0.9, bottom=0.1, wspace=0.3, hspac
 # Add labels and title
 #plt.xlabel('\nGround truth angle [degrees]\n',fontsize=labelsize)
 plt.ylabel('Error [degrees]',fontsize=labelsize)
-plt.ylim([0,210])
+plt.ylim([0,180])
 plt.xticks(np.arange(0, 361, 30))
-plt.yticks(np.arange(0, 211, 30))
+plt.yticks(np.arange(0, 181, 30))
 plt.grid(True)
 plt.title(f'GCC-PHAT', fontsize=titlesize, pad=pad)
 #plt.legend(loc='upper right', fontsize=legendsize, title_fontsize= legendsize)
@@ -109,9 +143,9 @@ plt.scatter(gt_angle2, error2, label='Error', color='red', marker='o', alpha=alp
 # Add labels and title
 #plt.xlabel('\nGround truth angle [degrees]\n',fontsize=labelsize)
 plt.ylabel('Error [degrees]',fontsize=labelsize)
-plt.ylim([0,210])
+plt.ylim([0,180])
 plt.xticks(np.arange(0, 361, 30))
-plt.yticks(np.arange(0, 211, 30))
+plt.yticks(np.arange(0, 181, 30))
 plt.grid(True)
 plt.title(f'SRP-PHAT', fontsize=titlesize, pad=pad)
 #plt.legend(loc='upper right', fontsize=legendsize, title_fontsize= legendsize)
@@ -126,9 +160,9 @@ plt.scatter(gt_angle3, error3, label='Error', color='red', marker='o', alpha=alp
 # Add labels and title
 plt.xlabel('\nGround truth angle [degrees]\n',fontsize=labelsize)
 plt.ylabel('Error [degrees]',fontsize=labelsize)
-plt.ylim([0,210])
+plt.ylim([0,180])
 plt.xticks(np.arange(0, 361, 30))
-plt.yticks(np.arange(0, 211, 30))
+plt.yticks(np.arange(0, 181, 30))
 plt.grid(True)
 plt.title(f'MU.SI.C', fontsize=titlesize, pad=pad)
 #plt.legend(loc='upper right', fontsize=legendsize, title_fontsize= legendsize)
@@ -140,7 +174,7 @@ plt.title(f'MU.SI.C', fontsize=titlesize, pad=pad)
 
 # Show the legend and the plot
 
-#plt.savefig(save_path+save_name, dpi=300, bbox_inches='tight')
+plt.savefig(save_path+save_name, dpi=300, bbox_inches='tight')
 plt.show()
 
 # %%
