@@ -59,7 +59,7 @@ def plot_polar_db(angles, db_values, ref_db, ukon_number, freq_bands):
     ax.set_xticklabels([f"{angle}°" for angle in range(0, 210, 30)])
     ax.legend(loc='upper right')
     
-    plt.savefig(f'polar plots/rms_ukon{ukon_number}_freq.png', dpi=300, bbox_inches='tight')
+    #plt.savefig(f'polar plots/rms_ukon{ukon_number}_freq.png', dpi=300, bbox_inches='tight')
     plt.show()
 
 R = 0.5  # Reference distance (if used for calculations)

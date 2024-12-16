@@ -95,7 +95,7 @@ df3 = pd.read_csv(global_path + filename3)
 
 labelsize = 13
 legendsize = 8
-titlesize = 15
+titlesize = 12
 pad = 15
 s = 5
 alpha = 0.3
@@ -116,7 +116,7 @@ gt_angle3 = df3.iloc[:, 2]  # gt angle from 3rd column
 
 # Create the scatter plot with all detected values
 plt.figure(figsize=(6, 10))
-plt.suptitle(f'{save_name} COMPARISON', fontsize=20)
+plt.suptitle(f'{save_name} COMPARISON', fontsize= 16)
 
 
 plt.subplot(311)
@@ -138,7 +138,7 @@ plt.title(f'GCC-PHAT', fontsize=titlesize, pad=pad)
 #plt.axhline(y=overall_mean_error, color='green', linestyle='--', label=f'Mean Error = {overall_mean_error:.2f}')
 
 plt.subplot(312)
-plt.scatter(gt_angle2, error2, label='Error', color='red', marker='o', alpha=alpha, s=s)
+plt.scatter(gt_angle2, error2, label='Error', color='green', marker='o', alpha=alpha, s=s)
 
 # Add labels and title
 #plt.xlabel('\nGround truth angle [degrees]\n',fontsize=labelsize)
@@ -155,7 +155,7 @@ plt.title(f'SRP-PHAT', fontsize=titlesize, pad=pad)
 #plt.axhline(y=overall_mean_error, color='green', linestyle='--', label=f'Mean Error = {overall_mean_error:.2f}')
 
 plt.subplot(313)
-plt.scatter(gt_angle3, error3, label='Error', color='red', marker='o', alpha=alpha, s=s)
+plt.scatter(gt_angle3, error3, label='Error', color='blue', marker='o', alpha=alpha, s=s)
 
 # Add labels and title
 plt.xlabel('\nGround truth angle [degrees]\n',fontsize=labelsize)
@@ -164,7 +164,7 @@ plt.ylim([0,180])
 plt.xticks(np.arange(0, 361, 30))
 plt.yticks(np.arange(0, 181, 30))
 plt.grid(True)
-plt.title(f'MU.SI.C', fontsize=titlesize, pad=pad)
+plt.title(f'MUSIC', fontsize=titlesize, pad=pad)
 #plt.legend(loc='upper right', fontsize=legendsize, title_fontsize= legendsize)
 
 # Compute and plot the overall mean line

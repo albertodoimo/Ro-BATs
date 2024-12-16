@@ -19,7 +19,7 @@ angles = np.arange(0, 210, 30)
 line_styles = ['-', '--', '-.', ':']
 
 freq_bands = {
-    '0-1': (100, 1000),
+    '0-1': (70, 1000),
     '1-2': (1000, 2000),
     '2-3': (2000, 3000),
     '3-4': (3000, 4000)
@@ -90,8 +90,10 @@ for i in range (1,7):
         #print(meansig)
         #norm_mean = (meansig/np.max(meansig))
         #print(norm_mean)
-        #db_scale = 20*np.log10(norm_mean)        # Compute the RMS value of the audio signal
-        rms_value = compute_rms(audio_signal)
+        #db_scale = 20*np.log10(norm_mean)        
+        # 
+        # # Compute the RMS value of the audio signal
+        rms_value = compute_rms(audio_signal[:,0])
         print('rms value=',rms_value)
         #plt.figure()
         #plt.plot(audio_signal,label=str(angle))
@@ -126,7 +128,7 @@ for i in range (1,7):
 
 
     ax = plt.subplot(132, polar = True)
-    ax.plot(angles_rad, db_values-ref_db, 'k-', label='All bands')  # blue dots and lines
+    ax.plot(angles_rad, db_values-ref_db, label='All bands', linewidth=2)  # blue dots and lines
     #print(f'db values {angle}= ',db_value)
 
     # Optional: Improve plot aesthetics
@@ -137,8 +139,8 @@ for i in range (1,7):
     ax.set_thetamax(np.pi)
     ax.set_thetamin(0)
     ax.set_ylabel('dB RMS',fontsize=labelsize)
-    ax.set_yticks([5,0,-20,-40])
-    ax.set_yticklabels(['','0','-20','-40'],fontsize=labelsize)
+    ax.set_yticks([10, 5, 0,-5,-10,-15,-20])
+    #ax.set_yticklabels(['','0','-10', '-20'],fontsize=labelsize)
     ax.tick_params(axis='y', labelsize=labelsize)
     # Set ticks at every 30 degrees
     ax.set_xticks(np.deg2rad(np.arange(0, 181, 30)))
@@ -151,14 +153,14 @@ for i in range (1,7):
     # Plot the SPL values on a polar plot
     #plt.figure(figsize = (8, 8))
     ax = plt.subplot(131, polar=True)
-    ax.plot(angles_rad, 94+SPLs,'k-', label='All bands') 
+    ax.plot(angles_rad, 94+SPLs, label='All bands', linewidth=2) 
 
     # Optional: Improve plot aesthetics
     #ax.set_title(f'Thymio speaker Polar Plot of SPL Amplitudes at Different Angles for ukon{ukon_number} \n reference signal: 1kHz 1Pa tone, 94 dB SPL')
     ax.set_title(f'Reference signal: 1kHz, 94 dB SPL\n',fontsize=labelsize)
     ax.set_theta_direction(-1)  # clockwise
     ax.set_theta_offset(np.pi / 2)  # start from the top
-    ax.set_ylim(0,70)
+    ax.set_ylim(45,75)
     ax.set_thetamax(np.pi)
     ax.set_thetamin(0)
     ax.set_ylabel('dB SPL ref 20 $\mu$Pa',fontsize=labelsize)
@@ -275,29 +277,29 @@ for i in range (1,7):
         print('\nref0=',freq_bands_db['0-1'][0])
         print('\nref=',freq_bands_db_ref[band])
         print(f'\n delta band {band} kHz',db_band-db_band[0])
-        #ax.plot(angles_rad, db_band - db_band[0],'k', linewidth=1, linestyle=linestyle, label=f'Band {band}')
+        ax.plot(angles_rad, db_band - db_band[0], linewidth=2, label=f'Band {band}')
         #ax.plot(angles_rad, db_band , label=f'{band}')
         #ax.plot(angles_rad, db_band-freq_bands_db['0-1'][0], 'k',  linestyle=linestyle, label=f'{band}')
     #for (i,freq),linestyle in zip(enumerate(frequencies), line_styles):
     #    ax.plot(angles_rad, amplitudes[freq]-amplitudes[freq][0], 'k',linestyle=linestyle, label=f"{freq / 1000:.0f}")
-    for i,freq in enumerate(frequencies):
-        ax.plot(angles_rad, amplitudes[freq]-amplitudes[freq][0], label=f"{freq / 1000 }")
+    #for i,freq in enumerate(frequencies):
+    #    ax.plot(angles_rad, amplitudes[freq]-amplitudes[freq][0], label=f"{freq / 1000 }")
     
     # Improve plot aesthetics
     #ax.set_title(f'Thymio Speaker Polar Plot of RMS Amplitudes\nfor ukon{ukon_number}')
     ax.set_theta_direction(-1)  # Clockwise
     ax.set_theta_offset(np.pi / 2)  # Start from the top
-    ax.set_ylim(-50, 20)
-    #ax.set_yticks(fontsize=15)
+    ax.set_ylim(-20, 10)
+    #ax.set_yticks(fontsizse=15)
     ax.set_thetamax(np.pi)
     ax.set_thetamin(0)
-    ax.set_ylabel('dB',fontsize=labelsize)
-    #ax.set_yticks([20,10,0,-10,-20])
+    ax.set_ylabel('dB RMS',fontsize=labelsize)
+    ax.set_yticks([10,5,0,-5,-10,-15,-20])
     #ax.set_yticklabels(['5','','','','','0','','','','','-5','','','','','-10',-20],fontsize=labelsize)
     ax.tick_params(axis='y', labelsize=labelsize)
     ax.set_xticks(np.deg2rad(np.arange(0, 181, 30)))
     ax.set_xticklabels([f"{angle}°" for angle in range(0, 181, 30)],fontsize=labelsize)
     ax.legend(loc='upper right', title="Frequency \nBand [kHz] ", fontsize=legendsize, title_fontsize= legendsize)
     
-    #plt.savefig(f'polar plots/ukon{ukon_number}/sum_ukon{ukon_number}.png', dpi=300, bbox_inches='tight')
+    plt.savefig(f'polar plots/ukon{ukon_number}/sum_ukon{ukon_number}.png', dpi=300, bbox_inches='tight')
     plt.show()

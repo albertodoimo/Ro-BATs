@@ -2,6 +2,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
 import matplotlib as mpl
+import seaborn as sns
 
 # Set font to Times New Roman
 mpl.rcParams['font.family'] = 'serif'
@@ -29,13 +30,13 @@ filenames = [
 ]
 
 # Plot parameters
-labelsize = 10
-titlesize = 15
+labelsize = 13
+titlesize = 18
 pad = 15
 s = 5
 alpha = 0.3
 
-# Create the 4x3 subplot layout
+#Create the 4x3 subplot layout
 fig, axes = plt.subplots(4, 3, figsize=(11, 9))
 plt.subplots_adjust(left=0.1, right=0.2, top=0.7, bottom=0.2, wspace=0.8, hspace=0.5)
 
@@ -59,13 +60,13 @@ for i, (filename1, filename2, filename3) in enumerate(filenames):
     #axes[i, 1].set_title(f'Run {i+1} - SRP-PHAT', fontsize=titlesize, pad=pad)
     
     axes[i, 2].scatter(gt_angle3, error3, color='blue', marker='o', alpha=alpha, s=s)
-    #axes[i, 2].set_title(f'Run {i+1} - MU.SI.C', fontsize=titlesize, pad=pad)
+    #axes[i, 2].set_title(f'Run {i+1} - MUSIC', fontsize=titlesize, pad=pad)
     
     # Set axis labels for the last row only
     if i == 3:
-        axes[i, 0].set_xlabel('Ground truth angle [degrees]', fontsize=labelsize)
-        axes[i, 1].set_xlabel('Ground truth angle [degrees]', fontsize=labelsize)
-        axes[i, 2].set_xlabel('Ground truth angle [degrees]', fontsize=labelsize)
+        axes[i, 0].set_xlabel('\nGround truth angle [degrees]', fontsize=labelsize)
+        axes[i, 1].set_xlabel('\nGround truth angle [degrees]', fontsize=labelsize)
+        axes[i, 2].set_xlabel('\nGround truth angle [degrees]', fontsize=labelsize)
 
     # Set y-axis label for the first column only
     axes[i, 0].set_ylabel('\n\nError [degrees]', fontsize=labelsize)
@@ -77,7 +78,7 @@ for i, (filename1, filename2, filename3) in enumerate(filenames):
     if i==0:
         axes[i, 0].set_title(f'GCC-PHAT', fontsize=titlesize, pad=pad)
         axes[i, 1].set_title(f'SRP-PHAT', fontsize=titlesize, pad=pad)
-        axes[i, 2].set_title(f'MU.SI.C', fontsize=titlesize, pad=pad)
+        axes[i, 2].set_title(f'MUSIC', fontsize=titlesize, pad=pad)
 
     # Set limits and grid for all subplots
     for j in range(3):
@@ -87,13 +88,13 @@ for i, (filename1, filename2, filename3) in enumerate(filenames):
         axes[i, j].grid(True)
 
 # Show the plot
-plt.suptitle('COMPARISON BETWEEN DIFFERENT RUNS', fontsize=18, y=1.01)
+plt.suptitle('COMPARISON BETWEEN DIFFERENT RUNS\n', fontsize=18)
 plt.tight_layout()
 
 
 # Save figure if needed
 plt.savefig(save_path + 'comparison_summary.png', dpi=300)
-plt.show()
+plt.show(block=False)
 
 
 #MEAN and STD
@@ -111,15 +112,15 @@ df2 = pd.read_csv(global_path + filename2)
 df3 = pd.read_csv(global_path + filename3)
 
 # Create figure
-plt.figure(figsize=(10, 6))
-labelsize = 13
-titlesize = 15
+plt.figure(figsize=(10, 7))
+labelsize = 20
+titlesize = 22
 pad = 15
 
 # Extract data
 error1 = df1.iloc[:, -1]
 gt_angle1 = df1.iloc[:, 2]
-error2 = df2.iloc[:, -1]
+error2 = df2.iloc[:, -1] 
 gt_angle2 = df2.iloc[:, 2]
 error3 = df3.iloc[:, -1]
 gt_angle3 = df3.iloc[:, 2]
@@ -142,14 +143,14 @@ mean2, std2 = calculate_stats(gt_angle2, error2, angle_bins)
 mean3, std3 = calculate_stats(gt_angle3, error3, angle_bins)
 
 # Plot mean lines and standard deviation bands
-plt.plot(bin_centers, mean1, 'r-', label=f'GCC-PHAT (Mean: {np.mean(error1):.2f}°)', linewidth=2)
-plt.fill_between(bin_centers, mean1-std1, mean1+std1, color='red', alpha=0.2)
+#plt.plot(bin_centers, mean1, 'r-', label=f'GCC-PHAT (Mean: {np.mean(error1):.1f}°, STD: {np.std(error1):.1f}°)', linewidth=2)
+#plt.fill_between(bin_centers, mean1-std1, mean1+std1, color='red', alpha=0.2,linewidth=2)
 
-plt.plot(bin_centers, mean2, 'g-', label=f'SRP-PHAT (Mean: {np.mean(error2):.2f}°)', linewidth=2)
-plt.fill_between(bin_centers, mean2-std2, mean2+std2, color='green', alpha=0.2)
-
-plt.plot(bin_centers, mean3, 'b-', label=f'MU.SI.C (Mean: {np.mean(error3):.2f}°)', linewidth=2)
-plt.fill_between(bin_centers, mean3-std3, mean3+std3, color='blue', alpha=0.2)
+#plt.plot(bin_centers, mean2, 'g-', label=f'SRP-PHAT (Mean: {np.mean(error2):.1f}° STD: {np.std(error2):.1f}°)', linewidth=2)
+#plt.fill_between(bin_centers, mean2-std2, mean2+std2, color='green', alpha=0.2,linewidth=2)
+#
+plt.plot(bin_centers, mean3, 'b-', label=f'MUSIC (Mean: {np.mean(error3):.1f}° STD: {np.std(error3):.1f}°)', linewidth=2)
+plt.fill_between(bin_centers, mean3-std3, mean3+std3, color='blue', alpha=0.2,linewidth=2)
 
 plt.xlabel('Ground truth angle [degrees]', fontsize=labelsize)
 plt.ylabel('Error [degrees]', fontsize=labelsize)
@@ -158,8 +159,105 @@ plt.xticks(np.arange(0, 361, 30))
 plt.yticks(np.arange(0, 181, 30))
 plt.grid(True)
 plt.title(f'{save_name}: Mean Error and Standard Deviation', fontsize=titlesize, pad=pad)
-plt.legend(loc='upper right')
+plt.legend(loc='upper right', fontsize=labelsize)
 
 # Save and show plot
-plt.savefig(save_path + save_name + '_std_only', dpi=300, bbox_inches='tight')
+plt.savefig(save_path + save_name + '_std_music', dpi=300, bbox_inches='tight')
+#plt.show()
+
+# Create figure
+plt.figure(figsize=(10, 7))
+
+# Prepare data for violin plot
+data_dict = {
+    'GCC-PHAT': error1,
+    'SRP-PHAT': error2,
+    'MUSIC': error3
+}
+
+# Calculate statistics
+stats = {
+    'GCC-PHAT': {'mean': np.mean(error1), 'std': np.std(error1)},
+    'SRP-PHAT': {'mean': np.mean(error2), 'std': np.std(error2)},
+    'MUSIC': {'mean': np.mean(error3,), 'std': np.std(error3)}
+}
+
+# Create violin plot
+parts = plt.violinplot([error1, error2, error3], 
+                      showmeans=True, showextrema=False)
+
+# Customize violin plot colors
+colors = ['red', 'green','blue' ]
+for i, pc in enumerate(parts['bodies']):
+    pc.set_facecolor(colors[i])
+    pc.set_alpha(0.6)
+    pc.set_edgecolor(colors[i])
+    pc.set_linewidth(2)
+
+# Customize other elements
+parts['cmeans'].set_color('black')
+parts['cmeans'].set_linewidth(1)
+
+# Customize the plot
+plt.xticks([1, 2, 3], [f'\nGCC-PHAT\nMEAN={stats["GCC-PHAT"]["mean"]:.1f}°\nSTD={stats["GCC-PHAT"]["std"]:.1f}°',
+                       f'\nSRP-PHAT\nMEAN={stats["SRP-PHAT"]["mean"]:.1f}°\nSTD={stats["SRP-PHAT"]["std"]:.1f}°',
+                       f'\nMUSIC\nMEAN={stats["MUSIC"]["mean"]:.1f}°\nSTD={stats["MUSIC"]["std"]:.1f}°'], fontsize=labelsize)
+
+plt.ylabel('Error [degrees]', fontsize=labelsize)
+plt.title('Error Distribution Comparison', fontsize=titlesize, pad=15)
+plt.grid(True, alpha=0.3)
+
+# Add legend for mean and median
+from matplotlib.lines import Line2D
+legend_elements = [
+    Line2D([0], [0], color='black', linewidth=2, label='Mean')
+]
+plt.legend(handles=legend_elements, loc='upper right', fontsize=labelsize)
+
+# Set y-axis limits
+plt.ylim(0, 180)
+plt.yticks(np.arange(0, 181, 30))
+
+# Adjust layout
+plt.tight_layout()
+
+# Save and show plot
+plt.savefig(save_path + save_name + '_error_violin', dpi=300, bbox_inches='tight')
+plt.show()
+
+# Load collision probability data
+collision_prob = [0, 0, (15/33)*100]
+
+# Define labels and colors for each method
+labels = ['GCC-PHAT', 'SRP-PHAT', 'MUSIC']
+colors = ['red', 'green', 'blue']
+
+# Create figure
+plt.figure(figsize=(5,5))
+
+# Plot histogram
+plt.bar(labels, collision_prob, color=colors, alpha=0.6, edgecolor=colors,linewidth=2, width=0.5)
+
+# Customize the plot
+for i, val in enumerate(collision_prob):
+    plt.text(i, val + 0.02, f'{val:.1f}', ha='center', va='bottom', fontsize=labelsize)
+
+plt.ylabel('Probability (%)', fontsize=labelsize)
+plt.title('Collision Probability Comparison', fontsize=titlesize-2, pad=15)
+plt.grid(axis='y', alpha=0.3)
+
+
+# Add legend for mean
+from matplotlib.lines import Line2D
+
+# Set y-axis limits
+plt.ylim(-5, 100)
+plt.yticks(np.arange(0, 100, 10))
+
+
+# Adjust layout
+plt.tight_layout()
+
+# Save and show plot
+plt.savefig(save_path + 'collision_probability_histogram', dpi=300, bbox_inches='tight')
 plt.show()
