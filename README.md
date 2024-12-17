@@ -18,12 +18,14 @@ The project focuses on creating a **bio-inspired swarm of robots** to:
 ---
 
 ## **Technical Details**  
-
 The project uses **Direction of Arrival (DOA) algorithms** for audio-based localization:  
 1. **Generalized Cross-Correlation with Phase Transform (GCC-PHAT)**  
 2. **Steered Response Power with Phase Transform (SRP-PHAT)**  
 3. **Multiple Signal Classification (MUSIC)**  
 
+---
+## **Documents**
+[Ro-bat_executive_summary.pdf](https://github.com/albertodoimo/Ro-BATs/blob/main/Ro-bat_executive_summary.pdf)
 ---
 
 ## **Installation**  
@@ -31,7 +33,6 @@ The project uses **Direction of Arrival (DOA) algorithms** for audio-based local
 1. Clone the repository:  
    ```bash
    git clone https://github.com/your-username/ro-bat-project.git
-   cd ro-bat-project
    ```
 ---
 
