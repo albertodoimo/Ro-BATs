@@ -123,7 +123,7 @@ fs = 192000
 block_size = 8192
 channels = 5
 
-bp_freq = np.array([100,80000.0]) # the min and max frequencies
+bp_freq = np.array([100,8000.0]) # the min and max frequencies
 # to be 'allowed' in Hz.
 
 ba_filt = signal.butter(2, bp_freq/float(fs*0.5),'bandpass')
@@ -137,7 +137,7 @@ S.start()
 # creation the guide vector x values
 all_xs = np.linspace(-10,10,S.blocksize)
 # print('all_xs',all_xs.shape)
-threshold = 1e-5
+threshold = 1e-7
 
 # creation of the guide matrix [blocksize * 3] with x = all_xs, y = 0 , z = 0 values 
 guidepos = np.column_stack((all_xs, np.zeros(S.blocksize), np.zeros(S.blocksize)))

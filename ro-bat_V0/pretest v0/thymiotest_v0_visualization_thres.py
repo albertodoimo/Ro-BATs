@@ -144,7 +144,7 @@ fs = 96000
 block_size = 1024
 #block_size = 8192
 # channels = 5
-channels = 8
+channels = 5
 mic_spacing = 0.003 #m
 central_mic = 3
 

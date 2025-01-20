@@ -22,7 +22,7 @@ doa_name = 'SRP'
 
 #input_video_path = '/Users/alberto/Documents/UNIVERSITA/MAGISTRALE/tesi/robat video-foto/pdm 7 mic array/inverted_loop_pdm array_7mic_fast.mp4'  # replace with your input video path
 #input_video_path = '/Users/alberto/Desktop/test_swarmlab.mp4'
-input_path = '/Users/alberto/Documents/UNIVERSITA/MAGISTRALE/tesi/robat video-foto/tracking results/RUN2/2024-10-24__16-44-12/'
+input_path = '/Users/alberto/Documents/UNIVERSITA/MAGISTRALE/tesi/robat video-foto/tracking results/final test/RUN2/2024-10-24__16-44-12/'
 #input_path = '/home/adoimo/Desktop/tracking results/2024-08-29__18-55-34/cut/'
 input_video_name = 'spr_20241024_164412'
 input_video_path = input_path +input_video_name+'.mp4'
