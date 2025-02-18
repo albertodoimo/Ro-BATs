@@ -2,7 +2,7 @@
 # Robat v0 code to use with different arrays(PDM passive array or I2S array).
 #
 # FEATURES:
-# > Compute pra alg for angle detection
+# > Compute pra alg for angle detection
 # > Calculates dB values 
 # > Triggers computation of angle only over threshold
 # > Save recordings every x minutes 
@@ -366,7 +366,7 @@ def update_polar():
 
     doa = pra.doa.algorithms[doa_name](echo, fs, nfft, c=c, num_src=2, max_four=2)
     doa.locate_sources(X, freq_range=freq_range)
-    #print('azimuth_recon=',doa.azimuth_recon) # rad value of detected angles
+    #print('azimuth_recon=',doa.azimuth_recon) # rad value of detected angles
     theta_pra_deg = (doa.azimuth_recon * 180 / np.pi) 
     #print('theta=',theta_pra_deg) #degrees value of detected angles
 
