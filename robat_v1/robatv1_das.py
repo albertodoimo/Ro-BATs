@@ -1,29 +1,11 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import sounddevice as sd
-from scipy.signal import stft
+import scipy.signal as signal
 from matplotlib.animation import FuncAnimation
+from das_v2 import das_filter_v2
 
 # Define DAS filter function
-def das_filter_v2(y, fs, nch, d, bw, theta=np.linspace(-90, 90, 36), c=343):    
-    win_len = 256
-    f_spec_axis, _, spectrum = stft(y, fs=fs, window=np.ones((win_len, )), nperseg=win_len, noverlap=win_len-1, axis=0)
-    bands = f_spec_axis[(f_spec_axis > bw[0]) & (f_spec_axis < bw[1])]
-    bands = np.array([bands[0], bands[len(bands)//3], bands[2*len(bands)//3], bands[-1]])
-    p = np.zeros_like(theta, dtype=complex)
-    
-    for f_c in bands:
-        w_s = (2*np.pi*f_c*d*np.sin(np.deg2rad(theta))/c)        
-        a = np.exp(np.outer(np.linspace(0, nch-1, nch), -1j*w_s))     
-        spec = spectrum[f_spec_axis == f_c, :, :].squeeze()
-        cov_est = np.cov(spec, bias=True)
-        
-        for i, _ in enumerate(theta):
-            p[i] += a[:, i].T.conj() @ cov_est @ a[:, i]/(nch**2)
-    
-    mag_p = np.abs(p)/len(bands)
-    return theta, mag_p
-
 # Constants
 c = 343.0  # speed of sound
 fs = 48000  # sampling frequency
@@ -57,19 +39,29 @@ def update_polar(frame):
     #print(correction)
     in_sig = in_sig0-correction
     print(np.mean(in_sig))
-    theta, spatial_resp = das_filter_v2(in_sig, fs, channels, mic_spacing, freq_range, theta=np.linspace(0, 360, 360))
+    theta, spatial_resp = das_filter_v2(in_sig, fs, channels, mic_spacing, freq_range, theta=np.linspace(90, -90, 37))
+    print(spatial_resp)
+    #spatial_resp = 10 * np.log10(spatial_resp)
+    #print(spatial_resp)
     spatial_resp = (spatial_resp - spatial_resp.min()) / (spatial_resp.max() - spatial_resp.min())
+    #window = signal.windows.tukey(37,alpha=1)
+    #spatial_resp = spatial_resp * window
     line.set_ydata(spatial_resp)
+    print(line.get_ydata())
     return line,
 
 initialization()
 memory, rec = [], []
-
 fig, ax = plt.subplots(subplot_kw={'projection': 'polar'})
 ax.set_theta_direction(-1)
 ax.set_theta_offset(np.pi / 2)  # Rotate the plot by 90 degrees
-theta = np.linspace(-np.pi, np.pi, 360)
-values = np.random.rand(360)
+theta = np.linspace(-np.pi/2, np.pi/2, 37)
+ax.set_thetamin(-90)
+ax.set_thetamax(90)
+ax.set_xticks(np.pi/180. * np.linspace(-90, 90, 19), labels=np.arange(-90, 91, 10))
+#ax.set_yticks([1e-11, 1e-5])
+values = np.random.rand(37)
+#values = np.zeros(37)
 line, = ax.plot(theta, values)
-ani = FuncAnimation(fig, update_polar, frames=range(360), blit=False, interval=10)
+ani = FuncAnimation(fig, update_polar, frames=range(37), blit=False, interval=10)
 plt.show()
