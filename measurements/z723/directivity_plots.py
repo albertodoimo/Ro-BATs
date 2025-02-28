@@ -61,16 +61,52 @@ radiance = 4 * np.pi * R * np.abs(Channels_uni)
 theta = np.linspace(0, 350, 36)
 theta = np.append(theta, theta[0])
 
+# %% SNR computation between the sweeps and the noise floor measurements
+
+def calculate_snr(audio, noise):
+
+    # Compute signal power (RMS value squared)
+    P_signal = np.mean(audio**2, axis=1)
+
+    # If noise segment is provided, extract noise power
+    P_noise = np.mean(noise**2, axis=1)
+
+    # Compute SNR in dB
+    SNR = 10 * np.log10(P_signal / P_noise)
+
+    # Noise floor in dBFS (full scale)
+    noise_floor = 10 * np.log10(P_noise)
+
+    return SNR, noise_floor
+
+noises = []
+for i in np.arange(len(noise_files)):
+    noise, fs = soundfile.read(DIR_noise + noise_files[i])
+    noises.append(noise)
+noises = np.array(noises)
+
+# snrs = []
+# for i in np.arange(len(channels)):
+#     snr_value, noise_floor_value = calculate_snr(channels[i], noises[i])
+#     snrs.append(snr_value)
+# snrs = np.array(snrs)
+# snrs = np.append(snrs, snrs[0])
+
+NOISES = fft.fft(noises, n=2048, axis=1)
+NOISES_uni = NOISES[:,0:1024]
+NOISES_uni = np.abs(NOISES_uni)
+
 # %% Radiance display at multiple frequencies
 
 central_freq = np.array([4e3, 6e3, 8e3, 10e3, 12e3, 14e3, 16e3, 18e3])
 BW = 1e3
 
 linestyles = ["-", "--", "-.", ":"]
-
-fig, (ax1, ax2) = plt.subplots(1, 2, subplot_kw={"projection": "polar"},figsize=(12, 8))
+# Create a figure and a set of subplots
+fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, subplot_kw={"projection": "polar"},figsize=(12, 12))
 plt.suptitle("Radiance Pattern - CE32A-4 1/4inch Mini Speaker")
 i = 0
+
 for fc in central_freq[0:4]:
     rad_patt = np.mean(
         radiance[:, (freqs < fc + BW) & (freqs > fc - BW)], axis=1
@@ -78,6 +114,16 @@ for fc in central_freq[0:4]:
     rad_patt_norm = rad_patt / np.max(rad_patt)
     rad_patt_norm_dB = 20 * np.log10(rad_patt_norm)
     rad_patt_norm_dB = np.append(rad_patt_norm_dB, rad_patt_norm_dB[0])
+
+    snrs = []
+    for ii in np.arange(len(Channels_uni)):
+        Channels_uni = np.abs(Channels_uni)
+        snr_value, noise_floor_value = calculate_snr(Channels_uni[:, (freqs < fc + BW) & (freqs > fc - BW)]    
+                                 , NOISES_uni[:, (freqs < fc + BW) & (freqs > fc - BW)])
+        #snrs.append(snr_value)
+    snrs = np.array(snr_value)
+    snrs = np.append(snrs, snrs[0])
+
     if str(fc)[0:2] == '10':
         ax1.plot(
         np.deg2rad(theta),
@@ -93,6 +139,11 @@ for fc in central_freq[0:4]:
         linestyle=linestyles[i],
         )
     i += 1
+    ax3.plot(
+        np.deg2rad(theta),
+        snrs,
+        label=str(fc)[0:1] + " [kHz]",
+        )
 ax1.legend(loc="upper right", bbox_to_anchor=(1.1, 1.1))
 # offset polar axes by -90 degrees
 ax1.set_theta_offset(np.pi / 2)
@@ -104,14 +155,38 @@ ax1.set_xticks(np.linspace(0, 2 * np.pi, 18, endpoint=False))
 ax1.set_yticks(np.linspace(-40, 0, 5))
 ax1.set_rlabel_position(100)
 
+ax3.legend(loc="upper right", bbox_to_anchor=(1.1, 1.1))
+# offset polar axes by -90 degrees
+ax3.set_theta_offset(np.pi / 2)
+# set theta direction to clockwise
+ax3.set_theta_direction(-1)
+# more theta ticks
+ax3.set_xticks(np.linspace(0, 2 * np.pi, 18, endpoint=False))
+# less radial ticks
+ax3.set_yticks(np.linspace(-10, 30, 5))
+ax3.set_rlabel_position(100)
+
 i = 0
 for fc in central_freq[4:8]:
     rad_patt = np.mean(
         radiance[:, (freqs < fc + BW) & (freqs > fc - BW)], axis=1
     )
+    noise_patt = np.mean(
+        NOISES_uni[:, (freqs < fc + BW) & (freqs > fc - BW)], axis=1
+    )
     rad_patt_norm = rad_patt / np.max(rad_patt)
     rad_patt_norm_dB = 20 * np.log10(rad_patt_norm)
     rad_patt_norm_dB = np.append(rad_patt_norm_dB, rad_patt_norm_dB[0])
+    
+    snrs = []
+    for ii in np.arange(len(Channels_uni)):
+        Channels_uni = np.abs(Channels_uni)
+        snr_value, noise_floor_value = calculate_snr(Channels_uni[:, (freqs < fc + BW) & (freqs > fc - BW)]    
+                                 , NOISES_uni[:, (freqs < fc + BW) & (freqs > fc - BW)])
+        #snrs.append(snr_value)
+    snrs = np.array(snr_value)
+    snrs = np.append(snrs, snrs[0])
+
     ax2.plot(
         np.deg2rad(theta),
         rad_patt_norm_dB,
@@ -119,6 +194,11 @@ for fc in central_freq[4:8]:
         linestyle=linestyles[i],
     )
     i += 1
+    ax4.plot(
+        np.deg2rad(theta),
+        snrs,
+        label=str(fc)[0:1] + " [kHz]",
+        )
 ax2.legend(loc="upper right", bbox_to_anchor=(1.1, 1.1))
 # offset polar axes by -90 degrees
 ax2.set_theta_offset(np.pi / 2)
@@ -129,6 +209,17 @@ ax2.set_xticks(np.linspace(0, 2 * np.pi, 18, endpoint=False))
 # less radial ticks
 ax2.set_yticks(np.linspace(-40, 0, 5))
 ax2.set_rlabel_position(100)
+
+ax4.legend(loc="upper right", bbox_to_anchor=(1.1, 1.1))
+# offset polar axes by -90 degrees
+ax4.set_theta_offset(np.pi / 2)
+# set theta direction to clockwise
+ax4.set_theta_direction(-1)
+# more theta ticks
+ax4.set_xticks(np.linspace(0, 2 * np.pi, 18, endpoint=False))
+# less radial ticks
+ax4.set_yticks(np.linspace(-10, 30, 5))
+ax4.set_rlabel_position(100)
 
 plt.tight_layout()
 plt.show()
@@ -162,7 +253,7 @@ plt.show()
 #save figure
 fig.savefig("radiance_overall.png")
 
-# %% Plot of the collected data
+# %% Plot of the noise data
 
 fig, axs = plt.subplots(6, 6, figsize=(20, 20))
 
@@ -184,9 +275,11 @@ for i in range(6):
 plt.tight_layout()
 plt.show(block=False)
 # save figure
-fig.savefig("noise.png")
+fig.savefig("noises.png")
 
-# %% SNR computation between the sweeps and the noise floor measurements
+
+#%% overall SNR computation
+
 
 def calculate_snr(audio, noise):
 
@@ -204,18 +297,7 @@ def calculate_snr(audio, noise):
 
     return SNR, noise_floor
 
-noises = []
-for i in np.arange(len(noise_files)):
-    noise, fs = soundfile.read(DIR_noise + noise_files[i])
-    noises.append(noise)
-noises = np.array(noises)
 
-snrs = []
-for i in np.arange(len(channels)):
-    snr_value, noise_floor_value = calculate_snr(channels[i], noises[i])
-    snrs.append(snr_value)
-snrs = np.array(snrs)
-snrs = np.append(snrs, snrs[0])
 
 fig, ax = plt.subplots(subplot_kw={"projection": "polar"})
 ax.plot(np.deg2rad(theta), snrs)
