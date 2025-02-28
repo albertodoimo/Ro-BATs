@@ -14,6 +14,12 @@ os.chdir(dname)
 DIR = "./cut_sweeps/"  # Directory containing the audio files
 audio_files = os.listdir(DIR)  # List all files in the sweeps directory
 audio_files.sort()  # Sort the files in ascending order
+
+# Load audio files, then plot them in a 6x6 grid
+DIR_noise = "./noise_floor/"  # Directory containing the audio files
+noise_files = os.listdir(DIR_noise)  # List all files in the sweeps directory
+noise_files.sort()  # Sort the files in ascending order
+
 # %% Plot of the collected data
 
 fig, axs = plt.subplots(6, 6, figsize=(20, 20))
@@ -155,3 +161,76 @@ ax.set_title(
 plt.show()
 #save figure
 fig.savefig("radiance_overall.png")
+
+# %% Plot of the collected data
+
+fig, axs = plt.subplots(6, 6, figsize=(20, 20))
+
+for i in range(6):
+    for j in range(6):
+        # Load audio file
+        audio, fs = soundfile.read(DIR_noise + audio_files[i * 6 + j])
+        # Plot audio file
+        axs[i, j].plot(np.linspace(0, len(audio) / fs, len(audio)), audio)
+        axs[i, j].set_title(audio_files[i * 6 + j])
+        axs[i, j].set_xlabel("Time (s)")
+        axs[i, j].set_ylabel("Amplitude")
+        # ylim for better visualization
+        axs[i, j].set_ylim([-0.02, 0.02])
+        # Shared x and y axes
+        axs[i, j].sharex(axs[0, 0])
+        axs[i, j].sharey(axs[0, 0])
+
+plt.tight_layout()
+plt.show(block=False)
+# save figure
+fig.savefig("noise.png")
+
+# %% SNR computation between the sweeps and the noise floor measurements
+
+def calculate_snr(audio, noise):
+
+    # Compute signal power (RMS value squared)
+    P_signal = np.mean(audio**2)
+
+    # If noise segment is provided, extract noise power
+    P_noise = np.mean(noise**2)
+
+    # Compute SNR in dB
+    SNR = 10 * np.log10(P_signal / P_noise)
+
+    # Noise floor in dBFS (full scale)
+    noise_floor = 10 * np.log10(P_noise)
+
+    return SNR, noise_floor
+
+noises = []
+for i in np.arange(len(noise_files)):
+    noise, fs = soundfile.read(DIR_noise + noise_files[i])
+    noises.append(noise)
+noises = np.array(noises)
+
+snrs = []
+for i in np.arange(len(channels)):
+    snr_value, noise_floor_value = calculate_snr(channels[i], noises[i])
+    snrs.append(snr_value)
+snrs = np.array(snrs)
+snrs = np.append(snrs, snrs[0])
+
+fig, ax = plt.subplots(subplot_kw={"projection": "polar"})
+ax.plot(np.deg2rad(theta), snrs)
+# offset polar axes by -90 degrees
+ax.set_theta_offset(np.pi / 2)
+# set theta direction to clockwise
+ax.set_theta_direction(-1)
+# more theta ticks
+ax.set_xticks(np.linspace(0, 2 * np.pi, 18, endpoint=False))
+ax.set_ylabel("dB")
+# less radial ticks
+ax.set_yticks(np.linspace(-10, 30, 5))
+ax.set_rlabel_position(-90)
+ax.set_title("CE32A-4 1/4inch Mini Speaker - overall signal-to-noise ratio 1[kHz] - 20[kHz]")
+
+plt.show()
+#save figure
+fig.savefig("snr_overall.png")

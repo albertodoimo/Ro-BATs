@@ -11,10 +11,10 @@ os.chdir(dname)
 # %%
 if __name__ == '__main__':
 
-    file_name = '170 full.wav'
-    new_name = '170.wav'
+    file_name = '180 full.wav'
+    new_name = '180.wav'
     cut_dir = 'noise_floor'
-    file_name_symm = '190.wav'
+    file_name_symm = '180.wav'
     y, fs = sf.read('audiofiles/'+ file_name)
 
     y_cut = y[int(0.5*fs):int(0.55*fs)]
