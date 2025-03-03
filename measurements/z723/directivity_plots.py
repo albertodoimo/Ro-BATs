@@ -47,8 +47,8 @@ fig.savefig("sweeps.png")
 channels = []
 for i in np.arange(len(audio_files)):
     audio, fs = soundfile.read(DIR + audio_files[i])
-    if audio.shape[0] > 1919:
-        audio = audio[0:1919]
+    # if audio.shape[0] > 1919:
+    #     audio = audio[0:1919]
     channels.append(audio)
 channels = np.array(channels)
 
@@ -63,13 +63,13 @@ theta = np.append(theta, theta[0])
 
 # %% SNR computation between the sweeps and the noise floor measurements
 
-def calculate_snr(audio, noise):
+def calculate_snr_bands(audio, noise):
 
     # Compute signal power (RMS value squared)
-    P_signal = np.mean(audio**2, axis=1)
+    P_signal = np.mean(audio**2)
 
     # If noise segment is provided, extract noise power
-    P_noise = np.mean(noise**2, axis=1)
+    P_noise = np.mean(noise**2)
 
     # Compute SNR in dB
     SNR = 10 * np.log10(P_signal / P_noise)
@@ -85,16 +85,8 @@ for i in np.arange(len(noise_files)):
     noises.append(noise)
 noises = np.array(noises)
 
-# snrs = []
-# for i in np.arange(len(channels)):
-#     snr_value, noise_floor_value = calculate_snr(channels[i], noises[i])
-#     snrs.append(snr_value)
-# snrs = np.array(snrs)
-# snrs = np.append(snrs, snrs[0])
-
 NOISES = fft.fft(noises, n=2048, axis=1)
 NOISES_uni = NOISES[:,0:1024]
-NOISES_uni = np.abs(NOISES_uni)
 
 # %% Radiance display at multiple frequencies
 
@@ -103,8 +95,8 @@ BW = 1e3
 
 linestyles = ["-", "--", "-.", ":"]
 # Create a figure and a set of subplots
-fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, subplot_kw={"projection": "polar"},figsize=(12, 12))
-plt.suptitle("Radiance Pattern - CE32A-4 1/4inch Mini Speaker")
+fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, subplot_kw={"projection": "polar"},figsize=(13, 13))
+plt.suptitle("Radiance Pattern - CE32A-4 1/4\" Mini Speaker")
 i = 0
 
 for fc in central_freq[0:4]:
@@ -117,11 +109,12 @@ for fc in central_freq[0:4]:
 
     snrs = []
     for ii in np.arange(len(Channels_uni)):
-        Channels_uni = np.abs(Channels_uni)
-        snr_value, noise_floor_value = calculate_snr(Channels_uni[:, (freqs < fc + BW) & (freqs > fc - BW)]    
-                                 , NOISES_uni[:, (freqs < fc + BW) & (freqs > fc - BW)])
-        #snrs.append(snr_value)
-    snrs = np.array(snr_value)
+        #Channels_uni = np.real(Channels_uni)
+        snr_value, noise_floor_value = calculate_snr_bands(
+                                Channels_uni[ii, (freqs < fc + BW) & (freqs > fc - BW)],    
+                                NOISES_uni[ii, (freqs < fc + BW) & (freqs > fc - BW)])
+        snrs.append(snr_value)
+    snrs = np.array(snrs)
     snrs = np.append(snrs, snrs[0])
 
     if str(fc)[0:2] == '10':
@@ -138,12 +131,13 @@ for fc in central_freq[0:4]:
         label=str(fc)[0:1] + " [kHz]",
         linestyle=linestyles[i],
         )
-    i += 1
     ax3.plot(
         np.deg2rad(theta),
         snrs,
         label=str(fc)[0:1] + " [kHz]",
+        linestyle=linestyles[i],
         )
+    i += 1
 ax1.legend(loc="upper right", bbox_to_anchor=(1.1, 1.1))
 # offset polar axes by -90 degrees
 ax1.set_theta_offset(np.pi / 2)
@@ -163,7 +157,7 @@ ax3.set_theta_direction(-1)
 # more theta ticks
 ax3.set_xticks(np.linspace(0, 2 * np.pi, 18, endpoint=False))
 # less radial ticks
-ax3.set_yticks(np.linspace(-10, 30, 5))
+ax3.set_yticks(np.linspace(0, 60, 7))
 ax3.set_rlabel_position(100)
 
 i = 0
@@ -180,11 +174,11 @@ for fc in central_freq[4:8]:
     
     snrs = []
     for ii in np.arange(len(Channels_uni)):
-        Channels_uni = np.abs(Channels_uni)
-        snr_value, noise_floor_value = calculate_snr(Channels_uni[:, (freqs < fc + BW) & (freqs > fc - BW)]    
-                                 , NOISES_uni[:, (freqs < fc + BW) & (freqs > fc - BW)])
-        #snrs.append(snr_value)
-    snrs = np.array(snr_value)
+        #Channels_uni = np.abs(Channels_uni) #moved outside the loop
+        snr_value, noise_floor_value = calculate_snr_bands(Channels_uni[ii, (freqs < fc + BW) & (freqs > fc - BW)]    
+                                 , NOISES_uni[ii, (freqs < fc + BW) & (freqs > fc - BW)])
+        snrs.append(snr_value)
+    snrs = np.array(snrs)
     snrs = np.append(snrs, snrs[0])
 
     ax2.plot(
@@ -193,12 +187,13 @@ for fc in central_freq[4:8]:
         label=str(fc)[0:2] + " [kHz]",
         linestyle=linestyles[i],
     )
-    i += 1
     ax4.plot(
         np.deg2rad(theta),
         snrs,
-        label=str(fc)[0:1] + " [kHz]",
+        label=str(fc)[0:2] + " [kHz]",
+        linestyle=linestyles[i],
         )
+    i += 1
 ax2.legend(loc="upper right", bbox_to_anchor=(1.1, 1.1))
 # offset polar axes by -90 degrees
 ax2.set_theta_offset(np.pi / 2)
@@ -218,8 +213,10 @@ ax4.set_theta_direction(-1)
 # more theta ticks
 ax4.set_xticks(np.linspace(0, 2 * np.pi, 18, endpoint=False))
 # less radial ticks
-ax4.set_yticks(np.linspace(-10, 30, 5))
+ax4.set_yticks(np.linspace(0, 60, 7))
 ax4.set_rlabel_position(100)
+ax4.set_title("SNR Pattern - CE32A-4 1/4\" Mini Speaker")
+ax3.set_title("SNR Pattern - CE32A-4 1/4\" Mini Speaker")
 
 plt.tight_layout()
 plt.show()
@@ -246,7 +243,7 @@ ax.set_ylabel("dB")
 ax.set_yticks(np.linspace(-40, 0, 5))
 ax.set_rlabel_position(-90)
 ax.set_title(
-    "CE32A-4 1/4inch Mini Speaker - overall Radiance Pattern 1[kHz] - 20[kHz]"
+    "CE32A-4 1/4\" Mini Speaker - overall Radiance Pattern 1[kHz] - 20[kHz]"
 )
 
 plt.show()
@@ -280,7 +277,6 @@ fig.savefig("noises.png")
 
 #%% overall SNR computation
 
-
 def calculate_snr(audio, noise):
 
     # Compute signal power (RMS value squared)
@@ -297,7 +293,12 @@ def calculate_snr(audio, noise):
 
     return SNR, noise_floor
 
-
+snrs = []
+for i in np.arange(len(channels)):
+    snr_value, noise_floor_value = calculate_snr(channels[i], noises[i])
+    snrs.append(snr_value)
+snrs = np.array(snrs)
+snrs = np.append(snrs, snrs[0])
 
 fig, ax = plt.subplots(subplot_kw={"projection": "polar"})
 ax.plot(np.deg2rad(theta), snrs)
@@ -316,3 +317,5 @@ ax.set_title("CE32A-4 1/4inch Mini Speaker - overall signal-to-noise ratio 1[kHz
 plt.show()
 #save figure
 fig.savefig("snr_overall.png")
+
+# %%
