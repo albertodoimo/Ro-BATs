@@ -30,6 +30,7 @@ import os
 import csv
 import xml.etree.ElementTree as ET
 from scipy.fftpack import fft, ifft
+from scipy.ndimage import gaussian_filter1d
 
 from thymiodirect import Connection 
 from thymiodirect import Thymio
@@ -51,7 +52,7 @@ print('usb_fireface_index=',usb_fireface_index)
 
 
 # Possible algorithms for computing DOA: PRA (pyroomacoustics), CC, DAS
-method = 'CC'
+method = 'DAS'
 #method = 'PRA'
 doa_name = 'MUSIC'
 doa_name = 'SRP'
@@ -66,7 +67,7 @@ mic_spacing = 0.018 #m
 ref = channels//2 #central mic in odd array as ref
 print('ref=',ref) 
 #ref= 0 #left most mic as reference
-theta_das = np.linspace(90, -90, 37) # angles resolution for DAS spectrum
+theta_das = np.linspace(-90, 90, 37) # angles resolution for DAS spectrum
 
 auto_hipas_freq = int(343/(2*(mic_spacing*(channels-1))))
 print('HP frequency:', auto_hipas_freq)
@@ -79,7 +80,7 @@ freq_range = [highpass_freq, lowpass_freq]
 nyq_freq = fs/2.0
 b, a = signal.butter(4, [highpass_freq/nyq_freq,lowpass_freq/nyq_freq],btype='bandpass') # to be 'allowed' in Hz.
 
-trigger_level = -54 # dB level ref max pdm
+trigger_level = -78 # dB level ref max pdm
 critical_level = -43 # dB level pdm critical distance
 critical = []
 print('critical', np.size(critical))
@@ -144,6 +145,7 @@ def callback(indata, frames, time, status):
     args.buffer = ((in_sig).copy())
 
     #print('buffer=',np.shape(args.buffer))
+
 def record(rec_counter,time1):
     q_contents = [q.get() for _ in range(q.qsize())]
 
@@ -407,9 +409,21 @@ def update_das():
     theta, spatial_resp = das_filter_v2(in_sig, fs, channels, mic_spacing, freq_range, theta=theta_das)
 
     # find the spectrum peaks 
+
+    spatial_resp = gaussian_filter1d(spatial_resp, sigma=1.5)
     peaks, _ = signal.find_peaks(spatial_resp)  # Adjust height as needed
-    peak_angles = theta_das[peaks]
-    print('peak angles', peak_angles)
+    # peak_angle = theta_das[np.argmax(spatial_resp)]
+    peak_angles = theta[peaks]
+    N = 3 
+
+    # Sort peaks by their height and keep the N largest ones
+    peak_heights = spatial_resp[peaks]
+    top_n_peak_indices = np.argsort(peak_heights)[-N:]  # Indices of the N largest peaks # Indices of the N largest peaks
+    top_n_peak_indices = top_n_peak_indices[::-1]
+    peak_angles = theta[peaks[top_n_peak_indices]]  # Corresponding angles
+    #print('peak angles', peak_heights)
+
+    #print('peak angles', peak_heights)
 
     # normalize   
     # min_val = spatial_resp.min()
@@ -431,32 +445,32 @@ def update_das():
     #print(av_above_level)
 
     if av_above_level > critical_level:
-        theta_pra = critical
         print('critical')
-        return theta_pra
-
+        return peak_angles, av_above_level
     elif av_above_level > trigger_level:
-        peak_angle = peak_angles[0]
-        print('pra theta deg', peak_angle)
-        return peak_angle
-        
+        print('pra theta deg', peak_angles)
+        return peak_angles ,av_above_level
+    else:
+        peak_angles = None
+        return peak_angles, av_above_level
+
 def main(use_sim=False, ip='localhost', port=2001):
     ''' Main function '''
     try:
         global startime
         # Configure Interface to Thymio robot
         # simulation
-        if use_sim:
-            th = Thymio(use_tcp=True, host=ip, tcp_port=port, 
-                        on_connect=lambda node_id: print(f' Thymio {node_id} is connected'))
-        # real robot
-        else:
-            port = Connection.serial_default_port()
-            th = Thymio(serial_port=port, 
-                        on_connect=lambda node_id: print(f'Thymio {node_id} is connected'))
-        # Connect to Robot
-        th.connect()
-        robot = th[th.first_node()]
+#        if use_sim:
+#            th = Thymio(use_tcp=True, host=ip, tcp_port=port, 
+#                        on_connect=lambda node_id: print(f' Thymio {node_id} is connected'))
+#        # real robot
+#        else:
+#            port = Connection.serial_default_port()
+#            th = Thymio(serial_port=port, 
+#                        on_connect=lambda node_id: print(f'Thymio {node_id} is connected'))
+#        # Connect to Robot
+#        th.connect()
+#        robot = th[th.first_node()]
 
         startime = datetime.datetime.now()
         args.samplerate = fs
@@ -524,9 +538,7 @@ def main(use_sim=False, ip='localhost', port=2001):
                     #print('startime = ',start_time_rec)
 
                 # Check if the elapsed time since the last frame is less than or equal to the desired frame duration
-                #if (time.time() - start_time) <= 1/fps: 
-                #    pass
-                #else:
+
                 if method == 'PRA':
                     time_start = time.time()
                     angle = update_polar()
@@ -550,23 +562,25 @@ def main(use_sim=False, ip='localhost', port=2001):
                     #print('updatestart=',datetime.datetime.now().strftime('%Y-%m-%d__%H-%M-%S'))
                     time_end = time.time()
                     #print('delta update cc',time_end - time_start,'sec')
+
                 elif method == 'DAS':
 
                     time_start = time.time()
                     angle, av_above_level = update_das()
- 
-                    print('Angle = ', angle)
-                    print('av ab level = ', av_above_level)
+
+                    #print('Angle = ', angle)
+                    # print('av ab level = ', av_above_level)
                     #angle = int(angle)
                     
                     #print('updatestart=',datetime.datetime.now().strftime('%Y-%m-%d__%H-%M-%S'))
                     time_end = time.time()
                     #print('delta update cc',time_end - time_start,'sec')
+                    start_time_rec = time.time()
 
                 else:
                     print('No valid method provided')
 
-                ground_sensors = robot['prox.ground.reflected']
+#                ground_sensors = robot['prox.ground.reflected']
                 #print('ground = ',robot['prox.ground.reflected'])
                 
 		# Adjust these threshold values as needed
@@ -578,57 +592,57 @@ def main(use_sim=False, ip='localhost', port=2001):
                 speed = 0.5 * max_speed * analyzed_buffer *(1/norm_coefficient) #generic speed of robot while moving 
                 speed = int(speed)
                 #speed = 100
-                print('\nspeed = ',speed, '\n')
-                if angle != None:
-                    turn_speed = 1/90 * (speed*int(angle)) #velocity of the wheels while turning 
-                    turn_speed = int(turn_speed)
-
-                    print('\nturn_speed = ',turn_speed, '\n')
+                #print('\nspeed = ',speed, '\n')
+#                if angle != None:
+#                    turn_speed = 1/90 * (speed*int(angle)) #velocity of the wheels while turning 
+#                    turn_speed = int(turn_speed)
+#
+#                    print('\nturn_speed = ',turn_speed, '\n')
                 #turn_speed = 100
                 direction = random.choice(['left', 'right'])
                 
                 #PROPORTIONAL MOVEMENT
-                if ground_sensors[0] > left_sensor_threshold  and ground_sensors[1]> right_sensor_threshold:
-                    # Both sensors detect the line, turn left
-                    if direction == 'left':
-                        robot['motor.left.target'] = -speed
-                        robot['motor.right.target'] = speed   
-                        time.sleep(0.5) 
-                        pass
-                    else:
-                        robot['motor.left.target'] = speed
-                        robot['motor.right.target'] = -speed
-                        time.sleep(0.5)
-                        pass
-                elif ground_sensors[1] > right_sensor_threshold:
-                    # Only right sensor detects the line, turn left
-                    robot['motor.left.target'] = -speed
-                    robot['motor.right.target'] = speed
-                    time.sleep(waiturn)
-                elif ground_sensors[0] > left_sensor_threshold:
-                    # Only left sensor detects the line, turn right
-                    robot['motor.left.target'] = speed 
-                    robot['motor.right.target'] = -speed 
-                    time.sleep(waiturn) 
-                else:  #attraction or repulsion 
-                    if angle == None: #neutral movement
-                        robot["leds.top"] = [0, 0, 0]
-                        robot['motor.left.target'] = speed
-                        robot['motor.right.target'] = speed
-                        
-                    elif av_above_level > critical_level: #repulsion
-                        robot['motor.left.target'] =  - turn_speed
-                        robot['motor.right.target'] =  turn_speed
-                        time.sleep(waiturn)
-                    else: #attraction
-                        if angle < 0:
-                            robot['motor.left.target'] =   turn_speed
-                            robot['motor.right.target'] =  - turn_speed
-                            time.sleep(waiturn)
-                        else:
-                            robot['motor.left.target'] =   turn_speed
-                            robot['motor.right.target'] = - turn_speed
-                            time.sleep(waiturn)
+#                if ground_sensors[0] > left_sensor_threshold  and ground_sensors[1]> right_sensor_threshold:
+#                    # Both sensors detect the line, turn left
+#                    if direction == 'left':
+#                        robot['motor.left.target'] = -speed
+#                        robot['motor.right.target'] = speed   
+#                        time.sleep(0.5) 
+#                        pass
+#                    else:
+#                        robot['motor.left.target'] = speed
+#                        robot['motor.right.target'] = -speed
+#                        time.sleep(0.5)
+#                        pass
+#                elif ground_sensors[1] > right_sensor_threshold:
+#                    # Only right sensor detects the line, turn left
+#                    robot['motor.left.target'] = -speed
+#                    robot['motor.right.target'] = speed
+#                    time.sleep(waiturn)
+#                elif ground_sensors[0] > left_sensor_threshold:
+#                    # Only left sensor detects the line, turn right
+#                    robot['motor.left.target'] = speed 
+#                    robot['motor.right.target'] = -speed 
+#                    time.sleep(waiturn) 
+#                else:  #attraction or repulsion 
+#                    if angle == None: #neutral movement
+#                        robot["leds.top"] = [0, 0, 0]
+#                        robot['motor.left.target'] = speed
+#                        robot['motor.right.target'] = speed
+#                        
+#                    elif av_above_level > critical_level: #repulsion
+#                        robot['motor.left.target'] =  - turn_speed
+#                        robot['motor.right.target'] =  turn_speed
+#                        time.sleep(waiturn)
+#                    else: #attraction
+#                        if angle < 0:
+#                            robot['motor.left.target'] =   turn_speed
+#                            robot['motor.right.target'] =  - turn_speed
+#                            time.sleep(waiturn)
+#                        else:
+#                            robot['motor.left.target'] =   turn_speed
+#                            robot['motor.right.target'] = - turn_speed
+#                            time.sleep(waiturn)
                 
                 #NON PROPORTIONAL MOVEMENT
 
@@ -731,26 +745,23 @@ def main(use_sim=False, ip='localhost', port=2001):
 #                        case _:
 #                            pass
 #
-
-                # print('delta loop =',time.time()-start_time,'sec')
-                start_time = time.time()
     except Exception as err:
         # Stop robot
-        robot['motor.left.target'] = 0
-        robot['motor.right.target'] = 0 
-        robot["leds.top"] = [0,0,0]
-        print(err)
+#        robot['motor.left.target'] = 0
+#        robot['motor.right.target'] = 0 
+#        robot["leds.top"] = [0,0,0]
+        print('err:',err)
     except KeyboardInterrupt:
-        robot['motor.left.target'] = 0
-        robot['motor.right.target'] = 0
-        robot["leds.top"] = [0,0,0]
+#        robot['motor.left.target'] = 0
+#        robot['motor.right.target'] = 0
+#        robot["leds.top"] = [0,0,0]
         print("Press Ctrl-C again to end the program")    
 
-        save_path = '/home/thymio/robat_py/robat_v0_files/'
-        #save_path = ''
-        folder_name = str(time1) + '_rec_data' 
-        folder_path = os.path.join(save_path, folder_name)
-        os.makedirs(folder_path, exist_ok=True)
+#        save_path = '/home/thymio/robat_py/robat_v0_files/'
+#        #save_path = ''
+#        folder_name = str(time1) + '_rec_data' 
+#        folder_path = os.path.join(save_path, folder_name)
+#        os.makedirs(folder_path, exist_ok=True)
 
         if method == 'CC':
             theta_doa = np.vstack([[qqq.get() for _ in range(qqq.qsize())]]) #recognized angle values
