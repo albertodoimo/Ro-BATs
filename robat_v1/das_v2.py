@@ -1,7 +1,7 @@
 import numpy as np
 from scipy.signal import stft
 
-def das_filter_v2(y, fs, nch, d, bw, theta=np.linspace(-90, 90, 37), c=343):    
+def das_filter_v2(y, fs, nch, d, bw, theta, c=343):    
     """
     Simple multiband Delay-and-Sum spatial filter implementation.
     Parameters:
@@ -22,7 +22,7 @@ def das_filter_v2(y, fs, nch, d, bw, theta=np.linspace(-90, 90, 37), c=343):
     
     for f_c in bands:
         w_s = (2*np.pi*f_c*d*np.sin(np.deg2rad(theta))/c)        
-        a = np.exp(np.outer(np.linspace(0, nch-1, nch), -1j*w_s))
+        a = np.exp(np.outer(np.linspace( nch-1,0, nch), -1j*w_s)) # np.linspace( nch-1,0, nch) = -90>0>90; np.linspace( 0,nch-1, nch) = 90>0>-90
         a_H = a.T.conj()     
         spec = spectrum[f_spec_axis == f_c, :, :].squeeze()
         cov_est = np.cov(spec, bias=True)
