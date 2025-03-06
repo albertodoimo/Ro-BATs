@@ -4,11 +4,12 @@ import sounddevice as sd
 import scipy.signal as signal
 from matplotlib.animation import FuncAnimation
 from das_v2 import das_filter_v2
+from music import music
 
 # Define DAS filter function
 # Constants
 c = 343.0  # speed of sound
-fs = 48000  # sampling frequency
+fs = 96000  # sampling frequency
 mic_spacing = 0.018
 channels = 5
 block_size = 2048
@@ -39,7 +40,8 @@ def update_polar(frame):
     #print(correction)
     in_sig = in_sig0-correction
     print(np.mean(in_sig))
-    theta, spatial_resp = das_filter_v2(in_sig, fs, channels, mic_spacing, freq_range, theta=np.linspace(90, -90, 37))
+    #theta, spatial_resp = das_filter_v2(in_sig, fs, channels, mic_spacing, freq_range, theta=np.linspace(90, -90, 37))
+    theta, spatial_resp = music(in_sig, fs, channels, mic_spacing, freq_range, theta=np.linspace(90, -90, 73), c=343, wlen=64, ns=1)
     print(spatial_resp)
     #spatial_resp = 10 * np.log10(spatial_resp)
     #print(spatial_resp)
@@ -55,13 +57,13 @@ memory, rec = [], []
 fig, ax = plt.subplots(subplot_kw={'projection': 'polar'})
 ax.set_theta_direction(-1)
 ax.set_theta_offset(np.pi / 2)  # Rotate the plot by 90 degrees
-theta = np.linspace(-np.pi/2, np.pi/2, 37)
+theta = np.linspace(-np.pi/2, np.pi/2, 73)
 ax.set_thetamin(-90)
 ax.set_thetamax(90)
 ax.set_xticks(np.pi/180. * np.linspace(-90, 90, 19), labels=np.arange(-90, 91, 10))
 #ax.set_yticks([1e-11, 1e-5])
-values = np.random.rand(37)
+values = np.random.rand(73)
 #values = np.zeros(37)
 line, = ax.plot(theta, values)
-ani = FuncAnimation(fig, update_polar, frames=range(37), blit=False, interval=10)
+ani = FuncAnimation(fig, update_polar, frames=range(73), blit=False, interval=10)
 plt.show()
