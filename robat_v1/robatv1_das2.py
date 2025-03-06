@@ -11,167 +11,106 @@
 print('import libraries...')
 
 import numpy as np
-import matplotlib.pyplot as plt
-import glob
 import pyroomacoustics as pra
 import scipy.signal as signal 
 import sounddevice as sd
 import soundfile as sf
-
-from matplotlib.animation import FuncAnimation
 import argparse
 import queue
-import sys
 import datetime
 import time
-import math
 import random
 import os
-import csv
-import xml.etree.ElementTree as ET
-from scipy.fftpack import fft, ifft
-from scipy.ndimage import gaussian_filter1d
 
+from scipy.ndimage import gaussian_filter1d
 from thymiodirect import Connection 
 from thymiodirect import Thymio
-from scipy import signal
-from das_v2 import das_filter_v2
-from music import music
+from functions.das_v2 import das_filter_v2
+from functions.music import music
+from functions.get_card import get_card 
+from functions.pow_two_pad_and_window import pow_two_pad_and_window
+from functions.check_if_above_level import check_if_above_level
+from functions.calc_multich_delays import calc_multich_delays
+from functions.avar_angle import avar_angle
+from functions.bandpass import bandpass
+from functions.save_data_to_csv import save_data_to_csv
+from functions.save_data_to_xml import save_data_to_xml
 
-print('libraries imported')
+print('imports done')
 
-def get_card(device_list):
-    for i, each in enumerate(device_list):
-        dev_name = each['name']
-        asio_in_name = 'MCHStreamer' in dev_name
-        if asio_in_name:
-            return i
-
-def pow_two_pad_and_window(vec, show = False):
-    window = signal.windows.tukey(len(vec), alpha=0.2)
-    windowed_vec = vec * window
-    padded_windowed_vec = np.pad(windowed_vec, (0, 2**int(np.ceil(np.log2(len(windowed_vec)))) - len(windowed_vec)))
-    if show:
-        dur = len(padded_windowed_vec) / fs
-        t = np.linspace(0, dur, len(windowed_vec))
-        plt.figure()
-        plt.subplot(2, 1, 1)
-        plt.plot(t, windowed_vec)
-        plt.subplot(2, 1, 2)
-        plt.specgram(windowed_vec, NFFT=256, Fs=192e3)
-        plt.show()
-    return padded_windowed_vec/max(padded_windowed_vec)
-
+# Get the index of the USB card
 usb_fireface_index = get_card(sd.query_devices())
 print(sd.query_devices())
 print('usb_fireface_index=',usb_fireface_index)
 
-# Possible algorithms for computing DOA: PRA (pyroomacoustics), CC, DAS
-method = 'DAS'
-#method = 'PRA'
-doa_name = 'MUSIC'
-doa_name = 'SRP'
-
-rand = random.uniform(0.8, 1.2)
-duration_out = 30e-3  # Duration in seconds
-duration_in = rand * 0.5  # Duration in seconds
-duration_in = 500e-3  # Duration in seconds
-amplitude = 0.1
-
+# Parameters for the DOA algorithms
+trigger_level = -60 # dB level ref max pdm
+critical_level = -43 # dB level pdm critical distance
 c = 343   # speed of sound
-fs = 96000
+fs = 48000
 rec_samplerate = 44000
 block_size = 512
 analyzed_buffer = fs/block_size #theoretical buffers analyzed each second 
 channels = 5
 mic_spacing = 0.018 #m
+nfft = 512
 ref = channels//2 #central mic in odd array as ref
-print('ref=',ref) 
+#print('ref=',ref) 
 #ref= 0 #left most mic as reference
+critical = []
+# print('critical', np.size(critical))
+
+# Possible algorithms for computing DOA: PRA (pyroomacoustics), CC, DAS
+method = 'CC'
+
+doa_name = 'MUSIC'
+doa_name = 'SRP'
+
+# Parameters for the CC algorithm
+avar_theta = None
+theta_values   = []
+
+# Parameters for the PRA algorithm
+echo = pra.linear_2D_array(center=[(channels-1)*mic_spacing//2,0], M=channels, phi=0, d=mic_spacing)
+
+# Parameters for the DAS algorithm
 theta_das = np.linspace(-90, 90, 61) # angles resolution for DAS spectrum
-N_peaks = 1 # Number of peaks to detect in DAS
+N_peaks = 1 # Number of peaks to detect in DAS spectrum
 
-hi_freq =  1e3
-low_freq = 20e3
+# Parameters for the chirp signal
+rand = random.uniform(0.8, 1.2)
+duration_out = 300e-3  # Duration in seconds
+duration_in = rand * 0.5  # Duration in seconds
+duration_in = 500e-3  # Duration in seconds
+amplitude = 0.1 # Amplitude of the chirp
 
+# Generate a chirp signal
+low_freq = 1e3 # [Hz]
+hi_freq =  20e3 # [Hz]
 t_tone = np.linspace(0, duration_out, int(fs*duration_out))
-chirp = signal.chirp(t_tone, hi_freq, t_tone[-1], low_freq)
-sig = pow_two_pad_and_window(chirp, show=True)
-
+chirp = signal.chirp(t_tone, low_freq, t_tone[-1], hi_freq)
+sig = pow_two_pad_and_window(chirp, fs = fs, show=False)
 silence_dur = 20 # [ms]
 silence_samples = int(silence_dur * fs/1000)
 silence_vec = np.zeros((silence_samples, ))
 full_sig = np.concatenate((sig, silence_vec))
 print('len = ', len(full_sig))
 stereo_sig = np.hstack([full_sig.reshape(-1, 1), full_sig.reshape(-1, 1)])
-
 data = amplitude * np.float32(stereo_sig)
 
+# Calculate highpass and lowpass frequencies based on the array geometry
 auto_hipas_freq = int(343/(2*(mic_spacing*(channels-1))))
 print('HP frequency:', auto_hipas_freq)
 auto_lowpas_freq = int(343/(2*mic_spacing))
 print('LP frequency:', auto_lowpas_freq)
-
 highpass_freq, lowpass_freq = [auto_hipas_freq ,auto_lowpas_freq]
 freq_range = [highpass_freq, lowpass_freq]
 freq_range = [hi_freq, low_freq]
 
-nyq_freq = fs/2.0
-b, a = signal.butter(4, [highpass_freq/nyq_freq,lowpass_freq/nyq_freq],btype='bandpass') # to be 'allowed' in Hz.
-
-trigger_level = -60 # dB level ref max pdm
-critical_level = -43 # dB level pdm critical distance
-critical = []
-print('critical', np.size(critical))
-echo = pra.linear_2D_array(center=[(channels-1)*mic_spacing//2,0], M=channels, phi=0, d=mic_spacing)
-
-print('loading functions...')
-
+# Create queues for storing data
 q = queue.Queue()
 qq = queue.Queue()
 qqq = queue.Queue()
-
-def bandpass_sound(rec_buffer,a,b):
-    """
-    """
-    rec_buffer_bp = np.apply_along_axis(lambda X : signal.lfilter(b, a, X),0, rec_buffer)
-    return(rec_buffer_bp)
-
-def check_if_above_level(mic_inputs,trigger_level):
-    """Checks if the dB rms level of the input recording buffer is above
-    threshold. If any of the microphones are above the given level then 
-    recording is initiated. 
-    
-    Inputs:
-        
-        mic_inputs : Nsamples x Nchannels np.array. Data from soundcard
-        
-        level : integer <=0. dB rms ref max . If the input data buffer has an
-                dB rms >= this value then True will be returned. 
-                
-    Returns:
-        
-        above_level : Boolean. True if the buffer dB rms is >= the trigger_level
-    """ 
-
-    dBrms_channel = np.apply_along_axis(calc_dBrms, 0, mic_inputs)   
-    #print('dBrms_channel=',dBrms_channel)     
-    above_level = np.any( dBrms_channel >= trigger_level)
-    #print('above level =',above_level)
-    return(above_level,dBrms_channel)
-
-def calc_dBrms(one_channel_buffer):
-    """
-    """
-    squared = np.square(one_channel_buffer)
-    mean_squared = np.mean(squared)
-    root_mean_squared = np.sqrt(mean_squared)
-    #print('rms',root_mean_squared)
-    try:
-        dB_rms = 20.0*np.log10(root_mean_squared)
-    except ValueError:
-        dB_rms = -np.inf
-    return(dB_rms)
 
 # Stream callback function
 current_frame = 0
@@ -234,102 +173,6 @@ def record(rec_counter,time1):
         file.write(rec2besaved)
     print(f'\nsaved to {full_path}\n')
 
-def calc_delay(two_ch,fs):
-    
-    '''
-    Parameters
-    ----------
-    two_ch : (Nsamples, 2) np.array
-        Input audio buffer
-    ba_filt : (2,) tuple
-        The coefficients of the low/high/band-pass filter
-    fs : int, optional
-        Frequency of sampling in Hz. Defaults to 44.1 kHz
-
-    Returns
-    -------
-    delay : float
-        The time-delay in seconds between the arriving audio across the 
-        channels. 
-    '''
-    for each_column in range(2):
-        two_ch[:,each_column] = two_ch[:,each_column]
-
-    cc = np.correlate(two_ch[:,0],two_ch[:,1],'same')
-    midpoint = cc.size/2.0
-    delay = np.argmax(cc) - midpoint
-    # convert delay to seconds
-    delay *= 1/float(fs)
-    return delay
-
-def gcc_phat(sig,refsig, fs):
-    # Compute the cross-correlation between the two signals
-    #sig = sig[:,1]
-    
-    n = sig.shape[0] + refsig.shape[0]
-    SIG = fft(sig, n=n)
-    REFSIG = fft(refsig, n=n)
-    R = SIG * np.conj(REFSIG)
-    cc = np.fft.ifft(R / np.abs(R))
-    max_shift = int(np.floor(n / 2))
-    cc = np.concatenate((cc[-max_shift:], cc[:max_shift+1]))
-    #plt.plot(cc)
-    #plt.show()
-    #plt.title('gcc-phat')
-    shift = np.argmax(np.abs(cc)) - max_shift
-    return -shift / float(fs)
-
-def calc_multich_delays(multich_audio,ref_sig,fs):
-    '''s
-    Calculates peak delay based with reference of 
-    channel 1. 
-    '''
-    nchannels = multich_audio.shape[1]
-    delay_set = []
-    delay_set_gcc = []
-    i=0
-    while i < nchannels:
-        if i != ref:
-            #print(i)
-            
-            #delay_set.append(calc_delay(multich_audio[:,[ref, i]],fs)) #cc without phat norm
-            delay_set.append(gcc_phat(multich_audio[:,i],ref_sig,fs)) #gcc phat correlation
-            i+=1
-        else:
-            #print('else',i)
-            i+=1
-            pass
-
-    #print('delay=',delay_set)
-    #print('delay gcc=',delay_set_gcc)
-    return np.array(delay_set)
-
-def avar_angle(delay_set,nchannels,mic_spacing):
-    '''
-    calculates the mean angle of arrival to the array
-    with channel 1 as reference
-    '''
-    theta = []
-    #print('delay_set=', delay_set)
-    if ref!=0: #centered reference that works with odd mics
-        for each in range(0, nchannels//2):
-            #print('\n1',each)
-            #print('1',nchannels//2-each)
-            theta.append(-np.arcsin((delay_set[each]*343)/((nchannels//2-each)*mic_spacing))) # rad
-            i=nchannels//2-each
-            #print('i=',i)
-        for each in range(nchannels//2, nchannels-1):
-            #print('\n2',each)
-            #print('2',i)
-            theta.append(np.arcsin((delay_set[each]*343)/((i)*mic_spacing))) # rad
-            i+=1
-    else:   
-        for each in range(0, nchannels-1):
-            theta.append(np.arcsin((delay_set[each]*343)/((each+1)*mic_spacing))) # rad
-    #print('theta',theta)
-    avar_theta = np.mean(theta)
-    return avar_theta
-   
 def int_or_str(text):
     """Helper function for argument parsing."""
     try:
@@ -337,48 +180,25 @@ def int_or_str(text):
     except ValueError:
         return text
 
-def save_data_to_csv(matrix, filename, path):
-    full_path = os.path.join(path, filename)
-    with open(full_path, "w", newline='') as file:
-        writer = csv.writer(file)
-        writer.writerows(matrix)
-    print(f"Matrix has been saved as csv to {full_path}")
-
-def save_data_to_xml(matrix, filename, path):
-    full_path = os.path.join(path, filename)
-    root = ET.Element("matrix")
-    for row in matrix:
-        row_elem = ET.SubElement(root, "row")
-        for val in row:
-            val_elem = ET.SubElement(row_elem, "val")
-            val_elem.text = str(val)
-    
-    tree = ET.ElementTree(root)
-    tree.write(full_path)
-    print(f"Matrix has been saved as xml to {full_path}")
-
-avar_theta = None
-theta_values   = []
-
 def update():
 
-    in_sig = args.buffer
-
+    correction=np.mean(args.buffer)
+    in_sig = args.buffer-correction
     ref_channels = in_sig
     #print(np.shape(in_sig))
     #print(in_sig)
     #print('ref_channels=', np.shape(ref_channels))
-    ref_channels_bp = bandpass_sound(ref_channels,a,b)
+    ref_channels_bp = bandpass(ref_channels,highpass_freq,lowpass_freq,fs)
     #print('ref_channels_bp=', np.shape(ref_channels_bp))
     above_level,dBrms_channel = check_if_above_level(ref_channels_bp,trigger_level)
     #print(above_level)
     av_above_level = np.mean(dBrms_channel)
     print(av_above_level)
     ref_sig = in_sig[:,ref]
-    delay_crossch= calc_multich_delays(in_sig,ref_sig, fs)
+    delay_crossch= calc_multich_delays(in_sig,ref_sig,fs,ref)
 
     # calculate avarage angle
-    avar_theta = avar_angle(delay_crossch,channels,mic_spacing)
+    avar_theta = avar_angle(delay_crossch,channels,mic_spacing,ref)
     time3 = datetime.datetime.now()
     avar_theta1 = np.array([avar_theta, time3.strftime('%H:%M:%S.%f')[:-3]])
 
@@ -393,8 +213,8 @@ def update():
 
 
         #calculate avarage angle
-        #avar_theta = avar_angle(delay_crossch,channels,mic_spacing)
-        #avar_theta = avar_angle(delay_crossch_gcc,channels,mic_spacing)
+        #avar_theta = avar_angle(delay_crossch,channels,mic_spacing,ref)
+        #avar_theta = avar_angle(delay_crossch_gcc,channels,mic_spacing,ref)
         
         print('avarage theta deg = ', np.rad2deg(avar_theta))
         return np.rad2deg(avar_theta), av_above_level
@@ -434,16 +254,13 @@ def update_polar():
 
     ref_channels = in_sig
     #print('ref_channels=', np.shape(ref_channels))
-    ref_channels_bp = bandpass_sound(ref_channels,a,b)
+    ref_channels_bp = bandpass(ref_channels,highpass_freq,lowpass_freq,fs)
     #print('ref_channels_bp=', np.shape(ref_channels_bp))
     above_level,dBrms_channel = check_if_above_level(ref_channels_bp,trigger_level)
     #print(above_level)
     av_above_level = np.mean(dBrms_channel)
     #print(av_above_level)
 
-
-
-    
     if av_above_level > critical_level:
         theta_pra = critical
         print('critical')
@@ -471,8 +288,8 @@ def update_das():
 
     #print('buffer', np.shape(in_sig))
     #starttime = time.time()
-    theta, spatial_resp = das_filter_v2(in_sig, fs, channels, mic_spacing, freq_range, theta=theta_das)
-    #theta, spatial_resp = music(in_sig, fs, channels, mic_spacing, freq_range, theta=theta_das)
+    #theta, spatial_resp = das_filter_v2(in_sig, fs, channels, mic_spacing, freq_range, theta=theta_das)
+    theta, spatial_resp = music(in_sig, fs, channels, mic_spacing, freq_range, theta=theta_das, show = False)
     
     #print(time.time()-starttime)
     # find the spectrum peaks 
@@ -519,15 +336,6 @@ def main(use_sim=False, ip='localhost', port=2001):
             args.filename = 'MULTIWAV_' + str(time1) + '.wav'
         print(args.samplerate)
 
-#        while True: 
-#            current_frame = 0       
-#            with sd.Stream(samplerate=fs,
-#                                blocksize=0, 
-#                                device=usb_fireface_index, 
-#                                channels=(channels,2),
-#                                callback=callback,
-#                                latency='low') as stream:
-#
         while True: 
             current_frame = 0       
             with sd.OutputStream(samplerate=fs,
@@ -539,7 +347,6 @@ def main(use_sim=False, ip='localhost', port=2001):
                                 while out_stream.active:
                                     robot['motor.left.target'] = 0
                                     robot['motor.right.target'] = 0
-            #out_stream.stop()
             start_time = time.time()
 
             with sd.InputStream(samplerate=fs, device=usb_fireface_index,channels=channels, callback=callback_in, blocksize=block_size) as input_stream:
@@ -585,7 +392,7 @@ def main(use_sim=False, ip='localhost', port=2001):
 #                    # print('delta save=',time.time()-start_time_rec,'sec')
 #                    #print('startime = ',start_time_rec)
 
-                # Check if the elapsed time since the last frame is less than or equal to the desired frame duration
+                    # Check if the elapsed time since the last frame is less than or equal to the desired frame duration
 
                     if method == 'PRA':
                         time_start = time.time()
@@ -619,7 +426,7 @@ def main(use_sim=False, ip='localhost', port=2001):
                         in_sig = args.buffer-correction
                         ref_channels = in_sig
                         #print('ref_channels=', np.shape(ref_channels))
-                        ref_channels_bp = bandpass_sound(ref_channels,a,b)
+                        ref_channels_bp = bandpass(ref_channels,highpass_freq,lowpass_freq,fs)
                         #print('ref_channels_bp=', np.shape(ref_channels_bp))
                         above_level, dBrms_channel = check_if_above_level(ref_channels_bp,trigger_level)
                         #print(above_level)
@@ -653,7 +460,7 @@ def main(use_sim=False, ip='localhost', port=2001):
                     ground_sensors = robot['prox.ground.reflected']
                     #print('ground = ',robot['prox.ground.reflected'])
                     
-            # Adjust these threshold values as needed
+                    # Adjust these threshold values as needed
                     left_sensor_threshold = 300
                     right_sensor_threshold = 300	
 
@@ -662,16 +469,14 @@ def main(use_sim=False, ip='localhost', port=2001):
                     max_speed = 400 #to be verified 
                     speed = 0.5 * max_speed * analyzed_buffer *(1/norm_coefficient) #generic speed of robot while moving 
                     speed = int(speed)
-                    #speed = 100
                     #print('\nspeed = ',speed, '\n')
                     if angle != None:
                         turn_speed = 1/90 * (speed*int(angle)) #velocity of the wheels while turning 
                         turn_speed = int(turn_speed)
 
                         print('\nturn_speed = ',turn_speed, '\n')
-                    #turn_speed = 100
                     direction = random.choice(['left', 'right'])
-                    
+                    turn_speed = 100
                         #PROPORTIONAL MOVEMENT
                     if ground_sensors[0] > left_sensor_threshold  and ground_sensors[1]> right_sensor_threshold:
                         # Both sensors detect the line, turn left
@@ -717,11 +522,10 @@ def main(use_sim=False, ip='localhost', port=2001):
                                 time.sleep(waiturn)
 
                         #print('delta robot',time.time() - time_start_robot,'sec')
-#               else:
-#                   robot['motor.left.target'] = 0
-#                   robot['motor.right.target'] = 0
+                else:
+                    robot['motor.left.target'] = 0
+                    robot['motor.right.target'] = 0
 
-                    
     except Exception as err:
         # Stop robot
         robot['motor.left.target'] = 0
@@ -784,10 +588,7 @@ def main(use_sim=False, ip='localhost', port=2001):
 #                        channels=args.channels, subtype=args.subtype) as file:
 #            file.write(rec2besaved)
 #            print(f'\nsaved to {args.filename}\n')
-#        sd.stop()
         
-
-print('functions loaded')
 
 if __name__ == '__main__':
     # Parse commandline arguments to cofigure the interface for a simulation (default = real robot)

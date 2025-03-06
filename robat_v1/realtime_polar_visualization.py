@@ -3,14 +3,15 @@ import matplotlib.pyplot as plt
 import sounddevice as sd
 import scipy.signal as signal
 from matplotlib.animation import FuncAnimation
-from das_v2 import das_filter_v2
-from music import music
+# "functions" directory must be in the same path of this file
+from functions.das_v2 import das_filter_v2 
+from functions.music import music
 
 # Define DAS filter function
 # Constants
 c = 343.0  # speed of sound
-fs = 96000  # sampling frequency
-mic_spacing = 0.018
+fs = 48000  # sampling frequency
+mic_spacing = 0.018  # meters
 channels = 5
 block_size = 2048
 freq_range = [1000, 20000]
@@ -39,17 +40,16 @@ def update_polar(frame):
     correction=np.mean(in_sig0)
     #print(correction)
     in_sig = in_sig0-correction
-    print(np.mean(in_sig))
-    #theta, spatial_resp = das_filter_v2(in_sig, fs, channels, mic_spacing, freq_range, theta=np.linspace(90, -90, 37))
-    theta, spatial_resp = music(in_sig, fs, channels, mic_spacing, freq_range, theta=np.linspace(90, -90, 73), c=343, wlen=64, ns=1)
-    print(spatial_resp)
-    #spatial_resp = 10 * np.log10(spatial_resp)
+    #print(np.mean(in_sig))
+    theta, spatial_resp = das_filter_v2(in_sig, fs, channels, mic_spacing, freq_range, theta=np.linspace(90, -90, 73))
+    #theta, spatial_resp = music(in_sig, fs, channels, mic_spacing, freq_range, theta=np.linspace(90, -90, 73), c=343, wlen=64, ns=1)
     #print(spatial_resp)
-    spatial_resp = (spatial_resp - spatial_resp.min()) / (spatial_resp.max() - spatial_resp.min())
+    #spatial_resp = 10 * np.log10(spatial_resp)
+    #print(spatial_resp)    spatial_resp = (spatial_resp - spatial_resp.min()) / (spatial_resp.max() - spatial_resp.min())
     #window = signal.windows.tukey(37,alpha=1)
     #spatial_resp = spatial_resp * window
     line.set_ydata(spatial_resp)
-    print(line.get_ydata())
+    #print(line.get_ydata())
     return line,
 
 initialization()

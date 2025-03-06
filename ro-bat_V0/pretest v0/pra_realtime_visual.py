@@ -24,10 +24,10 @@ from matplotlib.animation import FuncAnimation
         # the max_four parameter is necessary for FRIDA only
 
 c = 343.    # speed of sound
-fs = 48000  # sampling frequency
+fs = 96000  # sampling frequency
 
 mic_spacing = 0.018 #m
-channels = 7
+channels = 5
 block_size  = 2048
 nfft = block_size//4  # FFT size
 print('\nframes per second = ',fs//block_size, '\n' )
@@ -79,7 +79,9 @@ def update_polar(frame):
     global rec
 
     in_sig,status = S.read(S.blocksize)
-
+    correction=np.mean(in_sig)
+    print(correction)
+    in_sig = in_sig-correction
     memory.append(in_sig)
     rec = np.concatenate(memory)
     #print('input audio plot = ', np.shape(rec))
@@ -87,7 +89,7 @@ def update_polar(frame):
     X = pra.transform.stft.analysis(in_sig, nfft, nfft // 2)
     X = X.transpose([2, 1, 0])
 
-    doa = pra.doa.algorithms['MUSIC'](echo, fs, nfft, c=c, num_src=2)
+    doa = pra.doa.algorithms['MUSIC'](echo, fs, nfft, c=c, num_src=1)
     doa.locate_sources(X, freq_range=freq_range)
     print(doa.azimuth_recon * 180 / np.pi) #degrees 
 
@@ -129,7 +131,7 @@ values = np.random.rand(360)
 line, = ax.plot(theta, values)
 
 # Set up the animation
-ani = FuncAnimation(fig, update_polar, frames=range(360), blit=False, interval= 50)
+ani = FuncAnimation(fig, update_polar, frames=range(360), blit=False, interval= 10)
 
 plt.show()
 #print('input audio plot lastlast = ', np.shape(rec))
