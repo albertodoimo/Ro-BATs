@@ -35,6 +35,7 @@ from functions.avar_angle import avar_angle
 from functions.bandpass import bandpass
 from functions.save_data_to_csv import save_data_to_csv
 from functions.save_data_to_xml import save_data_to_xml
+from RobotMove import RobotMove
 
 print('imports done')
 
@@ -61,7 +62,7 @@ critical = []
 # print('critical', np.size(critical))
 
 # Possible algorithms for computing DOA: PRA (pyroomacoustics), CC, DAS
-method = 'CC'
+method = 'DAS'
 
 doa_name = 'MUSIC'
 doa_name = 'SRP'
@@ -113,6 +114,213 @@ qq = queue.Queue()
 qqq = queue.Queue()
 
 # Stream callback function
+class AudioProcessor:
+    def __init__(self, fs, channels, block_size, data, args, trigger_level, critical_level, mic_spacing, ref, highpass_freq, lowpass_freq, theta_das, N_peaks):
+        self.fs = fs
+        self.channels = channels
+        self.block_size = block_size
+        self.data = data
+        self.args = args
+        self.trigger_level = trigger_level
+        self.critical_level = critical_level
+        self.mic_spacing = mic_spacing
+        self.ref = ref
+        self.highpass_freq = highpass_freq
+        self.lowpass_freq = lowpass_freq
+        self.theta_das = theta_das
+        self.N_peaks = N_peaks
+        self.q = queue.Queue()
+        self.qq = queue.Queue()
+        self.qqq = queue.Queue()
+        self.current_frame = 0
+
+    def callback_out(self, outdata, frames, time, status):
+        if status:
+            print(status)
+        chunksize = min(len(self.data) - self.current_frame, frames)
+        outdata[:chunksize] = self.data[self.current_frame:self.current_frame + chunksize]
+        if chunksize < frames:
+            outdata[chunksize:] = 0
+            self.current_frame = 0  # Reset current_frame after each iteration
+            raise sd.CallbackStop()
+        self.current_frame += chunksize
+            
+    def callback_in(self, indata, frames, time, status):
+        """This is called (from a separate thread) for each audio block."""
+        #correction=np.mean(indata)
+        #print(correction)
+        #in_sig = indata-correction
+        self.q.put((indata).copy())
+        self.args.buffer = ((indata).copy())
+        
+    def callback(self, indata, outdata, frames, time, status):
+        if status:
+            print(status)
+        chunksize = min(len(self.data) - self.current_frame, frames)
+        outdata[:chunksize] = self.data[self.current_frame:self.current_frame + chunksize]
+        if chunksize < frames:
+            outdata[chunksize:] = 0
+            self.current_frame = 0  # Reset current_frame after each iteration
+            raise sd.CallbackStop()
+        self.current_frame += chunksize
+        self.q.put((indata).copy())
+        self.args.buffer = ((indata).copy())
+
+    def record(self, rec_counter, time1):
+        q_contents = [self.q.get() for _ in range(self.q.qsize())]
+
+        #print('q_contents = ', np.shape(q_contents))
+        rec = np.concatenate(q_contents)
+        #print('rec = ', np.shape(rec))
+
+
+        rec2besaved = rec[:, :self.channels]
+        save_path = '/home/thymio/robat_py/robat_v0_files/'
+        #save_path = ''
+        # Create folder with args.filename (without extension)
+        folder_name = str(time1) + '_MULTIWAV'  
+        folder_path = os.path.join(save_path, folder_name)
+        os.makedirs(folder_path, exist_ok=True)
+        save_path = folder_path
+
+        timenow = datetime.datetime.now()
+        time2 = timenow.strftime('%Y-%m-%d__%H-%M-%S')
+        full_path = os.path.join(save_path, str(rec_counter)+'__'+time2+'.wav')
+        with sf.SoundFile(full_path, mode='x', samplerate=rec_samplerate,
+                    channels=args.channels, subtype=args.subtype) as file:
+            file.write(rec2besaved)
+        print(f'\nsaved to {full_path}\n')
+
+    def update(self):
+        correction=np.mean(self.args.buffer)
+        in_sig = self.args.buffer-correction
+        ref_channels = in_sig
+        #print(np.shape(in_sig))
+        #print(in_sig)
+        #print('ref_channels=', np.shape(ref_channels))
+        ref_channels_bp = bandpass(ref_channels,self.highpass_freq,self.lowpass_freq,self.fs)
+        #print('ref_channels_bp=', np.shape(ref_channels_bp))
+        above_level,dBrms_channel = check_if_above_level(ref_channels_bp,self.trigger_level)
+        #print(above_level)
+        av_above_level = np.mean(dBrms_channel)
+        #print(av_above_level)
+        ref_sig = in_sig[:,self.ref]
+        delay_crossch= calc_multich_delays(in_sig,ref_sig,self.fs,self.ref)
+
+        # calculate avarage angle
+        avar_theta = avar_angle(delay_crossch,self.channels,self.mic_spacing,self.ref)
+        time3 = datetime.datetime.now()
+        avar_theta1 = np.array([avar_theta, time3.strftime('%H:%M:%S.%f')[:-3]])
+
+        #print('avarage theta',avar_theta1)
+
+        self.qqq.put(avar_theta1.copy()) # store detected angle value
+        #if av_above_level > critical_level:
+        #    avar_theta = critical
+        #    return avar_theta
+            
+        if av_above_level > self.trigger_level:
+
+
+            #calculate avarage angle
+            #avar_theta = avar_angle(delay_crossch,channels,mic_spacing,ref)
+            #avar_theta = avar_angle(delay_crossch_gcc,channels,mic_spacing,ref)
+            
+            print('avarage theta deg = ', np.rad2deg(avar_theta))
+            return np.rad2deg(avar_theta), av_above_level
+        else:
+            avar_theta = None
+            return avar_theta, av_above_level
+
+    def update_polar(self):
+        # Your streaming data source logic goes here
+
+        in_sig = self.args.buffer
+        #print('buffer', np.shape(in_sig))
+
+        X = pra.transform.stft.analysis(in_sig, nfft, nfft // 2)
+        X = X.transpose([2, 1, 0])
+
+        doa = pra.doa.algorithms[doa_name](echo, self.fs, nfft, c=c, num_src=2, max_four=2)
+        doa.locate_sources(X, freq_range=freq_range)
+        #print('azimuth_recon=',doa.azimuth_recon) # rad value of detected angles
+        theta_pra_deg = (doa.azimuth_recon * 180 / np.pi) 
+        #print('theta=',theta_pra_deg) #degrees value of detected angles
+
+        spatial_resp = doa.grid.values # 360 values for plot
+        #print('spat_resp',spatial_resp) 
+
+        # normalize   
+        min_val = spatial_resp.min()
+        max_val = spatial_resp.max()
+        spatial_resp = (spatial_resp - min_val) / (max_val - min_val)
+        time3 = datetime.datetime.now()
+
+        spatial_resp = np.hstack([spatial_resp, np.array(time3.strftime('%H:%M:%S.%f')[:-3])])
+        
+
+        self.qq.put(spatial_resp.copy())
+        self.qqq.put(doa.azimuth_recon.copy())
+
+        ref_channels = in_sig
+        #print('ref_channels=', np.shape(ref_channels))
+        ref_channels_bp = bandpass(ref_channels,self.highpass_freq,self.lowpass_freq,self.fs)
+        #print('ref_channels_bp=', np.shape(ref_channels_bp))
+        above_level,dBrms_channel = check_if_above_level(ref_channels_bp,self.trigger_level)
+        #print(above_level)
+        av_above_level = np.mean(dBrms_channel)
+        #print(av_above_level)
+
+        if av_above_level > self.critical_level:
+            theta_pra = critical
+            print('critical')
+            return theta_pra
+
+        elif av_above_level > self.trigger_level:
+
+            if theta_pra_deg[0]<=180:
+                theta_pra = 90-theta_pra_deg[0]
+                print('pra theta deg 0', theta_pra)
+                return theta_pra
+            elif theta_pra_deg[1]<=180:
+                theta_pra = 90-theta_pra_deg[1]
+                print('pra theta deg 1', theta_pra)
+                return theta_pra
+            else:
+                theta_pra = None
+                return theta_pra
+
+    def update_das(self):
+        # Update  with the DAS algorithm
+
+        correction=np.mean(self.args.buffer)
+        in_sig = self.args.buffer-correction
+
+        #print('buffer', np.shape(in_sig))
+        #starttime = time.time()
+        #theta, spatial_resp = das_filter_v2(in_sig, fs, channels, mic_spacing, freq_range, theta=theta_das)
+        theta, spatial_resp = music(in_sig, self.fs, self.channels, self.mic_spacing, [self.highpass_freq, self.lowpass_freq], theta=self.theta_das, show = False)
+        
+        #print(time.time()-starttime)
+        # find the spectrum peaks 
+
+        spatial_resp = gaussian_filter1d(spatial_resp, sigma=4)
+        peaks, _ = signal.find_peaks(spatial_resp)  # Adjust height as needed
+        # peak_angle = theta_das[np.argmax(spatial_resp)]
+        peak_angles = theta[peaks]
+        N = self.N_peaks # Number of peaks to keep
+
+        # Sort peaks by their height and keep the N largest ones
+        peak_heights = spatial_resp[peaks]
+        top_n_peak_indices = np.argsort(peak_heights)[-N:]  # Indices of the N largest peaks # Indices of the N largest peaks
+        top_n_peak_indices = top_n_peak_indices[::-1]
+        peak_angles = theta[peaks[top_n_peak_indices]]  # Corresponding angles
+        print('peak angles', peak_angles)
+
+        return peak_angles
+        print('Angle = ', peak_angles)
+        #qq.put(spatial_resp.copy())
+
 current_frame = 0
 def callback_out(outdata, frames, time, status):
     global current_frame
@@ -169,7 +377,7 @@ def record(rec_counter,time1):
     time2 = timenow.strftime('%Y-%m-%d__%H-%M-%S')
     full_path = os.path.join(save_path, str(rec_counter)+'__'+time2+'.wav')
     with sf.SoundFile(full_path, mode='x', samplerate=rec_samplerate,
-                channels=args.channels, subtype=args.subtype) as file:\
+                channels=args.channels, subtype=args.subtype) as file:
         file.write(rec2besaved)
     print(f'\nsaved to {full_path}\n')
 
@@ -314,30 +522,9 @@ def update_das():
 def main(use_sim=False, ip='localhost', port=2001):
     ''' Main function '''
     try:
-        global startime
-        # Configure Interface to Thymio robot
-        # simulation
-        port = Connection.serial_default_port()
-        th = Thymio(serial_port=port, 
-                    on_connect=lambda node_id: print(f'Thymio {node_id} is connected'))
-        # Connect to Robot
-        th.connect()
-        robot = th[th.first_node()]
-
-        startime = datetime.datetime.now()
-        args.samplerate = fs
-        if args.samplerate is None:  
-            print('error!: no samplerate set! Using default')
-            device_info = sd.query_devices(args.device, 'input')
-            args.samplerate = int(device_info['default_samplerate'])
-        if args.filename is None:
-            timenow = datetime.datetime.now()
-            time1 = timenow.strftime('%Y-%m-%d__%H-%M-%S')
-            args.filename = 'MULTIWAV_' + str(time1) + '.wav'
-        print(args.samplerate)
-
         while True: 
-            current_frame = 0       
+            current_frame = 0 
+            start_time = time.time()      
             with sd.OutputStream(samplerate=fs,
                                 blocksize=0, 
                                 device=usb_fireface_index, 
@@ -347,11 +534,12 @@ def main(use_sim=False, ip='localhost', port=2001):
                                 while out_stream.active:
                                     robot['motor.left.target'] = 0
                                     robot['motor.right.target'] = 0
+            print('out time =', time.time() - start_time)                       
             start_time = time.time()
 
             with sd.InputStream(samplerate=fs, device=usb_fireface_index,channels=channels, callback=callback_in, blocksize=block_size) as input_stream:
                 while time.time() - start_time < duration_in:
-                    #print('in time =', time.time() - start_time)
+                    
 
 #            while True:
 #                if (time.time() - start_time_rec) <= 45: #seconds
@@ -396,14 +584,14 @@ def main(use_sim=False, ip='localhost', port=2001):
 
                     if method == 'PRA':
                         time_start = time.time()
-                        angle = update_polar()
+                        angle = AudioProcessor.update_polar()
                         #print('Angle = ', angle)
                         time_end = time.time()
                         #print('delta update pra',time_end - time_start,'sec')
 
                     elif method == 'CC':
-                        time_start = time.time()
-                        angle, av_above_level = update()
+                        angle, av_above_level = audio_processor.update()
+                        #angle, av_above_level = AudioProcessor.update()
                         if isinstance(angle, (int, float, np.number)):
                             if np.isnan(angle):
                                 angle = None
@@ -435,7 +623,7 @@ def main(use_sim=False, ip='localhost', port=2001):
 
                         if av_above_level > critical_level:
                             print('critical')
-                            angle = update_das()
+                            angle = audio_processor.update_das()
 
                         elif av_above_level > trigger_level:
                             angle = update_das()
@@ -477,7 +665,11 @@ def main(use_sim=False, ip='localhost', port=2001):
                         print('\nturn_speed = ',turn_speed, '\n')
                     direction = random.choice(['left', 'right'])
                     turn_speed = 500
-                        #PROPORTIONAL MOVEMENT
+
+                    #PROPORTIONAL MOVEMENT
+                    robot_move.move_forward(speed)
+                    print('done')
+
                     if ground_sensors[0] > left_sensor_threshold  and ground_sensors[1]> right_sensor_threshold:
                         # Both sensors detect the line, turn left
                         if direction == 'left':
@@ -523,6 +715,7 @@ def main(use_sim=False, ip='localhost', port=2001):
 
                         #print('delta robot',time.time() - time_start_robot,'sec')
                 else:
+                    print('in time =', time.time() - start_time)
                     robot['motor.left.target'] = 0
                     robot['motor.right.target'] = 0
 
@@ -536,7 +729,7 @@ def main(use_sim=False, ip='localhost', port=2001):
         robot['motor.left.target'] = 0
         robot['motor.right.target'] = 0
         robot["leds.top"] = [0,0,0]
-        print("Press Ctrl-C again to end the program")    
+        print("Press Ctrl-C again to end the program")       
 
 #        save_path = '/home/thymio/robat_py/robat_v0_files/'
 #        #save_path = ''
@@ -631,4 +824,27 @@ if __name__ == '__main__':
     # Parse arguments and pass them to main function
     args = parser.parse_args()
     args.buffer = np.zeros((block_size, channels))
+
+    # Configure Interface to Thymio robot
+    
+    port = Connection.serial_default_port()
+    th = Thymio(serial_port=port, 
+                on_connect=lambda node_id: print(f'Thymio {node_id} is connected'))
+    # Connect to Robot
+    th.connect()
+    robot = th[th.first_node()]
+
+    startime = datetime.datetime.now()
+    args.samplerate = fs
+    if args.samplerate is None:  
+        print('error!: no samplerate set! Using default')
+        device_info = sd.query_devices(args.device, 'input')
+        args.samplerate = int(device_info['default_samplerate'])
+    if args.filename is None:
+        timenow = datetime.datetime.now()
+        time1 = timenow.strftime('%Y-%m-%d__%H-%M-%S')
+        args.filename = 'MULTIWAV_' + str(time1) + '.wav'
+    print(args.samplerate)
+    audio_processor = AudioProcessor(fs, channels, block_size, data, args, trigger_level, critical_level, mic_spacing, ref, highpass_freq, lowpass_freq, theta_das, N_peaks)
+    robot_move = RobotMove()
     main(args.sim, args.ip, args.port)
