@@ -345,186 +345,190 @@ def main(use_sim=False, ip='localhost', port=2001):
                                 callback=callback_out,
                                 latency='low') as out_stream:
                                 while out_stream.active:
-                                    robot['motor.left.target'] = 0
-                                    robot['motor.right.target'] = 0
+                                    pass
+#                                    robot['motor.left.target'] = 0
+#                                    robot['motor.right.target'] = 0
             start_time = time.time()
+            with sf.SoundFile(args.filename, mode='x', samplerate=args.samplerate,
+                      channels=args.channels, subtype=args.subtype) as file:
+                
+                with sd.InputStream(samplerate=fs, device=usb_fireface_index,channels=channels, callback=callback_in, blocksize=block_size) as input_stream:
+                    file.write(q.get())
+                    while time.time() - start_time < duration_in:
+                        #print('in time =', time.time() - start_time)
 
-            with sd.InputStream(samplerate=fs, device=usb_fireface_index,channels=channels, callback=callback_in, blocksize=block_size) as input_stream:
-                while time.time() - start_time < duration_in:
-                    #print('in time =', time.time() - start_time)
+    #            while True:
+    #                if (time.time() - start_time_rec) <= 45: #seconds
+    #                    pause = False
+    #                    pass
+    #                else:
+    #                    pause = True
+    #                    #record(rec_counter,time1)
+    #
+    #                    q_contents = [q.get() for _ in range(q.qsize())]
+    #
+    #                    
+    #                    #time.sleep(1)
+    #                    print('q_contents = ', np.shape(q_contents))
+    #                    rec = np.concatenate(q_contents)
+    #                    print('rec = ', np.shape(rec))
+    #                    
+    #
+    #                    rec2besaved = rec[:, :channels]
+    #                    save_path = '/home/thymio/robat_py/'
+    #                    save_path = ''
+    #                    # Create folder with args.filename (without extension)
+    #                    folder_name = str(time1) + '_MULTIWAV'  
+    #                    folder_path = os.path.join(save_path, folder_name)
+    #                    os.makedirs(folder_path, exist_ok=True)
+    #                    save_path = folder_path
+    #
+    #                    timenow = datetime.datetime.now()
+    #                    time2 = timenow.strftime('%Y-%m-%d__%H-%M-%S')
+    #                    full_path = os.path.join(save_path, str(rec_counter)+'.wav')
+    #                    with sf.SoundFile(full_path, mode='x', samplerate=rec_samplerate,
+    #                                    channels=args.channels, subtype=args.subtype) as file:
+    #                        file.write(rec2besaved)
+    #                        print(f'\nsaved to {full_path}\n')
+    #                    rec_counter += 1
+    #                    start_time_rec = time.time()
+    #                    record(rec_counter,time1)
+    #                    # print('delta save=',time.time()-start_time_rec,'sec')
+    #                    #print('startime = ',start_time_rec)
 
-#            while True:
-#                if (time.time() - start_time_rec) <= 45: #seconds
-#                    pause = False
-#                    pass
-#                else:
-#                    pause = True
-#                    #record(rec_counter,time1)
-#
-#                    q_contents = [q.get() for _ in range(q.qsize())]
-#
-#                    
-#                    #time.sleep(1)
-#                    print('q_contents = ', np.shape(q_contents))
-#                    rec = np.concatenate(q_contents)
-#                    print('rec = ', np.shape(rec))
-#                    
-#
-#                    rec2besaved = rec[:, :channels]
-#                    save_path = '/home/thymio/robat_py/'
-#                    save_path = ''
-#                    # Create folder with args.filename (without extension)
-#                    folder_name = str(time1) + '_MULTIWAV'  
-#                    folder_path = os.path.join(save_path, folder_name)
-#                    os.makedirs(folder_path, exist_ok=True)
-#                    save_path = folder_path
-#
-#                    timenow = datetime.datetime.now()
-#                    time2 = timenow.strftime('%Y-%m-%d__%H-%M-%S')
-#                    full_path = os.path.join(save_path, str(rec_counter)+'.wav')
-#                    with sf.SoundFile(full_path, mode='x', samplerate=rec_samplerate,
-#                                    channels=args.channels, subtype=args.subtype) as file:
-#                        file.write(rec2besaved)
-#                        print(f'\nsaved to {full_path}\n')
-#                    rec_counter += 1
-#                    start_time_rec = time.time()
-#                    record(rec_counter,time1)
-#                    # print('delta save=',time.time()-start_time_rec,'sec')
-#                    #print('startime = ',start_time_rec)
+                        # Check if the elapsed time since the last frame is less than or equal to the desired frame duration
 
-                    # Check if the elapsed time since the last frame is less than or equal to the desired frame duration
+                        if method == 'PRA':
+                            time_start = time.time()
+                            angle = update_polar()
+                            #print('Angle = ', angle)
+                            time_end = time.time()
+                            #print('delta update pra',time_end - time_start,'sec')
 
-                    if method == 'PRA':
-                        time_start = time.time()
-                        angle = update_polar()
-                        #print('Angle = ', angle)
-                        time_end = time.time()
-                        #print('delta update pra',time_end - time_start,'sec')
-
-                    elif method == 'CC':
-                        time_start = time.time()
-                        angle, av_above_level = update()
-                        if isinstance(angle, (int, float, np.number)):
-                            if np.isnan(angle):
-                                angle = None
-                        #else:
-                        #    print("Warning: angle is not a numerical type")
+                        elif method == 'CC':
+                            time_start = time.time()
+                            angle, av_above_level = update()
+                            if isinstance(angle, (int, float, np.number)):
+                                if np.isnan(angle):
+                                    angle = None
+                            #else:
+                            #    print("Warning: angle is not a numerical type")
+                                
+                            #print('Angle = ', angle)
+                            #print('av ab level = ', av_above_level)
+                            #angle = int(angle)
                             
-                        #print('Angle = ', angle)
-                        #print('av ab level = ', av_above_level)
-                        #angle = int(angle)
-                        
-                        #print('updatestart=',datetime.datetime.now().strftime('%Y-%m-%d__%H-%M-%S'))
-                        time_end = time.time()
-                        #print('delta update cc',time_end - time_start,'sec')
+                            #print('updatestart=',datetime.datetime.now().strftime('%Y-%m-%d__%H-%M-%S'))
+                            time_end = time.time()
+                            #print('delta update cc',time_end - time_start,'sec')
 
-                    elif method == 'DAS':
+                        elif method == 'DAS':
 
-                        time_start = time.time()
+                            time_start = time.time()
 
-                        correction=np.mean(args.buffer)
-                        in_sig = args.buffer-correction
-                        ref_channels = in_sig
-                        #print('ref_channels=', np.shape(ref_channels))
-                        ref_channels_bp = bandpass(ref_channels,highpass_freq,lowpass_freq,fs)
-                        #print('ref_channels_bp=', np.shape(ref_channels_bp))
-                        above_level, dBrms_channel = check_if_above_level(ref_channels_bp,trigger_level)
-                        #print(above_level)
-                        av_above_level = np.mean(dBrms_channel)
-                        #print(av_above_level)
+                            correction=np.mean(args.buffer)
+                            in_sig = args.buffer-correction
+                            ref_channels = in_sig
+                            #print('ref_channels=', np.shape(ref_channels))
+                            ref_channels_bp = bandpass(ref_channels,highpass_freq,lowpass_freq,fs)
+                            #print('ref_channels_bp=', np.shape(ref_channels_bp))
+                            above_level, dBrms_channel = check_if_above_level(ref_channels_bp,trigger_level)
+                            #print(above_level)
+                            av_above_level = np.mean(dBrms_channel)
+                            #print(av_above_level)
 
-                        if av_above_level > critical_level:
-                            print('critical')
-                            angle = update_das()
+                            if av_above_level > critical_level:
+                                print('critical')
+                                angle = update_das()
 
-                        elif av_above_level > trigger_level:
-                            angle = update_das()
-                        else:
-                            angle = None
-
-
-                        #print('Angle = ', angle)
-                        #print('av ab level = ', av_above_level)
-                        #angle = int(angle)
-                        
-                        #print('updatestart=',datetime.datetime.now().strftime('%Y-%m-%d__%H-%M-%S'))
-                        time_end = time.time()
-                        #print('delta update das',time_end - time_start,'sec')
-                        start_time_rec = time.time()
-
-                    
-                    else:
-                        print('No valid method provided')
-
-                    time_start_robot = time.time()
-                    ground_sensors = robot['prox.ground.reflected']
-                    #print('ground = ',robot['prox.ground.reflected'])
-                    
-                    # Adjust these threshold values as needed
-                    left_sensor_threshold = 300
-                    right_sensor_threshold = 300	
-
-                    waiturn = 0.1
-                    norm_coefficient = 48000/1024 #most used fractional value, i.e. normalization value 
-                    max_speed = 100 #to be verified 
-                    speed = 0.5 * max_speed * analyzed_buffer *(1/norm_coefficient) #generic speed of robot while moving 
-                    speed = int(speed)
-                    #print('\nspeed = ',speed, '\n')
-                    if angle != None:
-                        turn_speed = 0.5 * 1/90 * (speed*int(angle)) #velocity of the wheels while turning 
-                        turn_speed = int(turn_speed)
-
-                        print('\nturn_speed = ',turn_speed, '\n')
-                    direction = random.choice(['left', 'right'])
-                    turn_speed = 500
-                        #PROPORTIONAL MOVEMENT
-                    if ground_sensors[0] > left_sensor_threshold  and ground_sensors[1]> right_sensor_threshold:
-                        # Both sensors detect the line, turn left
-                        if direction == 'left':
-                            robot['motor.left.target'] = -speed
-                            robot['motor.right.target'] = speed   
-                            time.sleep(waiturn) 
-                            pass
-                        else:
-                            robot['motor.left.target'] = speed
-                            robot['motor.right.target'] = -speed
-                            time.sleep(waiturn)
-                            pass
-                    elif ground_sensors[1] > right_sensor_threshold:
-                        # Only right sensor detects the line, turn left
-                        robot['motor.left.target'] = -speed
-                        robot['motor.right.target'] = speed
-                        time.sleep(waiturn)
-                    elif ground_sensors[0] > left_sensor_threshold:
-                        # Only left sensor detects the line, turn right
-                        robot['motor.left.target'] = speed 
-                        robot['motor.right.target'] = -speed 
-                        time.sleep(waiturn) 
-                    
-                    else:  #attraction or repulsion 
-                        if angle == None: #neutral movement
-                            robot["leds.top"] = [0, 0, 0]
-                            robot['motor.left.target'] = speed
-                            robot['motor.right.target'] = speed
-                            
-                        elif av_above_level > critical_level: #repulsion
-                            robot['motor.left.target'] =  - turn_speed
-                            robot['motor.right.target'] =  turn_speed
-                            time.sleep(waiturn)
-                        else: #attraction
-                            if angle < 0:
-                                robot['motor.left.target'] =   turn_speed
-                                robot['motor.right.target'] =  - turn_speed
-                                time.sleep(waiturn)
+                            elif av_above_level > trigger_level:
+                                angle = update_das()
                             else:
-                                robot['motor.left.target'] =   turn_speed
-                                robot['motor.right.target'] = - turn_speed
-                                time.sleep(waiturn)
+                                angle = None
 
-                        #print('delta robot',time.time() - time_start_robot,'sec')
-                else:
-                    robot['motor.left.target'] = 0
-                    robot['motor.right.target'] = 0
+
+                            #print('Angle = ', angle)
+                            #print('av ab level = ', av_above_level)
+                            #angle = int(angle)
+                            
+                            #print('updatestart=',datetime.datetime.now().strftime('%Y-%m-%d__%H-%M-%S'))
+                            time_end = time.time()
+                            #print('delta update das',time_end - time_start,'sec')
+                            start_time_rec = time.time()
+
+                        
+                        else:
+                            print('No valid method provided')
+
+                        time_start_robot = time.time()
+                        ground_sensors = robot['prox.ground.reflected']
+                        #print('ground = ',robot['prox.ground.reflected'])
+                        
+                        # Adjust these threshold values as needed
+                        left_sensor_threshold = 300
+                        right_sensor_threshold = 300	
+
+                        waiturn = 0.1
+                        norm_coefficient = 48000/1024 #most used fractional value, i.e. normalization value 
+                        max_speed = 100 #to be verified 
+                        speed = 0.5 * max_speed * analyzed_buffer *(1/norm_coefficient) #generic speed of robot while moving 
+                        speed = int(speed)
+                        #print('\nspeed = ',speed, '\n')
+                        if angle != None:
+                            turn_speed = 0.5 * 1/90 * (speed*int(angle)) #velocity of the wheels while turning 
+                            turn_speed = int(turn_speed)
+
+                            print('\nturn_speed = ',turn_speed, '\n')
+                        direction = random.choice(['left', 'right'])
+                        turn_speed = 500
+                            #PROPORTIONAL MOVEMENT
+                        if ground_sensors[0] > left_sensor_threshold  and ground_sensors[1]> right_sensor_threshold:
+                            # Both sensors detect the line, turn left
+                            if direction == 'left':
+                                robot['motor.left.target'] = -speed
+                                robot['motor.right.target'] = speed   
+                                time.sleep(waiturn) 
+                                pass
+                            else:
+                                robot['motor.left.target'] = speed
+                                robot['motor.right.target'] = -speed
+                                time.sleep(waiturn)
+                                pass
+                        elif ground_sensors[1] > right_sensor_threshold:
+                            # Only right sensor detects the line, turn left
+                            robot['motor.left.target'] = -speed
+                            robot['motor.right.target'] = speed
+                            time.sleep(waiturn)
+                        elif ground_sensors[0] > left_sensor_threshold:
+                            # Only left sensor detects the line, turn right
+                            robot['motor.left.target'] = speed 
+                            robot['motor.right.target'] = -speed 
+                            time.sleep(waiturn) 
+                        
+                        else:  #attraction or repulsion 
+                            if angle == None: #neutral movement
+                                robot["leds.top"] = [0, 0, 0]
+                                robot['motor.left.target'] = speed
+                                robot['motor.right.target'] = speed
+                                
+                            elif av_above_level > critical_level: #repulsion
+                                robot['motor.left.target'] =  - turn_speed
+                                robot['motor.right.target'] =  turn_speed
+                                time.sleep(waiturn)
+                            else: #attraction
+                                if angle < 0:
+                                    robot['motor.left.target'] =   turn_speed
+                                    robot['motor.right.target'] =  - turn_speed
+                                    time.sleep(waiturn)
+                                else:
+                                    robot['motor.left.target'] =   turn_speed
+                                    robot['motor.right.target'] = - turn_speed
+                                    time.sleep(waiturn)
+
+                            #print('delta robot',time.time() - time_start_robot,'sec')
+                    else:
+                        robot['motor.left.target'] = 0
+                        robot['motor.right.target'] = 0
 
     except Exception as err:
         # Stop robot
@@ -532,11 +536,14 @@ def main(use_sim=False, ip='localhost', port=2001):
         robot['motor.right.target'] = 0 
         robot["leds.top"] = [0,0,0]
         print('err:',err)
+    except Exception as e:
+        parser.exit(type(e).__name__ + ': ' + str(e))
     except KeyboardInterrupt:
         robot['motor.left.target'] = 0
         robot['motor.right.target'] = 0
         robot["leds.top"] = [0,0,0]
         print("Press Ctrl-C again to end the program")    
+        parser.exit(0)
 
 #        save_path = '/home/thymio/robat_py/robat_v0_files/'
 #        #save_path = ''
