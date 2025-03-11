@@ -21,6 +21,7 @@ import datetime
 import time
 import random
 import os
+import threading
 
 from scipy.ndimage import gaussian_filter1d
 from thymiodirect import Connection 
@@ -45,12 +46,13 @@ print(sd.query_devices())
 print('usb_fireface_index=',usb_fireface_index)
 
 # Parameters for the DOA algorithms
-trigger_level = -60 # dB level ref max pdm
+trigger_level = -55 # dB level ref max pdm
 critical_level = -43 # dB level pdm critical distance
 c = 343   # speed of sound
 fs = 48000
 rec_samplerate = 44000
 block_size = 512
+queue_size = block_size
 analyzed_buffer = fs/block_size #theoretical buffers analyzed each second 
 channels = 5
 mic_spacing = 0.018 #m
@@ -80,7 +82,7 @@ N_peaks = 1 # Number of peaks to detect in DAS spectrum
 
 # Parameters for the chirp signal
 rand = random.uniform(0.8, 1.2)
-duration_out = 10e-3  # Duration in seconds
+duration_out = 100e-3  # Duration in seconds
 duration_in = rand * 0.5  # Duration in seconds
 duration_in = 500e-3  # Duration in seconds
 amplitude = 0.1 # Amplitude of the chirp
@@ -91,7 +93,7 @@ hi_freq =  20e3 # [Hz]
 t_tone = np.linspace(0, duration_out, int(fs*duration_out))
 chirp = signal.chirp(t_tone, low_freq, t_tone[-1], hi_freq)
 sig = pow_two_pad_and_window(chirp, fs = fs, show=False)
-silence_dur = 100 # [ms]
+silence_dur = 50 # [ms]
 silence_samples = int(silence_dur * fs/1000)
 silence_vec = np.zeros((silence_samples, ))
 full_sig = np.concatenate((sig, silence_vec))
@@ -111,24 +113,25 @@ freq_range = [hi_freq, low_freq]
 # Thymio movement parameters
 
 norm_coefficient = 48000/1024 #most used fractional value, i.e. normalization value 
-max_speed = 100 #to be verified 
+max_speed = 200 #to be verified 
 
 # Straight speed
 speed = 0.5 * max_speed * analyzed_buffer *(1/norm_coefficient) #generic speed of robot while moving 
 speed = int(speed)
-speed = 50 
+speed = 150 
 #print('\nspeed = ',speed, '\n')
 
 # Turning speed
+prop_turn_speed = 50
 turn_speed = 100 
 waiturn = 1000 #turning time ms
 
-left_sensor_threshold = 700
-right_sensor_threshold = 700	
+left_sensor_threshold = 300
+right_sensor_threshold = 300	
 
 # Create queues for storing data
-q = queue.Queue()
-qq = queue.Queue()
+shared_audio_queue = queue.Queue()
+angle_queue = queue.Queue()
 qqq = queue.Queue()
 
 # Stream callback function
@@ -150,8 +153,17 @@ class AudioProcessor:
         self.q = queue.Queue()
         self.qq = queue.Queue()
         self.qqq = queue.Queue()
+        self.shared_audio_queue = queue.Queue()
         self.current_frame = 0
 
+        print('args.filename = ', args.filename)
+    def continuos_recording(self):
+        with sf.SoundFile(args.filename, mode='x', samplerate=args.rec_samplerate,
+                            channels=args.channels, subtype=args.subtype) as file:
+            with sd.InputStream(samplerate=fs, device=usb_fireface_index,channels=channels, callback=audio_processor.callback_in, blocksize=block_size):
+                    while True:
+                        file.write(self.shared_audio_queue.get())
+        
     def callback_out(self, outdata, frames, time, status):
         if status:
             print(status)
@@ -168,6 +180,7 @@ class AudioProcessor:
         #correction=np.mean(indata)
         #print(correction)
         #in_sig = indata-correction
+        self.shared_audio_queue.put((indata).copy())
         self.q.put((indata).copy())
         self.args.buffer = ((indata).copy())
         
@@ -310,9 +323,8 @@ class AudioProcessor:
 
     def update_das(self):
         # Update  with the DAS algorithm
-
-        correction=np.mean(self.args.buffer)
-        in_sig = self.args.buffer-correction
+        in_buffer = self.shared_audio_queue.get()
+        in_sig = in_buffer-np.mean(in_buffer)
 
         #print('buffer', np.shape(in_sig))
         #starttime = time.time()
@@ -338,6 +350,7 @@ class AudioProcessor:
         return peak_angles
         print('Angle = ', peak_angles)
         #qq.put(spatial_resp.copy())
+
 
 
 if __name__ == '__main__':
@@ -383,10 +396,12 @@ if __name__ == '__main__':
     args = parser.parse_args()
     args.buffer = np.zeros((block_size, channels))
 
+    # Set initial parameters for the audio processing
     startime = datetime.datetime.now()
     args.samplerate = fs
     args.rec_samplerate = rec_samplerate
     args.angle = None
+    av_above_level = 0
 
     # Create folder for saving recordings
     time1 = startime.strftime('%Y-%m-%d__%H-%M-%S')
@@ -410,9 +425,20 @@ if __name__ == '__main__':
 
     # Create instances of the AudioProcessor and RobotMove classes
     audio_processor = AudioProcessor(fs, channels, block_size, data, args, trigger_level, critical_level, mic_spacing, ref, highpass_freq, lowpass_freq, theta_das, N_peaks)
-    robot_move = RobotMove(args.angle, speed, turn_speed, waiturn, left_sensor_threshold, right_sensor_threshold, critical_level, audio_processor.update, trigger_level, ground_sensors_bool = False)
+    robot_move = RobotMove(angle_queue, speed, turn_speed, waiturn, left_sensor_threshold, right_sensor_threshold, critical_level, av_above_level, trigger_level, ground_sensors_bool = False)
+    
+    # Create threads for the audio input and recording
+    inputstream_thread = threading.Thread(target=
+        audio_processor.continuos_recording, daemon = True)
+    inputstream_thread.start()
+
+    move_thread = threading.Thread(target=
+        robot_move.audio_move, daemon = True)
+    move_thread.start()
+    angle_queue.put(None)
 
     try:
+        #audio_processor.continuos_recording()
         while True:
             current_frame = 0 
             start_time = time.time()      
@@ -423,92 +449,97 @@ if __name__ == '__main__':
                                 callback=audio_processor.callback_out,
                                 latency='low') as out_stream:
                                 while out_stream.active:
-                                    robot_move.stop()
+                                    #robot_move.stop()
+                                    pass
             print('out time =', time.time() - start_time)                       
-            start_time = time.time()
-            with sf.SoundFile(args.filename, mode='x', samplerate=args.rec_samplerate,
-                            channels=args.channels, subtype=args.subtype) as file:
-                with sd.InputStream(samplerate=fs, device=usb_fireface_index,channels=channels, callback=audio_processor.callback_in, blocksize=block_size):
-                        file.write(audio_processor.q.get())
-                        #while time.time() - start_time < duration_in:
-                        while True:
-                            #print('in time =', time.time() - start_time)
-                            if method == 'PRA':
-                                time_start = time.time()
-                                args.angle = audio_processor.update_polar()
-                                #print('Angle = ', args.angle)
-                                time_end = time.time()
-                                #print('delta update pra',time_end - time_start,'sec')
+            #start_time = time.time()
+            
+            
+            #print('in time =', time.time() - start_time)
+            if method == 'PRA':
+                time_start = time.time()
+                args.angle = audio_processor.update_polar()
+                #print('Angle = ', args.angle)
+                time_end = time.time()
+                #print('delta update pra',time_end - time_start,'sec')
 
-                            elif method == 'CC':
-                                args.angle, av_above_level = audio_processor.update()
-                                #args.angle, av_above_level = AudioProcessor.update()
-                                if isinstance(args.angle, (int, float, np.number)):
-                                    if np.isnan(args.angle):
-                                        args.angle = None
-                                #else:
-                                #    print("Warning: angle is not a numerical type")
-                                    
-                                #print('Angle = ', angle)
-                                #print('av ab level = ', av_above_level)
-                                #angle = int(angle)
-                                
-                                #print('updatestart=',datetime.datetime.now().strftime('%Y-%m-%d__%H-%M-%S'))
-                                time_end = time.time()
-                                #print('delta update cc',time_end - time_start,'sec')
+            elif method == 'CC':
+                args.angle, av_above_level = audio_processor.update()
+                #args.angle, av_above_level = AudioProcessor.update()
+                if isinstance(args.angle, (int, float, np.number)):
+                    if np.isnan(args.angle):
+                        args.angle = None
+                #else:
+                #    print("Warning: angle is not a numerical type")
+                    
+                #print('Angle = ', angle)
+                #print('av ab level = ', av_above_level)
+                #angle = int(angle)
+                
+                #print('updatestart=',datetime.datetime.now().strftime('%Y-%m-%d__%H-%M-%S'))
+                time_end = time.time()
+                #print('delta update cc',time_end - time_start,'sec')
 
-                            elif method == 'DAS':
+            elif method == 'DAS':
 
-                                time_start = time.time()
+                time_start = time.time()
 
-                                correction=np.mean(args.buffer)
-                                in_sig = args.buffer-correction
-                                ref_channels = in_sig
-                                #print('ref_channels=', np.shape(ref_channels))
-                                ref_channels_bp = bandpass(ref_channels,highpass_freq,lowpass_freq,fs)
-                                #print('ref_channels_bp=', np.shape(ref_channels_bp))
-                                above_level, dBrms_channel = check_if_above_level(ref_channels_bp,trigger_level)
-                                #print(above_level)
-                                av_above_level = np.mean(dBrms_channel)
-                                #print(av_above_level)
+                in_buffer = audio_processor.shared_audio_queue.get()
+                in_sig = in_buffer-np.mean(in_buffer)
+                ref_channels = in_sig
+                #print('ref_channels=', np.shape(ref_channels))
+                ref_channels_bp = bandpass(ref_channels,highpass_freq,lowpass_freq,fs)
+                #print('ref_channels_bp=', np.shape(ref_channels_bp))
+                above_level, dBrms_channel = check_if_above_level(ref_channels_bp,trigger_level)
+                #print(above_level)
+                av_above_level = np.mean(dBrms_channel)
+                #print(av_above_level)
 
-                                if av_above_level > critical_level:
-                                    print('critical')
-                                    args.angle = audio_processor.update_das()
+                if av_above_level > critical_level:
+                    print('critical')
+                    angle_queue.put(audio_processor.update_das())
 
-                                elif av_above_level > trigger_level:
-                                    args.angle = audio_processor.update_das()
-                                else:
-                                    args.angle = None
+                elif av_above_level > trigger_level:
+                    #args.angle = audio_processor.update_das()
+                    angle_queue.put(audio_processor.update_das())
+                    print(angle_queue.get())
+                else:
+                    #args.angle = None
+                    angle_queue.put(None)
 
-                                #print('Angle = ', args.angle)
-                                #print('av ab level = ', av_above_level)
-                                #args.angle = int(args.angle)
-                                
-                                #print('updatestart=',datetime.datetime.now().strftime('%Y-%m-%d__%H-%M-%S'))
-                                time_end = time.time()
-                                #print('delta update das',time_end - time_start,'sec')
-                                start_time_rec = time.time()
+                print('Angle = ', angle_queue.get())
+                print('av ab level = ', av_above_level)
+                #args.angle = int(args.angle)
+                
+                #print('updatestart=',datetime.datetime.now().strftime('%Y-%m-%d__%H-%M-%S'))
+                time_end = time.time()
+                #print('delta update das',time_end - time_start,'sec')
+                start_time_rec = time.time()
 
-                            
-                            else:
-                                print('No valid method provided')
+            
+            else:
+                print('No valid method provided')
 
-                            time_start_robot = time.time()
-                            if args.angle != None:
-                                turn_speed = 0.5 * 1/90 * (speed*int(args.angle)) #velocity of the wheels while turning 
-                                turn_speed = int(turn_speed)
+            time_start_robot = time.time()
+            if args.angle != None:
+                prop_turn_speed = 0.5 * 1/90 * (speed*int(args.angle)) #velocity of the wheels while turning 
+                prop_turn_speed = int(prop_turn_speed)
 
-                                print('\nturn_speed = ',turn_speed, '\n')
+                print('\nprop_turn_speed = ',prop_turn_speed, '\n')
 
-                            #PROPORTIONAL THYMIO MOVEMENT
-                            
-                            robot_move.audio_move(speed, turn_speed, args.angle, av_above_level)
+            #PROPORTIONAL THYMIO MOVEMENT
+            #robot_move.angle = args.angle
+            #robot_move.speed = speed
+            #robot_move.prop_turn_speed = prop_turn_speed
+            #robot_move.waiturn = waiturn
+            #robot_move.av_above_level = av_above_level
 
-                                #print('delta robot',time.time() - time_start_robot,'sec')
-                        else:
-                            print('in time =', time.time() - start_time)
-                            robot_move.stop()
+            #robot_move.audio_move()
+
+                #print('delta robot',time.time() - time_start_robot,'sec')
+        else:
+            print('in time =', time.time() - start_time)
+            robot_move.stop()
 
     except Exception as e:
         parser.exit(type(e).__name__ + ': ' + str(e))
