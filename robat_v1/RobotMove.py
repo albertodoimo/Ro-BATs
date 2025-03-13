@@ -6,7 +6,7 @@ import time
 import random
 
 class RobotMove():
-    def __init__(self, forward_speed, turn_speed, waiturn, left_sensor_threshold, right_sensor_threshold, critical_level, av_above_level, trigger_level, ground_sensors_bool = False):
+    def __init__(self, forward_speed, turn_speed, waiturn, left_sensor_threshold, right_sensor_threshold, critical_level, trigger_level, ground_sensors_bool = False):
         self.forward_speed = forward_speed
         self.turn_speed = turn_speed
         self.counter_turn = waiturn
@@ -15,7 +15,6 @@ class RobotMove():
         self.ground_sensors_bool = ground_sensors_bool
         self.critical_level = critical_level
         self.trigger_level = trigger_level
-        self.av_above_level = av_above_level
         self.running = True
 
         print("Initializing Thymio Robot")
@@ -67,13 +66,20 @@ class RobotMove():
 
                 # Make a decision based on the latest values.
                 if level is not None and level > self.critical_level:
-                    print('2: Level exceeds critical threshold, rotating left')
-                    self.rotate_left()
+                    #print('2: Level exceeds critical threshold, rotating left')
+                    print('angle=', angle)
+                    #print('2.1: angle=', angle)
+                    if angle < 0:
+                        print('3: Negative angle received, rotating right')
+                        self.rotate_right(angle)
+                    else:
+                        print('4: Positive or zero angle received, rotating right')
+                        self.rotate_left(angle)
                 else:
                     #print('2.1: angle=', angle)
                     if angle < 0:
                         #print('3: Negative angle received, rotating right')
-                        self.rotate_right(angle)
+                        self.rotate_left(angle)
                     else:
                         #print('4: Positive or zero angle received, rotating right')
                         self.rotate_right(angle)
@@ -115,10 +121,10 @@ class RobotMove():
                 if self.check_stop_all_motion():
                     self.stop_bool = True
                     break
-                print("rotate right with angle:", angle)
-                #print('turn speed', int(1/90 * (self.forward_speed * int(angle))))
-                self.robot['motor.left.target'] = int(1/90 * (self.forward_speed * int(angle)))
-                self.robot['motor.right.target'] = -int(1/90 * (self.forward_speed * int(angle)))
+                #print("rotate right with angle:", angle)
+                print('turn speed', abs(int(1/90 * (self.forward_speed * int(angle)))))
+                self.robot['motor.left.target'] = abs(int(1/90 * (self.forward_speed * int(angle))))
+                self.robot['motor.right.target'] = -abs(int(1/90 * (self.forward_speed * int(angle))))
                 counter -= 1
             else:
                 self.robot['motor.left.target'] = 0
@@ -131,9 +137,10 @@ class RobotMove():
                 if self.check_stop_all_motion():
                     self.stop_bool = True
                     break
-                print("rotate left with angle:", angle)
-                self.robot['motor.left.target'] = -int(1/90 * (self.forward_speed * int(angle)))
-                self.robot['motor.right.target'] = int(1/90 * (self.forward_speed * int(angle)))
+                #print("rotate left with angle:", angle)
+                #print('turn speed', abs(int(1/90 * (self.forward_speed * int(angle)))))
+                self.robot['motor.left.target'] = -abs(int(1/90 * (self.forward_speed * int(angle))))
+                self.robot['motor.right.target'] = abs(int(1/90 * (self.forward_speed * int(angle))))
                 counter -= 1
             else:
                 self.robot['motor.left.target'] = 0
@@ -158,12 +165,11 @@ class RobotMove():
                 self.robot['motor.left.target'] = 0
                 self.robot['motor.right.target'] = 0
 
-
     def check_stop_all_motion(self):
         if self.robot is not None:
             #print(f"Prox 0: {self.robot['prox.ground.delta'][0]}, Prox 1: {self.robot['prox.ground.delta'][1]}")
             if self.robot['prox.ground.delta'][0] < 50 or self.robot['prox.ground.delta'][1] < 50:
-                print("Robot lifted")
+                #print("Robot lifted")
                 return True
         return False
 
@@ -247,9 +253,9 @@ class RobotMove():
                 break
             self.move_forward()
             if bool(random.getrandbits(1)):  
-                self.rotate_right()
+                self.rotate_right(angle)
             else:
-                self.rotate_left()
+                self.rotate_left(angle)
 
     def random_turn(self):
         while True:
@@ -262,7 +268,7 @@ class RobotMove():
                 break
             if bool(random.getrandbits(1)):  
                 print('random turn right')
-                self.rotate_right()
+                self.rotate_right(angle)
                 break
             else:
                 print('random turn left')

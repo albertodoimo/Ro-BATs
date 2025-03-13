@@ -45,7 +45,7 @@ print('usb_fireface_index=',usb_fireface_index)
 
 # Parameters for the DOA algorithms
 trigger_level = -60 # dB level ref max pdm
-critical_level = -43 # dB level pdm critical distance
+critical_level = -30 # dB level pdm critical distance
 c = 343   # speed of sound
 fs = 48000
 rec_samplerate = 44000
@@ -79,7 +79,7 @@ N_peaks = 1 # Number of peaks to detect in DAS spectrum
 
 # Parameters for the chirp signal
 rand = random.uniform(0.8, 1.2)
-duration_out = 10e-3  # Duration in seconds
+duration_out = 20e-3  # Duration in seconds
 duration_in = rand * 0.5  # Duration in seconds
 duration_in = 500e-3  # Duration in seconds
 amplitude = 0.1 # Amplitude of the chirp
@@ -464,7 +464,7 @@ def main(use_sim=False, ip='localhost', port=2001):
                     left_sensor_threshold = 300
                     right_sensor_threshold = 300	
 
-                    waiturn = 0.1
+                    waiturn = 0.05
                     norm_coefficient = 48000/1024 #most used fractional value, i.e. normalization value 
                     max_speed = 100 #to be verified 
                     speed = 0.5 * max_speed * analyzed_buffer *(1/norm_coefficient) #generic speed of robot while moving 

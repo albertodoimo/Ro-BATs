@@ -47,8 +47,8 @@ print(sd.query_devices())
 print('usb_fireface_index=',usb_fireface_index)
 
 # Parameters for the DOA algorithms
-trigger_level = -55 # dB level ref max pdm
-critical_level = -43 # dB level pdm critical distance
+trigger_level = -60 # dB level ref max pdm
+critical_level = -55 # dB level pdm critical distance
 c = 343   # speed of sound
 fs = 48000
 rec_samplerate = 44000
@@ -83,10 +83,10 @@ N_peaks = 1 # Number of peaks to detect in DAS spectrum
 
 # Parameters for the chirp signal
 rand = random.uniform(0.8, 1.2)
-duration_out = 100e-3  # Duration in seconds
-duration_in = rand * 0.5  # Duration in seconds
+duration_out = 200e-3  # Duration in seconds
+#duration_in = rand * 0.5  # Duration in seconds
 duration_in = 500e-3  # Duration in seconds
-amplitude = 0.3 # Amplitude of the chirp
+amplitude = 0.01 # Amplitude of the chirp
 
 # Generate a chirp signal
 low_freq = 1e3 # [Hz]
@@ -94,7 +94,7 @@ hi_freq =  20e3 # [Hz]
 t_tone = np.linspace(0, duration_out, int(fs*duration_out))
 chirp = signal.chirp(t_tone, low_freq, t_tone[-1], hi_freq)
 sig = pow_two_pad_and_window(chirp, fs = fs, show=False)
-silence_dur = 100 # [ms]
+silence_dur = 50 # [ms]
 silence_samples = int(silence_dur * fs/1000)
 silence_vec = np.zeros((silence_samples, ))
 full_sig = np.concatenate((sig, silence_vec))
@@ -125,7 +125,7 @@ speed = 150
 # Turning speed
 prop_turn_speed = 50
 turn_speed = 100 
-waiturn = 5 #turning time ms
+waiturn = 3 #turning time ms
 
 left_sensor_threshold = 300
 right_sensor_threshold = 300	
@@ -221,7 +221,7 @@ class AudioProcessor:
             #avar_theta = avar_angle(delay_crossch,channels,mic_spacing,ref)
             #avar_theta = avar_angle(delay_crossch_gcc,channels,mic_spacing,ref)
             
-            print('avarage theta deg = ', np.rad2deg(avar_theta))
+            #print('avarage theta deg = ', np.rad2deg(avar_theta))
             return np.rad2deg(avar_theta), av_above_level
         else:
             avar_theta = None
@@ -387,7 +387,7 @@ if __name__ == '__main__':
 
     # Create instances of the AudioProcessor and RobotMove classes
     audio_processor = AudioProcessor(fs, channels, block_size, data, args, trigger_level, critical_level, mic_spacing, ref, highpass_freq, lowpass_freq, theta_das, N_peaks)
-    robot_move = RobotMove(speed, turn_speed, waiturn, left_sensor_threshold, right_sensor_threshold, critical_level, av_above_level, trigger_level, ground_sensors_bool = False)
+    robot_move = RobotMove(speed, turn_speed, waiturn, left_sensor_threshold, right_sensor_threshold, critical_level, trigger_level, ground_sensors_bool = False)
     
     # Create threads for the audio input and recording
     inputstream_thread = threading.Thread(target=
