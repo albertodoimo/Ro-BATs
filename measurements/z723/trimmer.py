@@ -11,13 +11,13 @@ os.chdir(dname)
 # %%
 if __name__ == '__main__':
 
-    file_name = '180 full.wav'
-    new_name = '180.wav'
-    cut_dir = 'noise_floor'
-    file_name_symm = '180.wav'
+    file_name = '000 full.wav'
+    new_name = '000.wav'
+    cut_dir = 'noise_floor_5ms'
+    file_name_symm = '360.wav'
     y, fs = sf.read('audiofiles/'+ file_name)
 
-    y_cut = y[int(0.5*fs):int(0.55*fs)]
+    y_cut = y[int(0.5*fs):int(0.505*fs)]
     sf.write(cut_dir + '/' + new_name, y_cut, fs)
 
     y_symm = y_cut
@@ -40,5 +40,5 @@ if __name__ == '__main__':
     plt.xlabel('Time (s)')
     plt.ylabel('Frequency (Hz)')
     plt.tight_layout()
-    plt.show()
+    #plt.show()
 # %%
