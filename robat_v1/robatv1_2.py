@@ -47,14 +47,12 @@ print(sd.query_devices())
 print('usb_fireface_index=',usb_fireface_index)
 
 # Parameters for the DOA algorithms
-trigger_level = -60 # dB level ref max pdm
-critical_level = -55 # dB level pdm critical distance
+trigger_level = -50 # dB level ref max pdm
+critical_level = -38 # dB level pdm critical distance
 c = 343   # speed of sound
-fs = 48000
-rec_samplerate = 44000
-block_size = 1024
-queue_size = block_size
-analyzed_buffer = fs/block_size #theoretical buffers analyzed each second 
+fs = 96000
+rec_samplerate = 96000
+block_size = 512 #used for the shared queue from which the doa is computed, not anymore for the output stream
 channels = 5
 mic_spacing = 0.018 #m
 nfft = 512
@@ -83,18 +81,17 @@ N_peaks = 1 # Number of peaks to detect in DAS spectrum
 
 # Parameters for the chirp signal
 rand = random.uniform(0.8, 1.2)
-duration_out = 200e-3  # Duration in seconds
-#duration_in = rand * 0.5  # Duration in seconds
-duration_in = 500e-3  # Duration in seconds
-amplitude = 0.01 # Amplitude of the chirp
+duration_out = 20e-3  # Duration in seconds
+silence_dur = 60 # [ms]
+amplitude = 1 # Amplitude of the chirp
 
 # Generate a chirp signal
-low_freq = 1e3 # [Hz]
-hi_freq =  20e3 # [Hz]
+low_freq = 20e3 # [Hz]
+hi_freq =  1e3 # [Hz]
 t_tone = np.linspace(0, duration_out, int(fs*duration_out))
 chirp = signal.chirp(t_tone, low_freq, t_tone[-1], hi_freq)
 sig = pow_two_pad_and_window(chirp, fs = fs, show=False)
-silence_dur = 50 # [ms]
+
 silence_samples = int(silence_dur * fs/1000)
 silence_vec = np.zeros((silence_samples, ))
 full_sig = np.concatenate((sig, silence_vec))
@@ -112,23 +109,19 @@ highpass_freq, lowpass_freq = [20 ,20e3]
 freq_range = [hi_freq, low_freq]
 
 # Thymio movement parameters
-
-norm_coefficient = 48000/1024 #most used fractional value, i.e. normalization value 
 max_speed = 200 #to be verified 
 
 # Straight speed
-speed = 0.5 * max_speed * analyzed_buffer *(1/norm_coefficient) #generic speed of robot while moving 
-speed = int(speed)
 speed = 150 
 #print('\nspeed = ',speed, '\n')
 
 # Turning speed
 prop_turn_speed = 50
 turn_speed = 100 
-waiturn = 3 #turning time ms
+waiturn = 200 #turning time ms
 
-left_sensor_threshold = 300
-right_sensor_threshold = 300	
+left_sensor_threshold = 1500
+right_sensor_threshold = 1500	
 
 # Create queues for storing data
 shared_audio_queue = queue.Queue()
@@ -158,7 +151,7 @@ class AudioProcessor:
     def continuos_recording(self):
         with sf.SoundFile(args.filename, mode='x', samplerate=args.rec_samplerate,
                             channels=args.channels, subtype=args.subtype) as file:
-            with sd.InputStream(samplerate=fs, device=usb_fireface_index,channels=channels, callback=audio_processor.callback_in, blocksize=block_size):
+            with sd.InputStream(samplerate=fs, device=usb_fireface_index,channels=channels, callback=audio_processor.callback_in, blocksize=self.block_size):
                     while True:
                         file.write(self.shared_audio_queue.get())
         
@@ -177,18 +170,18 @@ class AudioProcessor:
         """This is called (from a separate thread) for each audio block."""
         self.shared_audio_queue.put((indata).copy())
         
-    def callback(self, indata, outdata, frames, time, status):
-        if status:
-            print(status)
-        chunksize = min(len(self.data) - self.current_frame, frames)
-        outdata[:chunksize] = self.data[self.current_frame:self.current_frame + chunksize]
-        if chunksize < frames:
-            outdata[chunksize:] = 0
-            self.current_frame = 0  # Reset current_frame after each iteration
-            raise sd.CallbackStop()
-        self.current_frame += chunksize
-        self.q.put((indata).copy())
-        self.args.buffer = ((indata).copy())
+#    def callback(self, indata, outdata, frames, time, status):
+#        if status:
+#            print(status)
+#        chunksize = min(len(self.data) - self.current_frame, frames)
+#        outdata[:chunksize] = self.data[self.current_frame:self.current_frame + chunksize]
+#        if chunksize < frames:
+#            outdata[chunksize:] = 0
+#            self.current_frame = 0  # Reset current_frame after each iteration
+#            raise sd.CallbackStop()
+#        self.current_frame += chunksize
+#        self.q.put((indata).copy())
+#        self.args.buffer = ((indata).copy())
 
     def update(self):
         in_buffer = self.shared_audio_queue.get()
@@ -387,7 +380,7 @@ if __name__ == '__main__':
 
     # Create instances of the AudioProcessor and RobotMove classes
     audio_processor = AudioProcessor(fs, channels, block_size, data, args, trigger_level, critical_level, mic_spacing, ref, highpass_freq, lowpass_freq, theta_das, N_peaks)
-    robot_move = RobotMove(speed, turn_speed, waiturn, left_sensor_threshold, right_sensor_threshold, critical_level, trigger_level, ground_sensors_bool = False)
+    robot_move = RobotMove(speed, turn_speed, left_sensor_threshold, right_sensor_threshold, critical_level, trigger_level, ground_sensors_bool = True)
     
     # Create threads for the audio input and recording
     inputstream_thread = threading.Thread(target=

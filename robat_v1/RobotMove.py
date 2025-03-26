@@ -6,10 +6,9 @@ import time
 import random
 
 class RobotMove():
-    def __init__(self, forward_speed, turn_speed, waiturn, left_sensor_threshold, right_sensor_threshold, critical_level, trigger_level, ground_sensors_bool = False):
+    def __init__(self, forward_speed, turn_speed, left_sensor_threshold, right_sensor_threshold, critical_level, trigger_level, ground_sensors_bool = False):
         self.forward_speed = forward_speed
         self.turn_speed = turn_speed
-        self.counter_turn = waiturn
         self.left_sensor_threshold = left_sensor_threshold
         self.right_sensor_threshold = right_sensor_threshold
         self.ground_sensors_bool = ground_sensors_bool
@@ -36,6 +35,14 @@ class RobotMove():
             print('ground.reflected  L R = ', self.robot['prox.ground.reflected'])
 
         self.stop_bool = False
+
+    def angle_to_time(self, angle, forward_speed):
+        #calculate the time needed to turn the robot by a certain angle
+        A = 612.33
+        B = -0.94
+        t = A*forward_speed**B    
+        return t * abs(angle) / 360 # time to turn by angle in seconds
+
 
     def audio_move(self):
         while self.running:
@@ -65,24 +72,30 @@ class RobotMove():
                     print('level move:', level)
 
                 # Make a decision based on the latest values.
-                if level is not None and level > self.critical_level:
-                    #print('2: Level exceeds critical threshold, rotating left')
-                    print('angle=', angle)
-                    #print('2.1: angle=', angle)
+
+                if level is not None and level < self.critical_level and level > self.trigger_level:
+                    self.robot["leds.top"] = [0, 0, 255]
+                    self.robot["leds.bottom.right"] = [0, 0, 255]
+                    self.robot["leds.bottom.left"] = [0, 0, 255]
+                    print('2.1: angle=', angle)
                     if angle < 0:
-                        print('3: Negative angle received, rotating right')
-                        self.rotate_right(angle)
+                        print('3: Negative angle received, rotating left')
+                        self.rotate_left(angle)
                     else:
                         print('4: Positive or zero angle received, rotating right')
+                        self.rotate_right(angle)
+                elif level is not None and level > self.critical_level:
+                    self.robot["leds.top"] = [255, 0, 0]
+                    self.robot["leds.bottom.right"] = [255, 0, 0]
+                    self.robot["leds.bottom.left"] = [255, 0, 0]
+                    if angle < 0:
+                        print('5: Negative angle received, rotating right')
+                        self.rotate_right(angle)
+                    else:
+                        print('6: Positive angle received, rotating left')
                         self.rotate_left(angle)
                 else:
-                    #print('2.1: angle=', angle)
-                    if angle < 0:
-                        #print('3: Negative angle received, rotating right')
-                        self.rotate_left(angle)
-                    else:
-                        #print('4: Positive or zero angle received, rotating right')
-                        self.rotate_right(angle)
+                    pass
 
                 # After executing a turn, go back to moving straight.
                 #print("Returning to forward movement")
@@ -98,6 +111,9 @@ class RobotMove():
                 self.stop()
 
     def move_forward(self):
+        self.robot["leds.top"] = [0, 255, 0]
+        self.robot["leds.bottom.right"] = [0, 255, 0]
+        self.robot["leds.bottom.left"] = [0, 255, 0]        
         if self.robot is not None:
             if self.check_stop_all_motion():
                 #print("stop all motion: move forward")
@@ -116,15 +132,18 @@ class RobotMove():
 
     def rotate_right(self, angle):
         if self.robot is not None:
-            counter = self.counter_turn
+            counter = self.angle_to_time(angle, self.forward_speed)*1000
             while counter > 0:
                 if self.check_stop_all_motion():
                     self.stop_bool = True
                     break
                 #print("rotate right with angle:", angle)
-                print('turn speed', abs(int(1/90 * (self.forward_speed * int(angle)))))
-                self.robot['motor.left.target'] = abs(int(1/90 * (self.forward_speed * int(angle))))
-                self.robot['motor.right.target'] = -abs(int(1/90 * (self.forward_speed * int(angle))))
+                #print('turn speed', abs(int(1/90 * (self.forward_speed * int(angle)))))
+                #self.robot['motor.left.target'] = abs(int(1/90 * (self.forward_speed * int(angle))))
+                #self.robot['motor.right.target'] = -abs(int(1/90 * (self.forward_speed * int(angle))))
+                self.robot['motor.left.target']= self.forward_speed
+                self.robot['motor.right.target']= -self.forward_speed
+                
                 counter -= 1
             else:
                 self.robot['motor.left.target'] = 0
@@ -132,15 +151,17 @@ class RobotMove():
 
     def rotate_left(self, angle):
         if self.robot is not None:
-            counter = self.counter_turn
+            counter = self.angle_to_time(angle, self.forward_speed)*1000
             while counter > 0:
                 if self.check_stop_all_motion():
                     self.stop_bool = True
                     break
                 #print("rotate left with angle:", angle)
                 #print('turn speed', abs(int(1/90 * (self.forward_speed * int(angle)))))
-                self.robot['motor.left.target'] = -abs(int(1/90 * (self.forward_speed * int(angle))))
-                self.robot['motor.right.target'] = abs(int(1/90 * (self.forward_speed * int(angle))))
+                #self.robot['motor.left.target'] = -abs(int(1/90 * (self.forward_speed * int(angle))))
+                #self.robot['motor.right.target'] = abs(int(1/90 * (self.forward_speed * int(angle))))
+                self.robot['motor.left.target']= -self.forward_speed
+                self.robot['motor.right.target']= self.forward_speed
                 counter -= 1
             else:
                 self.robot['motor.left.target'] = 0
@@ -178,7 +199,7 @@ class RobotMove():
         if self.robot['prox.ground.reflected'][0] > self.left_sensor_threshold  and self.robot['prox.ground.reflected'][1] > self.right_sensor_threshold:
             # Both sensors detect the line
             #print('line detected L and R')
-            counter = 1000
+            counter = self.angle_to_time(40, self.forward_speed)
             while counter > 0:
                 if self.check_stop_all_motion():
                     self.stop_bool = True
@@ -190,7 +211,7 @@ class RobotMove():
         if self.robot['prox.ground.reflected'][0] > self.left_sensor_threshold:
             # Left sensor detects the line
             #print('line detected L')
-            counter = self.counter_turn
+            counter = self.angle_to_time(40, self.forward_speed)
             while counter > 0:
                 if self.check_stop_all_motion():
                     #print("stop all motion: rotate right")
@@ -202,7 +223,7 @@ class RobotMove():
         if self.robot['prox.ground.reflected'][1] > self.right_sensor_threshold:
             # Right sensor detects the line   
             #print('line detected R')
-            counter = self.counter_turn
+            counter = self.angle_to_time(40, self.forward_speed)
             while counter > 0:
                 if self.check_stop_all_motion():
                     #print("stop all motion: rotate right")
@@ -216,6 +237,9 @@ class RobotMove():
         if self.robot is not None:
             self.robot['motor.left.target'] = 0
             self.robot['motor.right.target'] = 0
+            self.robot["leds.top"] = [0, 0, 0]
+            self.robot["leds.bottom.right"] = [0, 0, 0]
+            self.robot["leds.bottom.left"] = [0, 0, 0]
 
 #     def collision_avoidance(self):
 #         if self.robot is not None:
@@ -274,4 +298,3 @@ class RobotMove():
                 print('random turn left')
                 self.rotate_left()
                 break
-            
