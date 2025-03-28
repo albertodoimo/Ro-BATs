@@ -34,14 +34,14 @@ if __name__ == "__main__":
     fs = 96e3
     dur = 5e-3
     hi_freq =  1e3
-    low_freq = 20e3
+    low_freq = 40e3
     n_sweeps = 5
     
     t_tone = np.linspace(0, dur, int(fs*dur))
     chirp = signal.chirp(t_tone, hi_freq, t_tone[-1], low_freq)
     sig = pow_two_pad_and_window(chirp, show=True)
 
-    silence_dur = 30 # [ms]
+    silence_dur = 50 # [ms]
     silence_samples = int(silence_dur * fs/1000)
     silence_vec = np.zeros((silence_samples, ))
     full_sig = pow_two(np.concatenate((sig, silence_vec)))
