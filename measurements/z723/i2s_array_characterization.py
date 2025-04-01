@@ -30,6 +30,10 @@ def pow_two_pad_and_window(vec, show = True):
 def pow_two(vec):
     return np.pad(vec, (0, 2**int(np.ceil(np.log2(len(vec)))) - len(vec)))
 
+def rms_to_db(rms_value):
+    """Convert RMS value to decibels."""
+    return 20 * np.log10(rms_value) if rms_value > 0 else -np.inf
+
 if __name__ == "__main__":
 
     fs = 96e3
@@ -64,7 +68,7 @@ if __name__ == "__main__":
         current_frame += chunksize
 
     device = get_soundcard_outstream(sd.query_devices())
-# %%
+# %% 
     try:
         for i in range(n_sweeps): 
             stream = sd.OutputStream(samplerate=fs,
@@ -101,6 +105,7 @@ audio_files.sort()  # Sort the files in ascending order
 # Path to the multi-channel WAV file
 angle_name = '350'
 filename = angle_name +'.wav'
+
 
 # Read the multi-channel WAV file
 audio_data, sample_rate = sf.read(DIR + filename)
@@ -213,16 +218,20 @@ for i in range(len(grouped_files)):
     for idx, file in enumerate(files):
         file_path = os.path.join(DIR_first_sweep, file)
         audio, fs = sf.read(file_path)
+
+        rms = np.sqrt(np.mean(audio**2))
+        rms_db = rms_to_db(rms)
         
         row = idx // 5
         col = idx % 5
         
         ax = axs[row, col]
         ax.plot(np.linspace(0, len(audio) / fs, len(audio)), audio)
-        ax.set_title(f"Angle: {angles[idx]} degrees")  # Use extracted angle name with units
+        ax.set_title(f"Angle: {angles[idx]} degrees ")  # Use extracted angle name with units
         ax.set_xlabel("Time (s)")
         ax.set_ylabel("Amplitude")
         ax.grid(True)
+        ax.legend([f'RMS: {rms:.5f}\nRMS: {rms_db:.5f} dB'], loc='upper left')
 
     plt.suptitle(f"Channel {channel_number}: First Sweep for Each Angle", fontsize=20)
     plt.tight_layout(rect=[0, 0.03, 1, 0.95])  # Adjust layout to make room for suptitle
@@ -245,6 +254,7 @@ for i in range(num_channels):
     files = grouped_files[channel_number]
     
     rms_values = []
+    rms_values_db = []
     angles = []
     
     for file in files:
@@ -253,6 +263,9 @@ for i in range(num_channels):
         
         rms = np.sqrt(np.mean(audio**2))
         rms_values.append(rms)
+        rms_db = rms_to_db(rms)
+        rms_values_db.append(rms_db)
+
         
         angle_name = file.split('_')[0]
         angles.append(int(angle_name))
@@ -261,19 +274,14 @@ for i in range(num_channels):
     angles_rad = np.radians(angles)
     
     # Plot RMS values in polar plot
-    max_rms = max(max(rms_values) for channel_number in grouped_files for file in grouped_files[channel_number]
-                  for rms_values in [[np.sqrt(np.mean(sf.read(os.path.join(DIR_first_sweep, file))[0]**2)) for file in grouped_files[channel_number]]])
-
-    # Plot RMS values in polar plot
     ax_polar = axs_polar[i] if num_channels > 1 else axs_polar
-    ax_polar.plot(angles_rad, rms_values, linestyle='-', label=f"Channel {channel_number}")
+    ax_polar.plot(angles_rad, rms_values_db, linestyle='-', label=f"Channel {channel_number}")
     ax_polar.set_title(f"Channel {channel_number}")
     ax_polar.set_theta_zero_location("N")  # Set 0 degrees to North
     ax_polar.set_theta_direction(-1)  # Set clockwise direction
     ax_polar.set_xticks(np.linspace(0, 2 * np.pi, 18, endpoint=False))  # Set angle ticks
     ax_polar.set_xlabel("Angle (degrees)")
     ax_polar.set_ylabel("RMS Value", position=(0, 1), ha='left')
-    ax_polar.set_ylim(0, max_rms * 1.1)  # Set common y-axis limits
     ax_polar.set_rlabel_position(0)
 
 
@@ -291,6 +299,7 @@ for i in range(num_channels):
     files = grouped_files[channel_number]
     
     rms_values = []
+    rms_values_db = []
     angles = []
     
     for file in files:
@@ -299,6 +308,8 @@ for i in range(num_channels):
         
         rms = np.sqrt(np.mean(audio**2))
         rms_values.append(rms)
+        rms_db = rms_to_db(rms)
+        rms_values_db.append(rms_db)
         
         angle_name = file.split('_')[0]
         angles.append(int(angle_name))
@@ -307,19 +318,14 @@ for i in range(num_channels):
     angles_rad = np.radians(angles)
     
     # Plot RMS values in polar plot
-    max_rms = max(max(rms_values) for channel_number in grouped_files for file in grouped_files[channel_number]
-                  for rms_values in [[np.sqrt(np.mean(sf.read(os.path.join(extracted_channels_dir, file))[0]**2)) for file in grouped_files[channel_number]]])
-
-    # Plot RMS values in polar plot
     ax_polar = axs_polar[i] if num_channels > 1 else axs_polar
-    ax_polar.plot(angles_rad, rms_values, linestyle='-', label=f"Channel {channel_number}")
+    ax_polar.plot(angles_rad, rms_values_db, linestyle='-', label=f"Channel {channel_number}")
     ax_polar.set_title(f"Channel {channel_number}")
     ax_polar.set_theta_zero_location("N")  # Set 0 degrees to North
     ax_polar.set_theta_direction(-1)  # Set clockwise direction
     ax_polar.set_xticks(np.linspace(0, 2 * np.pi, 18, endpoint=False))  # Set angle ticks
     ax_polar.set_xlabel("Angle (degrees)")
     ax_polar.set_ylabel("RMS Value", position=(0, 1), ha='left')
-    ax_polar.set_ylim(0, max_rms * 1.1)  # Set common y-axis limits
     ax_polar.set_rlabel_position(0)
 
 
