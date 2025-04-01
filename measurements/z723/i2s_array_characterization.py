@@ -24,7 +24,7 @@ def pow_two_pad_and_window(vec, show = True):
         plt.plot(t, windowed_vec)
         plt.subplot(2, 1, 2)
         plt.specgram(windowed_vec, NFFT=64, noverlap=32, Fs=fs)
-        plt.show()
+        # Removed redundant plt.show() call
     return padded_windowed_vec/max(padded_windowed_vec)
 
 def pow_two(vec):
@@ -98,10 +98,6 @@ DIR = "./array_calibration/226_238/2025-03-27/original/"  # Directory containing
 audio_files = os.listdir(DIR)  # List all files in the sweeps directory
 audio_files.sort()  # Sort the files in ascending order
 
-# Directory to save the extracted channels
-output_dir = DIR + "/extracted_channels/"
-os.makedirs(output_dir, exist_ok=True)  # Create the directory if it doesn't exist
-
 # Path to the multi-channel WAV file
 angle_name = '350'
 filename = angle_name +'.wav'
@@ -116,23 +112,21 @@ print(f"Audio data shape: {audio_data.shape}")  # (samples, channels)
 num_channels = audio_data.shape[1]  # Number of channels
 channels = [audio_data[:, i] for i in range(num_channels)]
 
-# Save each channel as a separate WAV file
-for i, channel_data in enumerate(channels):
-    output_file = os.path.join(output_dir, angle_name+f"_{i + 1}.wav")  # Path to the output file
-    sf.write(output_file, channel_data, sample_rate)
-    print(f"Saved channel {i + 1} to {output_file}")
 #%%
 
 #  List all extracted channel files separated by channel number
-import os
 from natsort import natsorted
-import soundfile as sf
+import cmath
+import os
 
 # Directory containing the extracted channels
 extracted_channels_dir = "./array_calibration/226_238/2025-03-27/extracted_channels/"
 
-# List all extracted channel file
+# List all extracted channel files
 channel_files = os.listdir(extracted_channels_dir)
+
+# Filter out directories, keep only files
+channel_files = [f for f in channel_files if os.path.isfile(os.path.join(extracted_channels_dir, f))]
 
 # Sort the files naturally by the last part of their names (e.g., channel number)
 sorted_channel_files = natsorted(channel_files, key=lambda x: int(x.split('_')[-1].split('.')[0]))
@@ -173,6 +167,7 @@ def detect_peaks(filtered_output, threshold=0.5):
     return peaks
 
 # Process each channel
+DIR_first_sweep = "./array_calibration/226_238/2025-03-27/extracted_channels/first_sweep/"  # Directory to save the first sweeps
 channel_number = 1
 for i in range(len(grouped_files)):
     files = grouped_files[i+1]
@@ -181,7 +176,7 @@ for i in range(len(grouped_files)):
     # Create a new figure for each channel
     fig, ax = plt.subplots(figsize=(15, 5))
     ax.set_title(f"Channel {channel_number}")
-    ax.set_xlabel("Samples")
+    ax.set_xlabel("Seconds")
     ax.set_ylabel("Amplitude")
     ax.grid(True)
 
@@ -201,46 +196,135 @@ for i in range(len(grouped_files)):
             first_sweep_end = first_sweep_start + len(chirp)
             first_sweep = recording[first_sweep_start:first_sweep_end]
 
+            sf.write(DIR_first_sweep + file, first_sweep, int(fs))
             # Plot the first sweep
             angle_name = file.split('_')[0]
-            ax.plot(first_sweep, label=f"{angle_name}")
+            if int(angle_name):
+                ax.plot(np.linspace(0,len(first_sweep),len(first_sweep))/fs, first_sweep, label=f"{angle_name}")
             
         else:
             print(f"No sweeps detected in {file} - Channel {channel_number}")
-    channel_number += 1
-    ax.legend()
+        
 
-    plt.tight_layout()
+    # Plot all angles 
+    fig1, axs = plt.subplots(4, 5, figsize=(20, 15), sharey=True)
+    angles = [file.split('_')[0] for file in files]  # Extract angle names from filenames
+
+    for idx, file in enumerate(files):
+        file_path = os.path.join(DIR_first_sweep, file)
+        audio, fs = sf.read(file_path)
+        
+        row = idx // 5
+        col = idx % 5
+        
+        ax = axs[row, col]
+        ax.plot(np.linspace(0, len(audio) / fs, len(audio)), audio)
+        ax.set_title(f"Angle: {angles[idx]} degrees")  # Use extracted angle name with units
+        ax.set_xlabel("Time (s)")
+        ax.set_ylabel("Amplitude")
+        ax.grid(True)
+
+    plt.suptitle(f"Channel {channel_number}: First Sweep for Each Angle", fontsize=20)
+    plt.tight_layout(rect=[0, 0.03, 1, 0.95])  # Adjust layout to make room for suptitle
     plt.show()
+
+    ax.legend()
+    channel_number += 1
+
+plt.show()
+    
+ #%%
+# RMS values of the first sweep for each channel
+
+num_channels = len(grouped_files)
+fig_polar, axs_polar = plt.subplots(1, num_channels, figsize=(18, 5), subplot_kw={'projection': 'polar'})
+fig_polar.suptitle("RMS Values of First Sweeps for Each Channel", fontsize=16)
+
+for i in range(num_channels):
+    channel_number = i + 1
+    files = grouped_files[channel_number]
+    
+    rms_values = []
+    angles = []
+    
+    for file in files:
+        file_path = os.path.join(DIR_first_sweep, file)
+        audio, fs = sf.read(file_path)
+        
+        rms = np.sqrt(np.mean(audio**2))
+        rms_values.append(rms)
+        
+        angle_name = file.split('_')[0]
+        angles.append(int(angle_name))
+    
+    # Convert angles to radians
+    angles_rad = np.radians(angles)
+    
+    # Plot RMS values in polar plot
+    max_rms = max(max(rms_values) for channel_number in grouped_files for file in grouped_files[channel_number]
+                  for rms_values in [[np.sqrt(np.mean(sf.read(os.path.join(DIR_first_sweep, file))[0]**2)) for file in grouped_files[channel_number]]])
+
+    # Plot RMS values in polar plot
+    ax_polar = axs_polar[i] if num_channels > 1 else axs_polar
+    ax_polar.plot(angles_rad, rms_values, linestyle='-', label=f"Channel {channel_number}")
+    ax_polar.set_title(f"Channel {channel_number}")
+    ax_polar.set_theta_zero_location("N")  # Set 0 degrees to North
+    ax_polar.set_theta_direction(-1)  # Set clockwise direction
+    ax_polar.set_xticks(np.linspace(0, 2 * np.pi, 18, endpoint=False))  # Set angle ticks
+    ax_polar.set_xlabel("Angle (degrees)")
+    ax_polar.set_ylabel("RMS Value", position=(0, 1), ha='left')
+    ax_polar.set_ylim(0, max_rms * 1.1)  # Set common y-axis limits
+    ax_polar.set_rlabel_position(0)
+
+
+fig_polar.tight_layout()
+plt.show()
 # %%
+# RMS values of the overall recording for each channel and each angle
 
-# Load audio files, then plot them in a 6x6 grid
-DIR = "./cut_sweeps/"  # Directory containing the audio files
-audio_files = os.listdir(DIR)  # List all files in the sweeps directory
-audio_files.sort()  # Sort the files in ascending order
+num_channels = len(grouped_files)
+fig_polar, axs_polar = plt.subplots(1, num_channels, figsize=(18, 5), subplot_kw={'projection': 'polar'})
+fig_polar.suptitle("RMS Values of Overall Recording for Each Channel", fontsize=16)
 
-# Load audio files, then plot them in a 6x6 grid
-DIR_noise = "./noise_floor_5ms/"  # Directory containing the audio files
-noise_files = os.listdir(DIR_noise)  # List all files in the sweeps directory
-noise_files.sort()  # Sort the files in ascending order
+for i in range(num_channels):
+    channel_number = i + 1
+    files = grouped_files[channel_number]
+    
+    rms_values = []
+    angles = []
+    
+    for file in files:
+        file_path = os.path.join(extracted_channels_dir, file)
+        audio, fs = sf.read(file_path)
+        
+        rms = np.sqrt(np.mean(audio**2))
+        rms_values.append(rms)
+        
+        angle_name = file.split('_')[0]
+        angles.append(int(angle_name))
+    
+    # Convert angles to radians
+    angles_rad = np.radians(angles)
+    
+    # Plot RMS values in polar plot
+    max_rms = max(max(rms_values) for channel_number in grouped_files for file in grouped_files[channel_number]
+                  for rms_values in [[np.sqrt(np.mean(sf.read(os.path.join(extracted_channels_dir, file))[0]**2)) for file in grouped_files[channel_number]]])
 
-# %% Plot of the collected data
+    # Plot RMS values in polar plot
+    ax_polar = axs_polar[i] if num_channels > 1 else axs_polar
+    ax_polar.plot(angles_rad, rms_values, linestyle='-', label=f"Channel {channel_number}")
+    ax_polar.set_title(f"Channel {channel_number}")
+    ax_polar.set_theta_zero_location("N")  # Set 0 degrees to North
+    ax_polar.set_theta_direction(-1)  # Set clockwise direction
+    ax_polar.set_xticks(np.linspace(0, 2 * np.pi, 18, endpoint=False))  # Set angle ticks
+    ax_polar.set_xlabel("Angle (degrees)")
+    ax_polar.set_ylabel("RMS Value", position=(0, 1), ha='left')
+    ax_polar.set_ylim(0, max_rms * 1.1)  # Set common y-axis limits
+    ax_polar.set_rlabel_position(0)
 
-fig, axs = plt.subplots(6, 6, figsize=(20, 20))
 
-for i in range(6):
-    for j in range(6):
-        # Load audio file
-        audio, fs = soundfile.read(DIR + audio_files[i * 6 + j])
-        # Plot audio file
-        axs[i, j].plot(np.linspace(0, len(audio) / fs, len(audio)), audio)
-        axs[i, j].set_title(audio_files[i * 6 + j])
-        axs[i, j].set_xlabel("Time (s)")
-        axs[i, j].set_ylabel("Amplitude")
-        # Shared x and y axes
-        axs[i, j].sharex(axs[0, 0])
-        axs[i, j].sharey(axs[0, 0])
+fig_polar.tight_layout()
+plt.show()
 
-plt.suptitle("Recorded 5ms sweeps - CE32A-4 1/4\" Mini Speaker", fontsize=30)
-plt.tight_layout()
-plt.show(block=False)
+
+# %%
