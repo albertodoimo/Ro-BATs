@@ -30,10 +30,6 @@ def pow_two_pad_and_window(vec, show = True):
 def pow_two(vec):
     return np.pad(vec, (0, 2**int(np.ceil(np.log2(len(vec)))) - len(vec)))
 
-def rms_to_db(rms_value):
-    """Convert RMS value to decibels."""
-    return 20 * np.log10(rms_value) if rms_value > 0 else -np.inf
-
 if __name__ == "__main__":
 
     fs = 96e3
@@ -102,8 +98,12 @@ DIR = "./array_calibration/226_238/2025-03-27/original/"  # Directory containing
 audio_files = os.listdir(DIR)  # List all files in the sweeps directory
 audio_files.sort()  # Sort the files in ascending order
 
+# Directory to save the extracted channels
+output_dir = "./array_calibration/226_238/2025-03-27/extracted_channels/"
+os.makedirs(output_dir, exist_ok=True)  # Create the directory if it doesn't exist
+
 # Path to the multi-channel WAV file
-angle_name = '350'
+angle_name = '360'
 filename = angle_name +'.wav'
 
 
@@ -116,6 +116,12 @@ print(f"Audio data shape: {audio_data.shape}")  # (samples, channels)
 # Extract individual channels
 num_channels = audio_data.shape[1]  # Number of channels
 channels = [audio_data[:, i] for i in range(num_channels)]
+
+# Save each channel as a separate WAV file
+for i, channel_data in enumerate(channels):
+    output_file = os.path.join(output_dir, angle_name+f"_{i + 1}.wav")  # Path to the output file
+    sf.write(output_file, channel_data, sample_rate)
+    print(f"Saved channel {i + 1} to {output_file}")
 
 #%%
 
@@ -185,7 +191,7 @@ for i in range(len(grouped_files)):
     ax.set_ylabel("Amplitude")
     ax.grid(True)
 
-    for file in files:
+    for file in files[0:(len(files)-1)]:
         file_path = os.path.join(extracted_channels_dir, file)
         recording, sample_rate = sf.read(file_path)
 
@@ -211,19 +217,23 @@ for i in range(len(grouped_files)):
             print(f"No sweeps detected in {file} - Channel {channel_number}")
         
 
-    # Plot all angles 
-    fig1, axs = plt.subplots(4, 5, figsize=(20, 15), sharey=True)
+    # Plot all angles, skipping '360'
+    fig1, axs = plt.subplots(9, 4, figsize=(15, 30), sharey=True)
     angles = [file.split('_')[0] for file in files]  # Extract angle names from filenames
 
+    idx_to_plot = 0
     for idx, file in enumerate(files):
+        if angles[idx] == '360':
+            continue  # Skip the 360 angle
+
         file_path = os.path.join(DIR_first_sweep, file)
         audio, fs = sf.read(file_path)
 
         rms = np.sqrt(np.mean(audio**2))
-        rms_db = rms_to_db(rms)
+        rms_db = 20 * np.log10(rms)
         
-        row = idx // 5
-        col = idx % 5
+        row = idx_to_plot // 4
+        col = idx_to_plot % 4
         
         ax = axs[row, col]
         ax.plot(np.linspace(0, len(audio) / fs, len(audio)), audio)
@@ -233,14 +243,16 @@ for i in range(len(grouped_files)):
         ax.grid(True)
         ax.legend([f'RMS: {rms:.5f}\nRMS: {rms_db:.5f} dB'], loc='upper left')
 
+        idx_to_plot += 1
+
     plt.suptitle(f"Channel {channel_number}: First Sweep for Each Angle", fontsize=20)
     plt.tight_layout(rect=[0, 0.03, 1, 0.95])  # Adjust layout to make room for suptitle
-    plt.show()
+    plt.show(block = False)
 
     ax.legend()
     channel_number += 1
 
-plt.show()
+plt.show(block = False)
     
  #%%
 # RMS values of the first sweep for each channel
@@ -254,7 +266,7 @@ for i in range(num_channels):
     files = grouped_files[channel_number]
     
     rms_values = []
-    rms_values_db = []
+    rms_values_norm_db = []
     angles = []
     
     for file in files:
@@ -262,11 +274,11 @@ for i in range(num_channels):
         audio, fs = sf.read(file_path)
         
         rms = np.sqrt(np.mean(audio**2))
-        rms_values.append(rms)
-        rms_db = rms_to_db(rms)
-        rms_values_db.append(rms_db)
 
-        
+        rms_values.append(rms)
+        rms_values_norm = rms_values / rms_values[0]
+        rms_values_norm_db = 20 * np.log10(rms_values_norm)
+
         angle_name = file.split('_')[0]
         angles.append(int(angle_name))
     
@@ -275,18 +287,18 @@ for i in range(num_channels):
     
     # Plot RMS values in polar plot
     ax_polar = axs_polar[i] if num_channels > 1 else axs_polar
-    ax_polar.plot(angles_rad, rms_values_db, linestyle='-', label=f"Channel {channel_number}")
+    ax_polar.plot(angles_rad, rms_values_norm_db, linestyle='-', label=f"Channel {channel_number}")
     ax_polar.set_title(f"Channel {channel_number}")
     ax_polar.set_theta_zero_location("N")  # Set 0 degrees to North
     ax_polar.set_theta_direction(-1)  # Set clockwise direction
     ax_polar.set_xticks(np.linspace(0, 2 * np.pi, 18, endpoint=False))  # Set angle ticks
     ax_polar.set_xlabel("Angle (degrees)")
-    ax_polar.set_ylabel("RMS Value", position=(0, 1), ha='left')
+    ax_polar.set_ylabel("RMS Value dB", position=(0, 1), ha='left')
     ax_polar.set_rlabel_position(0)
 
 
 fig_polar.tight_layout()
-plt.show()
+plt.show(block = False)
 # %%
 # RMS values of the overall recording for each channel and each angle
 
@@ -299,18 +311,19 @@ for i in range(num_channels):
     files = grouped_files[channel_number]
     
     rms_values = []
-    rms_values_db = []
+    rms_values_norm_db = []
     angles = []
     
     for file in files:
         file_path = os.path.join(extracted_channels_dir, file)
         audio, fs = sf.read(file_path)
-        
+
         rms = np.sqrt(np.mean(audio**2))
         rms_values.append(rms)
-        rms_db = rms_to_db(rms)
-        rms_values_db.append(rms_db)
-        
+
+        rms_values_norm = rms_values / rms_values[0]
+        rms_values_norm_db = 20 * np.log10(rms_values_norm)
+
         angle_name = file.split('_')[0]
         angles.append(int(angle_name))
     
@@ -319,18 +332,92 @@ for i in range(num_channels):
     
     # Plot RMS values in polar plot
     ax_polar = axs_polar[i] if num_channels > 1 else axs_polar
-    ax_polar.plot(angles_rad, rms_values_db, linestyle='-', label=f"Channel {channel_number}")
+    ax_polar.plot(angles_rad, rms_values_norm_db, linestyle='-', label=f"Channel {channel_number}")
     ax_polar.set_title(f"Channel {channel_number}")
     ax_polar.set_theta_zero_location("N")  # Set 0 degrees to North
     ax_polar.set_theta_direction(-1)  # Set clockwise direction
     ax_polar.set_xticks(np.linspace(0, 2 * np.pi, 18, endpoint=False))  # Set angle ticks
     ax_polar.set_xlabel("Angle (degrees)")
-    ax_polar.set_ylabel("RMS Value", position=(0, 1), ha='left')
+    ax_polar.set_ylabel("RMS Value dB", position=(0, 1), ha='left')
     ax_polar.set_rlabel_position(0)
 
 
 fig_polar.tight_layout()
-plt.show()
+plt.show(block = False)
+# %%
+import os
+import numpy as np
+import matplotlib.pyplot as plt
+from scipy import fft
+import soundfile as sf
 
+# Directory containing the extracted channels
+
+# Central frequencies of the bands
+central_freq = np.array([4e3, 6e3, 8e3, 10e3, 12e3, 14e3, 16e3, 18e3, 20e3, 22e3, 24e3, 26e3, 28e3, 30e3, 32e3, 34e3, 36e3, 38e3])
+BW = 1e3  # Bandwidth of the bands
+linestyles = ["-", "--", "-.", ":", "-", "--"]  # Line styles for the plot
+
+# Group central frequencies into 3 sets of 6 bands each
+num_bands_per_plot = 6
+central_freq_sets = [central_freq[i * num_bands_per_plot:(i + 1) * num_bands_per_plot] for i in range(3)]
+
+# Number of microphones
+num_mics = num_channels
+
+# Plot for each microphone
+for mic in range(1, num_mics + 1):
+    files = grouped_files[mic]
+    angles = [int(file.split('_')[0]) for file in files]  # Extract angles from filenames
+
+    # Create a figure with 3 polar subplots
+    fig, axes = plt.subplots(1, 3, subplot_kw={"projection": "polar"}, figsize=(15, 5))
+    plt.suptitle(f"Polar Frequency Response - Microphone {mic}", fontsize=20)
+
+    for ax_idx, ax in enumerate(axes):
+        ii = 0
+        for fc in central_freq_sets[ax_idx]:
+            
+            audio_patt = []
+
+            for file in files:
+                file_path = os.path.join(DIR_first_sweep, file)
+                audio, fs = sf.read(file_path)
+
+                # Compute FFT
+                audio_freq = fft.fft(audio, n=2048)
+                audio_freq = audio_freq[:1024]
+                freqs = fft.fftfreq(2048, 1 / fs)[:1024]
+
+                # Compute mean radiance in the band
+                band_mean = np.mean(np.abs(audio_freq[(freqs > fc - BW) & (freqs < fc + BW)]))
+                audio_patt.append(band_mean)
+
+            # Normalize and plot
+            audio_patt_norm = audio_patt / audio_patt[0] # Normalize the radiance
+            audio_patt_norm_dB = 20 * np.log10(audio_patt_norm) # Convert the radiance to dB
+            
+            if fc >= 10e3:
+                label = f"{fc / 1e3:.0f} kHz"
+            else:
+                label = f"{fc / 1e3:.0f} kHz"
+
+            ax.plot(np.deg2rad(angles), audio_patt_norm_dB, label=label, linestyle=linestyles[ii])
+            ii +=1
+        # Configure polar plot
+        ax.legend(loc="upper right")
+        ax.set_theta_offset(np.pi / 2)
+        ax.set_theta_zero_location("N")  # Set 0 degrees to North
+        ax.set_theta_direction(-1)  # Set clockwise direction
+        ax.set_xticks(np.linspace(0, 2 * np.pi, 18, endpoint=False))  # Set angle ticks
+        ax.set_yticks(np.linspace(-35, 0, 6))
+        ax.set_xlabel("Angle (degrees)")
+        ax.set_ylabel("RMS Value dB", position=(0, 1), ha='left')
+        ax.set_rlabel_position(0)
+
+
+    plt.tight_layout()
+
+    plt.show()
 
 # %%
