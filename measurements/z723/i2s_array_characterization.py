@@ -64,36 +64,35 @@ if __name__ == "__main__":
         current_frame += chunksize
 
     device = get_soundcard_outstream(sd.query_devices())
-# %% 
-    try:
-        for i in range(n_sweeps): 
-            stream = sd.OutputStream(samplerate=fs,
-                        blocksize=0,
-                        device=device,
-                        channels=2,
-                        callback=callback,
-                        latency='low')
-                
-            with stream:
-                while stream.active:
-                    pass
-
-            current_frame = 0
-            print('Chirped %d' % (i+1))
-            time.sleep(1)
-
-    except KeyboardInterrupt:
-        print('Interrupted by user')
+# # %% 
+#     try:
+#         for i in range(n_sweeps): 
+#             stream = sd.OutputStream(samplerate=fs,
+#                         blocksize=0,
+#                         device=device,
+#                         channels=2,
+#                         callback=callback,
+#                         latency='low')
+#                 
+#             with stream:
+#                 while stream.active:
+#                     pass
+# 
+#             current_frame = 0
+#             print('Chirped %d' % (i+1))
+#             time.sleep(1)
+# 
+#     except KeyboardInterrupt:
+#         print('Interrupted by user')
 
 # %% Libraries and files
-
 import os
 import soundfile as sf
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy import fft
 
-# Load audio files, then plot them in a 6x6 grid
+# Load audio files, then plot a 6x6 grid
 DIR = "./array_calibration/226_238/2025-03-27/original/"  # Directory containing the audio files
 audio_files = os.listdir(DIR)  # List all files in the sweeps directory
 audio_files.sort()  # Sort the files in ascending order
@@ -103,29 +102,31 @@ output_dir = "./array_calibration/226_238/2025-03-27/extracted_channels/"
 os.makedirs(output_dir, exist_ok=True)  # Create the directory if it doesn't exist
 
 # Path to the multi-channel WAV file
-angle_name = '360'
-filename = angle_name +'.wav'
+for file in audio_files:
+    file_path = os.path.join(DIR, file)
 
+    angle_name = file.split('.')[0]
+    print(f"Processing file: {angle_name}")
 
-# Read the multi-channel WAV file
-audio_data, sample_rate = sf.read(DIR + filename)
+    # Read the multi-channel WAV file
+    audio_data, sample_rate = sf.read(DIR + file)
 
-# Check the shape of the audio data
-print(f"Audio data shape: {audio_data.shape}")  # (samples, channels)
+    # Check the shape of the audio data
+    print(f"Audio data shape: {audio_data.shape}")  # (samples, channels)
 
-# Extract individual channels
-num_channels = audio_data.shape[1]  # Number of channels
-channels = [audio_data[:, i] for i in range(num_channels)]
+    # Extract individual channels
+    num_channels = audio_data.shape[1]  # Number of channels
+    channels = [audio_data[:, i] for i in range(num_channels)]
 
-# Save each channel as a separate WAV file
-for i, channel_data in enumerate(channels):
-    output_file = os.path.join(output_dir, angle_name+f"_{i + 1}.wav")  # Path to the output file
-    sf.write(output_file, channel_data, sample_rate)
-    print(f"Saved channel {i + 1} to {output_file}")
+    # Save each channel as a separate WAV file
+    for i, channel_data in enumerate(channels):
+        output_file = os.path.join(output_dir, angle_name+f"_{i + 1}.wav")  # Path to the output file
+        sf.write(output_file, channel_data, sample_rate)
+        print(f"Saved channel {i + 1} to {output_file}")
 
 #%%
 
-#  List all extracted channel files separated by channel number
+# List all extracted channel files separated by channel number
 from natsort import natsorted
 import cmath
 import os
@@ -293,9 +294,42 @@ for i in range(num_channels):
     ax_polar.set_theta_direction(-1)  # Set clockwise direction
     ax_polar.set_xticks(np.linspace(0, 2 * np.pi, 18, endpoint=False))  # Set angle ticks
     ax_polar.set_xlabel("Angle (degrees)")
-    ax_polar.set_ylabel("RMS Value dB", position=(0, 1), ha='left')
+    ax_polar.set_ylabel("RMS Value dB", position=(0, 0.85), ha='left')
+    ax_polar.set_yticks(np.linspace(-8, 2, 6))
     ax_polar.set_rlabel_position(0)
 
+# Linear plot of all channels
+fig_linear, ax_linear = plt.subplots(figsize=(10, 6))
+fig_linear.suptitle("RMS Values of Overall Recording for All Channels", fontsize=16)
+
+for i in range(num_channels):
+    channel_number = i + 1
+    files = grouped_files[channel_number]
+    
+    rms_values = []
+    angles = []
+    
+    for file in files:
+        file_path = os.path.join(DIR_first_sweep, file)
+        audio, fs = sf.read(file_path)
+
+        rms = np.sqrt(np.mean(audio**2))
+        rms_values.append(rms)
+
+        rms_values_norm = rms_values / rms_values[0]
+        rms_values_norm_db = 20 * np.log10(rms_values_norm)
+
+        angle_name = file.split('_')[0]
+        angles.append(int(angle_name))
+
+    # Plot RMS values in linear plot
+    ax_linear.plot(angles, rms_values_norm_db, marker='.', linestyle='-', label=f"Channel {channel_number}")
+
+ax_linear.set_xlabel("Angle (degrees)")
+ax_linear.set_xticks(np.linspace(0, 380, 19, endpoint=False))  # Set angle ticks
+ax_linear.set_ylabel("RMS Value dB")
+ax_linear.legend()
+ax_linear.grid(True)
 
 fig_polar.tight_layout()
 plt.show(block = False)
@@ -341,9 +375,39 @@ for i in range(num_channels):
     ax_polar.set_ylabel("RMS Value dB", position=(0, 1), ha='left')
     ax_polar.set_rlabel_position(0)
 
+# Linear plot of all channels
+fig_linear, ax_linear = plt.subplots(figsize=(10, 6))
+fig_linear.suptitle("RMS Values of Overall Recording for All Channels", fontsize=16)
+
+for i in range(num_channels):
+    channel_number = i + 1
+    files = grouped_files[channel_number]
+    
+    rms_values = []
+    angles = []
+    
+    for file in files:
+        file_path = os.path.join(extracted_channels_dir, file)
+        audio, fs = sf.read(file_path)
+
+        rms = np.sqrt(np.mean(audio**2))
+        rms_values.append(rms)
+
+        angle_name = file.split('_')[0]
+        angles.append(int(angle_name))
+    
+    # Plot RMS values in linear plot
+    ax_linear.plot(angles, rms_values, marker='.', linestyle='-', label=f"Channel {channel_number}")
+
+ax_linear.set_xlabel("Angle (degrees)")
+ax_linear.set_xticks(np.linspace(0, 380, 19, endpoint=False))  # Set angle ticks
+ax_linear.set_ylabel("RMS Value")
+ax_linear.legend()
+ax_linear.grid(True)
 
 fig_polar.tight_layout()
 plt.show(block = False)
+
 # %%
 import os
 import numpy as np
