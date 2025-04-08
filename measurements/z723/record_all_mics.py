@@ -1,6 +1,6 @@
 # file to record all the mics in the system in a single file
 
-from functions.get_card import get_card 
+#from functions.get_card import get_card 
 
 #!/usr/bin/env python3
 """Create a recording with arbitrary duration.
@@ -22,6 +22,20 @@ import numpy  # Make sure NumPy is loaded before it is used in the callback
 assert numpy  # avoid "imported but unused" message (W0611)
 
 
+def get_card(device_list):
+    """
+    Get the index of the ASIO card in the device list.
+    Parameters:
+    - device_list: list of devices (usually = sd.query_devices())
+
+    Returns: index of the card in the device list
+    """
+    for i, each in enumerate(device_list):
+        dev_name = each['name']
+        name = 'MCHStreamer' in dev_name
+        if name:
+            return i
+    return None
 
 def int_or_str(text):
     """Helper function for argument parsing."""
@@ -72,7 +86,7 @@ def callback(indata, frames, time, status):
 # Create folder for saving recordings
 timenow = datetime.datetime.now()
 time = timenow.strftime('%Y-%m-%d')
-save_path = '/home/thymio/robat_py/array_calibration/'
+save_path = './array_calibration/'
 folder_name = str(time)
 folder_path = os.path.join(save_path, folder_name)
 os.makedirs(folder_path, exist_ok=True)
