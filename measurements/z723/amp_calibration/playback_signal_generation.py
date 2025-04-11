@@ -19,7 +19,7 @@ fs = 192000 # Hz
 all_sweeps = []
 for durn in durns:
     t = np.linspace(0, durn, int(fs*durn))
-    start_f, end_f = 0.2e3, 3e3
+    start_f, end_f = 1e3, 95e3
     sweep = signal.chirp(t, start_f, t[-1], end_f)
     sweep *= signal.windows.tukey(sweep.size, 0.95)
     sweep *= 0.8

@@ -2,7 +2,6 @@
 import sounddevice as sd
 import numpy as np
 import scipy.signal as signal
-import time
 from matplotlib import pyplot as plt
 
 def get_soundcard_outstream(device_list):
@@ -24,7 +23,6 @@ def pow_two_pad_and_window(vec, show = True):
         plt.plot(t, windowed_vec)
         plt.subplot(2, 1, 2)
         plt.specgram(windowed_vec, NFFT=64, noverlap=32, Fs=fs)
-        # Removed redundant plt.show() call
     return padded_windowed_vec/max(padded_windowed_vec)
 
 def pow_two(vec):
@@ -88,9 +86,6 @@ if __name__ == "__main__":
 # %% Libraries and files
 import os
 import soundfile as sf
-import numpy as np
-import matplotlib.pyplot as plt
-from scipy import fft
 
 # Load audio files, then plot a 6x6 grid
 DIR = "./array_calibration/226_238/2025-03-27/original/"  # Directory containing the audio files
@@ -125,11 +120,8 @@ for file in audio_files:
         print(f"Saved channel {i + 1} to {output_file}")
 
 #%%
-
 # List all extracted channel files separated by channel number
 from natsort import natsorted
-import cmath
-import os
 
 # Directory containing the extracted channels
 extracted_channels_dir = "./array_calibration/226_238/2025-03-27/extracted_channels/"
@@ -174,12 +166,16 @@ def matched_filter(recording, chirp_template):
     return filtered_output
 
 # Detect peaks in the matched filter output
-def detect_peaks(filtered_output, threshold=0.5):
-    peaks, _ = signal.find_peaks(filtered_output, height=threshold * np.max(filtered_output))
+def detect_peaks(filtered_output, threshold=0.8):
+    peaks, _ = signal.find_peaks(filtered_output, height=threshold * np.max(filtered_output), distance=(silence_dur/1000+dur)*fs)
     return peaks
 
 # Process each channel
 DIR_first_sweep = "./array_calibration/226_238/2025-03-27/extracted_channels/first_sweep/"  # Directory to save the first sweeps
+
+# Dictionary to store RMS values for all files
+rms_values_dict = {}
+
 channel_number = 1
 for i in range(len(grouped_files)):
     files = grouped_files[i+1]
@@ -192,7 +188,7 @@ for i in range(len(grouped_files)):
     ax.set_ylabel("Amplitude")
     ax.grid(True)
 
-    for file in files[0:(len(files)-1)]:
+    for file in files[0:(len(files))]:
         file_path = os.path.join(extracted_channels_dir, file)
         recording, sample_rate = sf.read(file_path)
 
@@ -201,19 +197,53 @@ for i in range(len(grouped_files)):
 
         # Detect peaks
         peaks = detect_peaks(filtered_output)
-
+        print(f"Peaks detected in {file}: {len(peaks)}")
+        
         if len(peaks) > 0:
             # Extract the first sweep
             first_sweep_start = peaks[0]
             first_sweep_end = first_sweep_start + len(chirp)
             first_sweep = recording[first_sweep_start:first_sweep_end]
 
+            # Calculate RMS value of the first sweep
+            rms_first_sweep = np.sqrt(np.mean(first_sweep**2))
+            print(f"RMS value of the first sweep in {file}: {rms_first_sweep:.5f}")
+
+            # Store RMS value in the dictionary
+            rms_values_dict[file] = rms_first_sweep
+
+            # Calculate RMS values for all detected peaks
+            rms_values = []
+            for peak in peaks:
+                sweep_start = peak
+                sweep_end = sweep_start + len(chirp)
+                sweep = recording[sweep_start:sweep_end]
+                rms = np.sqrt(np.mean(sweep**2))
+                rms_values.append(rms)
+                print(f"RMS value of sweep at peak {peak} in {file}: {rms:.5f}")
+            
+            # Calculate the average RMS value of all peaks
+            average_rms = np.mean(rms_values)
+
+            print(f"Average RMS value of all sweeps in {file}: {average_rms:.5f}")
+
             sf.write(DIR_first_sweep + file, first_sweep, int(fs))
             # Plot the first sweep
             angle_name = file.split('_')[0]
             if int(angle_name):
                 ax.plot(np.linspace(0,len(first_sweep),len(first_sweep))/fs, first_sweep, label=f"{angle_name}")
-            
+                ax.legend(loc = 'upper right', ncol = 2)
+            if len(peaks) < n_sweeps:
+                print(f"Only {len(peaks)} sweeps detected in {file} - Channel {channel_number}; expected {n_sweeps}.\n Try adjusting the threshold in detect_peaks.")
+                # Plot the filtered output
+                # plt.figure(figsize=(15, 5))
+                # plt.title(f"Filtered Output - {file}")
+                # plt.plot(np.linspace(0, len(filtered_output), len(filtered_output)) / fs, filtered_output, label=f"{file}")
+                # plt.plot(peaks / fs, filtered_output[peaks], "x", label="Detected Peaks")
+                # plt.xlabel("Seconds")
+                # plt.ylabel("Amplitude")
+                # plt.grid(True)
+                # plt.legend()
         else:
             print(f"No sweeps detected in {file} - Channel {channel_number}")
         
@@ -254,85 +284,12 @@ for i in range(len(grouped_files)):
     channel_number += 1
 
 plt.show(block = False)
-    
- #%%
-# RMS values of the first sweep for each channel
 
-num_channels = len(grouped_files)
-fig_polar, axs_polar = plt.subplots(1, num_channels, figsize=(18, 5), subplot_kw={'projection': 'polar'})
-fig_polar.suptitle("RMS Values of First Sweeps for Each Channel", fontsize=16)
+# Print the dictionary of RMS values
+print("\nRMS Values for All Files:")
+for file, rms_value in rms_values_dict.items():
+    print(f"{file}: {rms_value:.5f}")
 
-for i in range(num_channels):
-    channel_number = i + 1
-    files = grouped_files[channel_number]
-    
-    rms_values = []
-    rms_values_norm_db = []
-    angles = []
-    
-    for file in files:
-        file_path = os.path.join(DIR_first_sweep, file)
-        audio, fs = sf.read(file_path)
-        
-        rms = np.sqrt(np.mean(audio**2))
-
-        rms_values.append(rms)
-        rms_values_norm = rms_values / rms_values[0]
-        rms_values_norm_db = 20 * np.log10(rms_values_norm)
-
-        angle_name = file.split('_')[0]
-        angles.append(int(angle_name))
-    
-    # Convert angles to radians
-    angles_rad = np.radians(angles)
-    
-    # Plot RMS values in polar plot
-    ax_polar = axs_polar[i] if num_channels > 1 else axs_polar
-    ax_polar.plot(angles_rad, rms_values_norm_db, linestyle='-', label=f"Channel {channel_number}")
-    ax_polar.set_title(f"Channel {channel_number}")
-    ax_polar.set_theta_zero_location("N")  # Set 0 degrees to North
-    ax_polar.set_theta_direction(-1)  # Set clockwise direction
-    ax_polar.set_xticks(np.linspace(0, 2 * np.pi, 18, endpoint=False))  # Set angle ticks
-    ax_polar.set_xlabel("Angle (degrees)")
-    ax_polar.set_ylabel("RMS Value dB", position=(0, 0.85), ha='left')
-    ax_polar.set_yticks(np.linspace(-8, 2, 6))
-    ax_polar.set_rlabel_position(0)
-
-# Linear plot of all channels
-fig_linear, ax_linear = plt.subplots(figsize=(10, 6))
-fig_linear.suptitle("RMS Values of Overall Recording for All Channels", fontsize=16)
-
-for i in range(num_channels):
-    channel_number = i + 1
-    files = grouped_files[channel_number]
-    
-    rms_values = []
-    angles = []
-    
-    for file in files:
-        file_path = os.path.join(DIR_first_sweep, file)
-        audio, fs = sf.read(file_path)
-
-        rms = np.sqrt(np.mean(audio**2))
-        rms_values.append(rms)
-
-        rms_values_norm = rms_values / rms_values[0]
-        rms_values_norm_db = 20 * np.log10(rms_values_norm)
-
-        angle_name = file.split('_')[0]
-        angles.append(int(angle_name))
-
-    # Plot RMS values in linear plot
-    ax_linear.plot(angles, rms_values_norm_db, marker='.', linestyle='-', label=f"Channel {channel_number}")
-
-ax_linear.set_xlabel("Angle (degrees)")
-ax_linear.set_xticks(np.linspace(0, 380, 19, endpoint=False))  # Set angle ticks
-ax_linear.set_ylabel("RMS Value dB")
-ax_linear.legend()
-ax_linear.grid(True)
-
-fig_polar.tight_layout()
-plt.show(block = False)
 # %%
 # RMS values of the overall recording for each channel and each angle
 
@@ -350,9 +307,7 @@ for i in range(num_channels):
     
     for file in files:
         file_path = os.path.join(extracted_channels_dir, file)
-        audio, fs = sf.read(file_path)
-
-        rms = np.sqrt(np.mean(audio**2))
+        rms = rms_values_dict[file]
         rms_values.append(rms)
 
         rms_values_norm = rms_values / rms_values[0]
@@ -388,9 +343,7 @@ for i in range(num_channels):
     
     for file in files:
         file_path = os.path.join(extracted_channels_dir, file)
-        audio, fs = sf.read(file_path)
-
-        rms = np.sqrt(np.mean(audio**2))
+        rms = rms_values_dict[file]
         rms_values.append(rms)
 
         angle_name = file.split('_')[0]
@@ -409,11 +362,9 @@ fig_polar.tight_layout()
 plt.show(block = False)
 
 # %%
-import os
-import numpy as np
-import matplotlib.pyplot as plt
-from scipy import fft
+
 import soundfile as sf
+from scipy import fft
 
 # Directory containing the extracted channels
 
