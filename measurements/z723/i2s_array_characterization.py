@@ -3,6 +3,7 @@ import sounddevice as sd
 import numpy as np
 import scipy.signal as signal
 from matplotlib import pyplot as plt
+import time
 
 def get_soundcard_outstream(device_list):
     for i, each in enumerate(device_list):

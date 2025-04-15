@@ -1,6 +1,6 @@
-# %%
+#%%
 # 
-import sounddevice as sd
+# import sounddevice as sd
 import numpy as np
 import scipy.signal as signal
 from matplotlib import pyplot as plt
@@ -19,7 +19,6 @@ def pow_two_pad_and_window(vec, show = True):
         plt.plot(t, windowed_vec)
         plt.subplot(2, 1, 2)
         plt.specgram(windowed_vec, NFFT=64, noverlap=32, Fs=fs)
-        # Removed redundant plt.show() call
     return padded_windowed_vec/max(padded_windowed_vec)
 
 def pow_two(vec):
@@ -31,7 +30,6 @@ if __name__ == "__main__":
     dur = 20e-3
     hi_freq =  1e3
     low_freq = 40e3
-    n_sweeps = 5
     
     t_tone = np.linspace(0, dur, int(fs*dur))
     chirp = signal.chirp(t_tone, hi_freq, t_tone[-1], low_freq)
@@ -59,9 +57,8 @@ if __name__ == "__main__":
         current_frame += chunksize
 
 # %% Libraries and files
+# Load audio files
 
-
-# Load audio files, then plot a 6x6 grid
 DIR = "./array_calibration/226_238/dist_test/2025-04-09/original/"  # Directory containing the audio files
 audio_files = os.listdir(DIR)  # List all files in the sweeps directory
 audio_files.sort()  # Sort the files in ascending order
@@ -126,7 +123,7 @@ for file in sorted_channel_files:
     grouped_files[channel_number].append(file)
 
 for i in range(len(grouped_files)):
-    grouped_files[i+1].sort()
+    grouped_files[i+1].sort(key=lambda x: int(x.split('c')[0]))
 
 # Print grouped files
 for channel_number, files in grouped_files.items():
@@ -140,17 +137,20 @@ for channel_number, files in grouped_files.items():
 # Define the matched filter function
 def matched_filter(recording, chirp_template):
     chirp_template = chirp_template[::-1]  # Time-reversed chirp
-    filtered_output = signal.fftconvolve(recording, chirp_template, mode='same')
+    filtered_output = signal.fftconvolve(recording, chirp_template, mode='valid')
     return filtered_output
 
 # Detect peaks in the matched filter output
-def detect_peaks(filtered_output, threshold=0.5):
+def detect_peaks(filtered_output, threshold=0.8):
     peaks, _ = signal.find_peaks(filtered_output, height=threshold * np.max(filtered_output))
     return peaks
 
 # Process each channel
 DIR_first_sweep = extracted_channels_dir + "/first_sweep/"  # Directory to save the first sweeps
 os.makedirs(DIR_first_sweep, exist_ok=True)  # Create the directory if it doesn't exist
+
+# Dictionary to store RMS values for all files
+rms_values_dict = {}
 
 channel_number = 1
 for i in range(len(grouped_files)):
@@ -173,23 +173,44 @@ for i in range(len(grouped_files)):
 
         # Detect peaks
         peaks = detect_peaks(filtered_output)
-
+        print(f"Peaks detected in {file}: {len(peaks)}")
+        
         if len(peaks) > 0:
             # Extract the first sweep
             first_sweep_start = peaks[0]
             first_sweep_end = first_sweep_start + len(chirp)
             first_sweep = recording[first_sweep_start:first_sweep_end]
 
+            # Calculate RMS values for all detected peaks
+            rms_values = []
+            for peak in peaks:
+                sweep_start = peak
+                sweep_end = sweep_start + len(chirp)
+                sweep = recording[sweep_start:sweep_end]
+                rms = np.sqrt(np.mean(sweep**2))
+                rms_values.append(rms)
+                print(f"RMS value of sweep at peak {peak} in {file}: {rms:.5f}")
+            
+            # Calculate the average RMS value of all peaks
+            average_rms = np.mean(rms_values)
+            # Store mean RMS value in the dictionary
+            rms_values_dict[file] = average_rms
+
+            print(f"Average RMS value of all sweeps in {file}: {average_rms:.5f}")
+
             sf.write(DIR_first_sweep + file, first_sweep, int(fs))
             # Plot the first sweep
             dist_name = file.split('_')[0]
+
             ax.plot(np.linspace(0,len(first_sweep),len(first_sweep))/fs, first_sweep, label=f"{dist_name}")
-            
+            ax.legend(loc = 'upper right', ncol = 2)
+            print(f" {len(peaks)} sweeps detected in {file} - Channel {channel_number}")
+
         else:
             print(f"No sweeps detected in {file} - Channel {channel_number}")
         
 
-    # Plot all angles, skipping '360'
+    # Plot all dist
     fig1, axs = plt.subplots(2, 6, figsize=(18, 8), sharey=True)
     dist = [file.split('_')[0] for file in files]  
 
@@ -223,135 +244,106 @@ for i in range(len(grouped_files)):
     channel_number += 1
 
 plt.show(block = False)
-    
- #%%
-# RMS values of the first sweep for each channel
+
+# Print the dictionary of RMS values
+print("\nRMS Values for All Files:")
+for file, rms_value in rms_values_dict.items():
+    print(f"{file}: {rms_value:.5f}")
+
+ # %%
+# RMS values of the overall recording for each channel and each angle
 
 num_channels = len(grouped_files)
-fig, axs = plt.subplots(1, num_channels, figsize=(18, 10))
-fig.suptitle("RMS Values of First Sweeps for Each Channel", fontsize=16)
 
-for i in range(num_channels):
-    channel_number = i + 1
-    files = grouped_files[channel_number]
-    
-    rms_values = []
-    rms_values_norm_db = []
-    dist = []
-    
-    rms_values = []
-    rms_values_norm_db = []
-    dist = []
-    
-    # Extract distance from filename and store with the filename
-    dist_files = []
-    for file in files:
-        if 'C' in file:
-            continue
-        file_path = os.path.join(DIR_first_sweep, file)
-        audio, fs = sf.read(file_path)
-        
-        rms = np.sqrt(np.mean(audio**2))
+# Linear plot of all channels
+fig_linear, ax_linear = plt.subplots(figsize=(6, 7))
+fig_linear.suptitle("RMS Values of Overall Recording for All Channels", fontsize=12)
 
-        rms_values.append(rms)
-        
-        dist_name = file.split('c')[0]
-        dist_val = int(dist_name.split('_')[0])
-        dist_files.append((dist_val, file))
-    
-    # Sort files based on distance
-    dist_files.sort(key=lambda x: x[0])
-    
-    # Extract sorted filenames and distances
-    sorted_files = [file for _, file in dist_files]
-    dist = [str(dist_val) for dist_val, _ in dist_files]
-    rms_values = []
+# Subplots for each channel
+fig_channels, axs_channels = plt.subplots(1, num_channels, figsize=(5*num_channels,10))
+fig_channels.suptitle("RMS Values of Overall Recording for Each Channel", fontsize=16)
 
-    for file in sorted_files:
-        file_path = os.path.join(DIR_first_sweep, file)
-        audio, fs = sf.read(file_path)
-        rms = np.sqrt(np.mean(audio**2))
-        rms_values.append(rms)
+# Plotting RMS values for each channel
+angles = np.linspace(0, 360, 18, endpoint=False)  # Angles for each measurement
+rms_values_channel = {}
+
+# Collect RMS values for each channel
+
+channel_data = {}
+norm_channel_data = {}
+
+for file, rms_value in rms_values_dict.items():
+    if 'C' in file:
+        continue
+
+    dist_name = file.split('c')[0]
+    channel_number = int(file.split('_')[-1].split('.')[0])
+
+    if channel_number not in channel_data:
+        channel_data[channel_number] = {'distances': [], 'rms_values': []}
+
+    if channel_number not in norm_channel_data:
+        norm_channel_data[channel_number] = {'distances': [], 'rms_values': []}
+
+    channel_data[channel_number]['distances'].append(dist_name)
+    norm_channel_data[channel_number]['distances'].append(dist_name)
+
+    if len(channel_data[channel_number]['distances']) == 0:
+        pass#channel_data[channel_number]['rms_values'].append(20 * np.log10(rms_value/max_rms))
+    else:
+        first_distance = norm_channel_data[channel_number]['distances'][0]
+        first_rms = rms_values_dict[first_distance+'cm_'+ str(channel_number)+'.wav']
+        print(f"first rms: {first_rms}")
+        norm_channel_data[channel_number]['rms_values'].append(20 * np.log10(rms_value/first_rms))
+
+        channel_data[channel_number]['rms_values'].append(20 * np.log10(rms_value))
+
+
+for channel_number, data in norm_channel_data.items():
+    ax_linear.plot(data['distances'], data['rms_values'], marker='o', linestyle='-', label=f'Channel {channel_number}')
+    print(f"Channel {channel_number}: {data['rms_values']}")
+    ax_linear.tick_params(axis='x', rotation=45)
+    ax_linear.grid(True)
+    ax_linear.legend()
     
-    rms_values_norm = rms_values / rms_values[-1]
-    rms_values_norm_db = 20 * np.log10(rms_values_norm)
-    # Plot RMS values for the channels over distances
-    ax = axs[i]
-    ax.plot(dist, rms_values_norm_db, marker='o')
-    ax.set_title(f"Channel {channel_number}")
-    ax.set_xlabel("Distance")
-    ax.set_ylabel("Normalized RMS (dB)")
-    ax.set_ylim(0, 10)
-    ax.set_yticks(np.arange(0, 15, 1))
-    ax.grid(True)
-    ax.tick_params(axis='x', rotation=45)
+    # Plotting each channel in a separate subplot
+    color = ax_linear.get_lines()[-1].get_color()  # Get the color of the last line in ax_linear
+    ax_channel = axs_channels[channel_number-1]
+    ax_channel.plot(data['distances'], data['rms_values'], marker='o', linestyle='-', label=f'Channel {channel_number}', color=color)
+    ax_channel.set_title(f'Channel {channel_number}')
+    ax_channel.set_xlabel('Distance')
+    if channel_number == 1:
+        ax_channel.set_ylabel('Normalized RMS (dB)')
+        ax_channel.yaxis.set_label_position("left")
+    ax_channel.grid(True)
+    ax_channel.sharey(axs_channels[0])
 
-plt.tight_layout(rect=[0, 0.03, 1, 0.95])
-plt.show()
-
-#%%
 # Plot RMS values across channels for each distance
-distances = []
-for i in range(num_channels):
-    channel_number = i + 1
-    files = grouped_files[channel_number]
-    
-    # Extract distance from filename
-    for file in files:
-        if 'C' in file:
-            continue
-        dist_name = file.split('c')[0]
-        dist_val = int(dist_name.split('_')[0])
-        if dist_val not in distances:
-            distances.append(dist_val)
+fig_distances, ax_distances = plt.subplots(figsize=(10, 6))
+fig_distances.suptitle("RMS Values Across Channels for Each Distance", fontsize=16)
 
-distances.sort()
+distance_data = {}
 
-rms_values_across_channels = {}
-for dist in distances:
-    rms_values_across_channels[dist] = []
+for channel_number, data in channel_data.items():
+    for dist, rms in zip(data['distances'], data['rms_values']):
+        if dist not in distance_data:
+            distance_data[dist] = []
+        distance_data[dist].append(rms)
 
-for i in range(num_channels):
-    channel_number = i + 1
-    files = grouped_files[channel_number]
-    
-    rms_values = []
-    dist_files = []
-    
-    # Extract distance from filename and store with the filename
-    for file in files:
-        if 'C' in file:
-            continue
-        file_path = os.path.join(DIR_first_sweep, file)
-        audio, fs = sf.read(file_path)
-        rms = np.sqrt(np.mean(audio**2))
-        
-        dist_name = file.split('c')[0]
-        dist_val = int(dist_name.split('_')[0])
-        
-        rms_values_across_channels[dist_val].append(rms)
+for dist, rms_values in distance_data.items():
+    ax_distances.plot(range(1, len(rms_values) + 1), rms_values, marker='o', linestyle='-', label=f'Distance {dist}')
+    print(f"Distance {dist}: {rms_values}")
 
-# Normalize RMS values for each distance
-for dist in distances:
-    max_rms = max(rms_values_across_channels[dist])
-    rms_values_across_channels[dist] = [20 * np.log10(rms / max_rms) for rms in rms_values_across_channels[dist]]
+ax_distances.set_xlabel('Channel Number')
+ax_distances.set_xticks(range(1, len(rms_values) + 1))
+ax_distances.set_ylabel('Normalized RMS (dB)')
+ax_distances.grid(True)
+ax_distances.legend(title="Distances", loc='upper right')
 
-# Plotting
-fig, ax = plt.subplots(figsize=(12, 6))
-channel_numbers = list(range(1, num_channels + 1))
+plt.grid(True)
+plt.show(block=False)
 
-for dist in distances:
-    ax.plot(channel_numbers, rms_values_across_channels[dist], marker='o', label=f'Distance: {dist}')
-
-ax.set_xlabel("Channel Number")
-ax.set_ylabel("Normalized RMS (dB)")
-ax.set_title("RMS Values Across Channels for Each Distance")
-ax.set_xticks(channel_numbers)
-ax.grid(True)
-ax.legend()
-plt.tight_layout()
-plt.show()
-
+fig_channels.tight_layout(rect=[0, 0.03, 1, 0.95])
+plt.show(block=False)
 
 # %%
-# Plot the RMS values for each channel
