@@ -13,18 +13,18 @@ import soundfile as sf
 
 #%%
 # make a sweep
-durns = np.array([3, 5, 2000] )*1e-3
+durns = np.array([3, 4, 5, 8, 10] )*1e-3
 fs = 192000 # Hz
 
 all_sweeps = []
 for durn in durns:
     t = np.linspace(0, durn, int(fs*durn))
-    start_f, end_f = 1e3, 95e3
+    start_f, end_f = 1e3, 20e3
     sweep = signal.chirp(t, start_f, t[-1], end_f)
     sweep *= signal.windows.tukey(sweep.size, 0.95)
     sweep *= 0.8
-    sweep_padded = 0.1*np.pad(sweep, pad_width=[int(fs*0.1)]*2, constant_values=[0,0])
+    sweep_padded = np.pad(sweep, pad_width=[int(fs*0.1)]*2, constant_values=[0,0])
     all_sweeps.append(sweep_padded)
     
 sweeps_combined = np.concatenate(all_sweeps)
-sf.write('start_notify.wav', sweeps_combined, samplerate=fs)
+sf.write('1_20k_5sweeps.wav', sweeps_combined, samplerate=fs)

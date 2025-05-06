@@ -168,7 +168,7 @@ def matched_filter(recording, chirp_template):
 
 # Detect peaks in the matched filter output
 def detect_peaks(filtered_output, threshold=0.8):
-    peaks, _ = signal.find_peaks(filtered_output, height=threshold * np.max(filtered_output), distance=(silence_dur/1000+dur)*fs)
+    peaks, _ = signal.find_peaks(filtered_output, height=threshold * np.max(filtered_output), distance=(silence_dur/1000+dur)*fs, prominence=0.5)
     return peaks
 
 # Process each channel

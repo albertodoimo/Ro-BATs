@@ -75,10 +75,10 @@ if __name__ == "__main__":
 
 
     # how long to run the playbacks in HH:MM:SS
-    duration = "03:00:00" 
+    duration = "00:10:00" 
     
     # gap between playbacks in seconds
-    wait_time = 20 * 60 # seconds
+    wait_time = 30 # seconds
 
     pbkfile_path = './playback_sweeps_1_95.wav'
     current_date = dt.datetime.now().strftime("%Y-%m-%d")
@@ -86,29 +86,28 @@ if __name__ == "__main__":
     os.makedirs(DIR, exist_ok=True)  # Create the directory if it doesn't exist
     
     audio, fs = read_audiofile(pbkfile_path)
-    siren, fs = read_audiofile('./start_notify.wav')
+    #siren, fs = read_audiofile('./start_notify.wav')
     
     try:
         nchannels = 9
     except:
         nchannels = 1 
+        audio
         audio = audio.reshape(-1,1)
     
     start_time = time.time()    
 
-    # name by which sounddevice refers to the audio-interface by
-    while time.time() <= start_time + hhmmss_to_seconds(duration):
-        # Playback and record simultaneously
-        
-        sd.play(siren, samplerate=fs, blocking=True) # play the start notification sound
-        # wait for 5 seconds before starting the playback
-        time.sleep(5)
-        rec_audio = sd.playrec(audio, samplerate=fs, input_mapping=[9], blocking=True) # input_mapping=[9]: record only channel 9
-        # # save recording 
-        current_filename = 'playback_recording'+generate_ISOstyle_time_now()+'.wav'
-
-        sf.write(DIR + current_filename, rec_audio, fs)
-        
-        # wait a bit before starting the next play-rec
-        time.sleep(wait_time)
-        
+#name by which sounddevice refers to the audio-interface by
+while time.time() <= start_time + hhmmss_to_seconds(duration):
+    # Playback and record simultaneously
+    
+    #sd.play(siren, samplerate=fs, blocking=True) # play the start notification sound
+    # wait for 5 seconds before starting the playback
+    #time.sleep(5)
+    rec_audio = sd.playrec(audio, samplerate=fs, input_mapping=[9], blocking=True) # input_mapping=[9]: record only channel 9
+    # # save recording 
+    current_filename = 'playback_recording'+generate_ISOstyle_time_now()+'.wav'
+    sf.write(DIR + current_filename, rec_audio, fs)
+    
+    # wait a bit before starting the next play-rec
+    time.sleep(wait_time)
