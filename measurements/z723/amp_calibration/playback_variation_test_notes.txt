@@ -1,0 +1,9 @@
+8/4/2025 16.30
+
+Setup for the calibration of the amplifier:
+
+1 m distance, 1 m from ground, middle of the room
+Gras mic no cover in channel A +40 gain 
+Fireface 802 channel out = 1 channel in 9 (gain 8/9, one before the last)
+Amplifier AVR 445 -20 dB volume
+Tweeter 1 

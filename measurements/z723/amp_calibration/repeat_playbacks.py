@@ -75,10 +75,10 @@ if __name__ == "__main__":
 
 
     # how long to run the playbacks in HH:MM:SS
-    duration = "00:10:00" 
+    duration = "01:00:00" 
     
     # gap between playbacks in seconds
-    wait_time = 30 # seconds
+    wait_time = 60 # seconds
 
     pbkfile_path = './playback_sweeps_1_95.wav'
     current_date = dt.datetime.now().strftime("%Y-%m-%d")
@@ -92,7 +92,6 @@ if __name__ == "__main__":
         nchannels = 9
     except:
         nchannels = 1 
-        audio
         audio = audio.reshape(-1,1)
     
     start_time = time.time()    
