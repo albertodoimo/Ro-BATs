@@ -45,8 +45,7 @@ if __name__ == "__main__":
     current_date = dt.datetime.now().strftime("%Y-%m-%d")
     DIR = f"./{current_date}/"  # Directory to save the first sweeps
     os.makedirs(DIR, exist_ok=True)  # Create the directory if it doesn't exist
-    
-    duration = 3  # seconds
+    duration = 10  # seconds
     rec_audio = sd.rec(int(duration * fs), channels=1, mapping=[9], blocking=True) # input_mapping=[9]: record only channel 9
     # # save recording 
     current_filename = 'ref_tone_gras'+generate_ISOstyle_time_now()+'.wav'

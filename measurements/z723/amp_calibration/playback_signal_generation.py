@@ -27,4 +27,4 @@ for durn in durns:
     all_sweeps.append(sweep_padded)
     
 sweeps_combined = np.concatenate(all_sweeps)
-sf.write('1_20k_5sweeps.wav', sweeps_combined, samplerate=fs)
+sf.write('prova.wav', sweeps_combined, samplerate=fs)
