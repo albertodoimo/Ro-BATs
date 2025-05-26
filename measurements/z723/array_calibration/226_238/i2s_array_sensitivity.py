@@ -39,6 +39,7 @@ import soundfile as sf
 import matplotlib.pyplot as plt 
 from utilities import *
 import scipy.signal as sig
+from scipy import fft
 
 #%%
 durns = np.array([3, 4, 5, 8, 10] )*1e-3
@@ -111,7 +112,7 @@ def detect_peaks(filtered_output, sample_rate):
     return peaks
 
 gras_pbk_audio_or, fs_gras = sf.read('./2025-05-09/ref_tone_gras2025-05-09_11-59-29.wav')
-SPH0645_pbk_audio_or, fs_SPH0645 = sf.read('./2025-05-09/extracted_channels/channel_separation/000_5.wav')
+SPH0645_pbk_audio_or, fs_SPH0645 = sf.read('./2025-05-09/extracted_channels/channel_separation/000_3.wav')
 
 chirp_to_use = 0
 # resampling 
@@ -186,178 +187,75 @@ plt.grid()
 # snr_target = dB(bandwise_tgtmic/tgt_silence_bandwise)
 # snr_gras = dB(bandwise_grasmic/gras_silence_bandwise)
 
-
 # %% SNR computation between the sweeps and the noise floor measurements for each freq band
 
-# def calculate_snr_bands(audio, noise):
+central_freq = np.arange(1000, fs_SPH0645//2, 250) 
+BW = 0.25e3 # Bandwidth of the bands
 
-#     # Compute signal power (RMS value squared)
-#     P_signal = np.mean(audio**2)
+def calculate_snr(audio, noise):
 
-#     # extract noise power
-#     P_noise = np.mean(noise**2)
+    # Compute signal power (RMS value squared)
+    P_signal = np.mean(audio**2)
 
-#     # Compute SNR in dB
-#     SNR = 10 * np.log10(P_signal / P_noise)
+    # extract noise power
+    P_noise = np.mean(noise**2)
 
-#     # Noise floor in dBFS (full scale)
-#     noise_floor = 10 * np.log10(P_noise)
+    # Compute SNR in dB
+    SNR = 10 * np.log10(P_signal / P_noise)
 
-#     return SNR, noise_floor
+    return SNR
 
-# noises = [] # Load noise files
-# for i in np.arange(len(noise_files)): 
-#     noise, fs = soundfile.read(DIR_noise + noise_files[i]) 
-#     noises.append(noise)
-# noises = np.array(noises)
+# Use the initial part opf the GRAS recording as noise
+noise_SPH0645 = SPH0645_pbk_audio_or[int(0.520*fs_SPH0645):int(0.523*fs_SPH0645)] 
 
-# NOISES = fft.fft(noises, n=2048, axis=1) # Compute the FFT of the noise files
-# # NOISES_uni = NOISES[:,0:1024] # Select the first half of the FFT
-# NOISES_uni = NOISES
+plt.figure()
+plt.plot(np.linspace(0, len(noise_SPH0645)/fs_SPH0645, len(noise_SPH0645)), noise_SPH0645)
+plt.show()
 
+Noise_fft = np.fft.rfft(noise_SPH0645) # Compute the FFT of the noise files
+Noise_fftfreqs = np.fft.rfftfreq(noise_SPH0645.size, 1/fs_SPH0645)
 
-# # Radiance display at multiple frequencies
+plt.figure()
+plt.plot(Noise_fftfreqs,np.abs(Noise_fft))
+plt.xlabel('Frequency, Hz', fontsize=12)
+plt.ylabel('Amplitude', fontsize=12)
+plt.xticks(np.arange(0, fs_SPH0645//2, 1000), rotation=45)
+plt.title('FFT of the noise floor')
+plt.grid()
+plt.show()
 
-# central_freq = np.array([4e3, 6e3, 8e3, 10e3, 12e3, 14e3, 16e3, 18e3]) # Central frequencies of the bands
-# BW = 1e3 # Bandwidth of the bands
+# Signal fft of SPH0645 playback audio
 
-# linestyles = ["-", "--", "-.", ":"] # Line styles for the plot
-# # Create a figure and a set of subplots
-# fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, subplot_kw={"projection": "polar"},figsize=(13, 13))
-# plt.suptitle("Radiance Pattern - CE32A-4 1/4\" Mini Speaker", fontsize=20)
-# i = 0
+SPH0645_fft = np.fft.rfft(SPH0645_pbk_audio) # Compute the FFT of the noise files
+SPH0645_fftfreqs = np.fft.rfftfreq(SPH0645_pbk_audio.size, 1/fs_SPH0645)
 
-# for fc in central_freq[0:4]:
-#     rad_patt = np.mean(
-#         radiance[:, (freqs < fc + BW) & (freqs > fc - BW)], axis=1
-#     ) # Compute the mean radiance in the band
-#     rad_patt_norm = rad_patt / np.max(rad_patt) # Normalize the radiance
-#     rad_patt_norm_dB = 20 * np.log10(rad_patt_norm) # Convert the radiance to dB
-#     rad_patt_norm_dB = np.append(rad_patt_norm_dB, rad_patt_norm_dB[0]) # Append the first value to the end of the vector
+plt.figure()
+plt.plot(SPH0645_fftfreqs,np.abs(SPH0645_fft))
+plt.xlabel('Frequency, Hz', fontsize=12)
+plt.ylabel('Amplitude', fontsize=12)
+plt.title('FFT of the SPH0645 playback audio')
+plt.xticks(np.arange(0, fs_SPH0645//2, 1000), rotation=45)
+plt.grid()
+plt.show()
 
-#     snrs = []
-#     for ii in np.arange(len(Channels_uni)):
-#         snr_value, noise_floor_value = calculate_snr_bands(
-#                                 Channels_uni[ii, (freqs < fc + BW) & (freqs > fc - BW)],    
-#                                 NOISES_uni[ii, (freqs < fc + BW) & (freqs > fc - BW)]) # Compute the SNR in the band
-#         snrs.append(snr_value)
-#     snrs = np.array(snrs)
-#     snrs = np.append(snrs, snrs[0])
+snrs = []
+for fc in central_freq:
+    snr_value = calculate_snr(
+                            SPH0645_fft[(SPH0645_fftfreqs < fc + BW) & (SPH0645_fftfreqs > fc - BW)],    
+                            Noise_fft[(Noise_fftfreqs < fc + BW) & (Noise_fftfreqs > fc - BW)]) # Compute the SNR in the band
+    snrs.append(snr_value)
+snrs = np.array(snrs)
+snrs = snrs - np.min(snrs)
 
-#     # Plot the radiance pattern
-#     if str(fc)[0:2] == '10': # Display the frequency in kHz
-#         ax1.plot(
-#         np.deg2rad(theta),
-#         rad_patt_norm_dB,
-#         label=str(fc)[0:2] + " [kHz]",
-#         linestyle=linestyles[i],
-#         )
-#         ax3.plot(
-#         np.deg2rad(theta),
-#         snrs,
-#         label=str(fc)[0:2] + " [kHz]",
-#         linestyle=linestyles[i],
-#         )
-#     else:
-#         ax1.plot(
-#         np.deg2rad(theta),
-#         rad_patt_norm_dB,
-#         label=str(fc)[0:1] + " [kHz]",
-#         linestyle=linestyles[i],
-#         )
-#         ax3.plot(
-#         np.deg2rad(theta),
-#         snrs,
-#         label=str(fc)[0:1] + " [kHz]",
-#         linestyle=linestyles[i],
-#         )   
-#     i += 1
-
-# # Display the legend
-# ax1.legend(loc="upper right", bbox_to_anchor=(1.1, 1.1))
-# # offset polar axes by -90 degrees
-# ax1.set_theta_offset(np.pi / 2)
-# # set theta direction to clockwise
-# ax1.set_theta_direction(-1)
-# # more theta ticks
-# ax1.set_xticks(np.linspace(0, 2 * np.pi, 18, endpoint=False))
-# # less radial ticks
-# ax1.set_yticks(np.linspace(-40, 0, 5))
-# # Display the radial labels
-# ax1.set_rlabel_position(0)
-
-# ax3.legend(loc="upper right", bbox_to_anchor=(1.1, 1.1))
-# # offset polar axes by -90 degrees
-# ax3.set_theta_offset(np.pi / 2)
-# # set theta direction to clockwise
-# ax3.set_theta_direction(-1)
-# # more theta ticks
-# ax3.set_xticks(np.linspace(0, 2 * np.pi, 18, endpoint=False))
-# # less radial ticks
-# ax3.set_yticks(np.linspace(0, 60, 7))
-# ax3.set_rlabel_position(0)
-
-# i = 0
-# for fc in central_freq[4:8]:
-#     rad_patt = np.mean(
-#         radiance[:, (freqs < fc + BW) & (freqs > fc - BW)], axis=1
-#     )
-#     noise_patt = np.mean(
-#         NOISES_uni[:, (freqs < fc + BW) & (freqs > fc - BW)], axis=1
-#     )
-#     rad_patt_norm = rad_patt / np.max(rad_patt)
-#     rad_patt_norm_dB = 20 * np.log10(rad_patt_norm)
-#     rad_patt_norm_dB = np.append(rad_patt_norm_dB, rad_patt_norm_dB[0])
-    
-#     snrs = []
-#     for ii in np.arange(len(Channels_uni)):
-#         #Channels_uni = np.abs(Channels_uni) #moved outside the loop
-#         snr_value, noise_floor_value = calculate_snr_bands(Channels_uni[ii, (freqs < fc + BW) & (freqs > fc - BW)]    
-#                                  , NOISES_uni[ii, (freqs < fc + BW) & (freqs > fc - BW)])
-#         snrs.append(snr_value)
-#     snrs = np.array(snrs)
-#     snrs = np.append(snrs, snrs[0])
-
-#     ax2.plot(
-#         np.deg2rad(theta),
-#         rad_patt_norm_dB,
-#         label=str(fc)[0:2] + " [kHz]",
-#         linestyle=linestyles[i],
-#     )
-#     ax4.plot(
-#         np.deg2rad(theta),
-#         snrs,
-#         label=str(fc)[0:2] + " [kHz]",
-#         linestyle=linestyles[i],
-#         )
-#     i += 1
-# ax2.legend(loc="upper right", bbox_to_anchor=(1.1, 1.1))
-# # offset polar axes by -90 degrees
-# ax2.set_theta_offset(np.pi / 2)
-# # set theta direction to clockwise
-# ax2.set_theta_direction(-1)
-# # more theta ticks
-# ax2.set_xticks(np.linspace(0, 2 * np.pi, 18, endpoint=False))
-# # less radial ticks
-# ax2.set_yticks(np.linspace(-40, 0, 5))
-# ax2.set_rlabel_position(0)
-
-# ax4.legend(loc="upper right", bbox_to_anchor=(1.1, 1.1))
-# # offset polar axes by -90 degrees
-# ax4.set_theta_offset(np.pi / 2)
-# # set theta direction to clockwise
-# ax4.set_theta_direction(-1)
-# # more theta ticks
-# ax4.set_xticks(np.linspace(0, 2 * np.pi, 18, endpoint=False))
-# # less radial ticks
-# ax4.set_yticks(np.linspace(0, 60, 7))
-# ax4.set_rlabel_position(0)
-# ax4.set_title("SNR Pattern - CE32A-4 1/4\" Mini Speaker", fontsize=20)
-# ax3.set_title("SNR Pattern - CE32A-4 1/4\" Mini Speaker", fontsize=20)
-
-# plt.tight_layout()
-# plt.show()
-
+plt.figure()
+plt.plot(central_freq, snrs, label='SNR')
+plt.xlabel('Frequencies, Hz', fontsize=12);
+plt.ylabel('dB', fontsize=12)
+plt.grid()
+plt.xticks(np.arange(0, fs_SPH0645//2, 1000), rotation=45)
+plt.title('SNR of the SPH0645 playback audio')
+plt.tight_layout()
+plt.show()
 
 #%%
 # Calibration mic: Calculate the rms_Pascal of the 1 Pa calibration tone
@@ -438,6 +336,7 @@ plt.tight_layout()
 # calibration mic
 SPH0645_sensitivity = np.array(SPH0645_freqrms)/np.array(gras_freqParms)
 
+print(f'The target mic has a sensitivity at {SPH0645_centrefreqs[0]} Hz is: {dB(SPH0645_sensitivity[0])} dB a.u. rms/Pa')
 plt.figure()
 a0 = plt.subplot(211)
 plt.plot(SPH0645_centrefreqs, SPH0645_sensitivity)
@@ -506,7 +405,8 @@ plt.grid()
 plt.xlabel('Time [s]')
 plt.ylabel('Amplitude', fontsize=12)
 
-#%% And finally let's check that the Sennheiser calibration makes sense
+#%%
+# And finally let's check that the calibration makes sense
 # using a sound that we didn't use to calculate the sensitivity
 # If the length of the recorded target mic audio here is not the same as the calibration audio. 
 #  then you'll need to interpolate the microphone sensitivity using interpolate_freq_response in the
@@ -541,8 +441,10 @@ gras_dbspl = pascal_to_dbspl(gras_Pa)
 plt.figure()
 plt.plot(gras_centrefreqs,gras_dbspl, label='gras')
 plt.plot(recsound_centrefreqs,freqwiese_dbspl, label='SPH0645')
+plt.plot(central_freq, snrs, label='SNR')
 plt.ylabel('dBrms SPL, re 20$\mu$Pa', fontsize=12)
 plt.xlabel('Frequency, Hz', fontsize=12)
+plt.title('Validation by comparing of GRAS and a secondary SPH0645 recording')
 plt.legend()
 plt.grid()
 plt.xticks(np.linspace(1000, 20000, 20), rotation=45)
