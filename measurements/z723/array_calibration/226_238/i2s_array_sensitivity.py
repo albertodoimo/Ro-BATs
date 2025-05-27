@@ -1,36 +1,39 @@
 # -*- coding: utf-8 -*-
 """
-Example run-through
 ===================
-This IS NOT a complete run-through. The follow things need to implemented by the user
-    * playback signal segmentation 
-    * bandpass filtering / other cleaning
-    * deconvolution to remove reflections
 
-Other things to remember
-------------------------
-The GRAS microphone and target microphone may or may not be recorded with the same
-analog-digital-converter!! Be Very Aware of this while comparing the sensitivities 
-between the two microphones!!
+This script is used to calibrate the sensitivity of the SPH0645 I2S microphone 
+array using a GRAS reference microphone. 
+The calibration is done by playing back a series of chirp sweeps and measuring the response of both microphones. 
+The sensitivity is calculated in terms of dB SPL (Sound Pressure Level) relative to 20 μPa.
 
 Experimental notes
 ------------------
-* Remember to write down all the GAIN values in dB for every recording you make.
+Data for the experiments have been collected on May 9th, 2025, along with the measurements used to calculate the array directivity.
+
+ROBAT 226.238:
+- 5 mic array adafruit 5 i2s SPH0645LM4H-B from Knowles (https://cdn-shop.adafruit.com/product-files/3421/i2S+Datasheet.PDF),
+    mounted on a custom PCB from Adafruit (https://www.adafruit.com/product/3421#description)
+- 48khz recording from the array mics
+- 192 KHz recoridngs from the GRAS reference mic (GRAS 40BF + 26AC preamplifier)
+- 1.5 meters distance (~ far field = 10𝛌; 𝛌max = fmin; 343/2 = 171 Hz --> 10𝛌 = 1715 Hz; at 1000Hz: 4.5𝛌 = 4.5*0.343 = 1.5435 m)
+
+HW settings:
+- Harman kandon AWR 445 vol = -25 db 
+- fireface analog out 1/2 stereo vol = 0db
+- tweeter #1
+- Ref mic: gras +30 db fireface channel 9, +20db channel A power module
 
 WARNING
--------
-As of APRIL 2025 -  this is a prototype module only. 
-See below for the steps you need to take to ensure everything makes sense.
+This code is mainly derived from the code: 
+    
+    example_w-deconvolution_runthrough.py
 
+at this link: https://github.com/activesensingcollectives/calibrate-mic/blob/master/example_w-deconvolution_runthrough.py
 
-Always double-check with a 'validation' signal
-----------------------------------------------
-Test your calibration outcomes with a second signal that wasn't used anywhere before
-and also recorded by both the GRAs and target mic. 
+Created on May 27 2025
 
-Created on Sat Apr 12 07:35:50 2025
-
-@author: theja
+@author: Alberto Doimo
 """
 
 # %%
@@ -39,7 +42,6 @@ import soundfile as sf
 import matplotlib.pyplot as plt 
 from utilities import *
 import scipy.signal as sig
-from scipy import fft
 
 #%%
 durns = np.array([3, 4, 5, 8, 10] )*1e-3
@@ -111,15 +113,36 @@ def detect_peaks(filtered_output, sample_rate):
     peaks, properties = signal.find_peaks(filtered_output, prominence=0.5, distance=0.2 * sample_rate)
     return peaks
 
+# Design the highpass filter
+cutoff = 100 # cutoff frequency in Hz
+# Plot the filter frequency response
+b, a = signal.butter(2, cutoff, 'high', analog=True)
+w, h = signal.freqs(b, a)
+plt.plot(w, 20 * np.log10(abs(h)))
+plt.title('Butterworth filter frequency response')
+plt.xlabel('Frequency [rad/s]')
+plt.ylabel('Amplitude [dB]')
+plt.margins(0, 0.1)
+plt.grid(which='both', axis='both')
+plt.axvline(cutoff, color='red') # cutoff frequency
+plt.show()
+
+# load the GRAS and SPH0645 audio files
 gras_pbk_audio_or, fs_gras = sf.read('./2025-05-09/ref_tone_gras2025-05-09_11-59-29.wav')
 SPH0645_pbk_audio_or, fs_SPH0645 = sf.read('./2025-05-09/extracted_channels/channel_separation/000_3.wav')
 
 chirp_to_use = 0
+
 # resampling 
 gras_pbk_audio_res = sig.resample(gras_pbk_audio_or, int(fs_SPH0645*len(gras_pbk_audio_or)/fs_gras))
 
-gras_pbk_audio_matched = matched_filter(gras_pbk_audio_res, chirp[chirp_to_use])
-SPH0645_pbk_audio_matched = matched_filter(SPH0645_pbk_audio_or, chirp[chirp_to_use])
+# Apply the filter
+sos = signal.butter(2, cutoff, 'hp', fs=fs_SPH0645, output='sos')
+gras_pbk_audio_filt = sig.sosfilt(sos, gras_pbk_audio_res)
+SPH0645_pbk_audio_filt = sig.sosfilt(sos, SPH0645_pbk_audio_or)
+
+gras_pbk_audio_matched = matched_filter(gras_pbk_audio_filt, chirp[chirp_to_use])
+SPH0645_pbk_audio_matched = matched_filter(SPH0645_pbk_audio_filt, chirp[chirp_to_use])
 
 # Detect peaks
 peaks_gras = detect_peaks(gras_pbk_audio_matched, fs_SPH0645)
@@ -146,8 +169,8 @@ plt.tight_layout()
 plt.show()
 
 #%% 
-gras_pbk_audio = gras_pbk_audio_res[int(peaks_gras[chirp_to_use]):int(peaks_gras[chirp_to_use]) + int(fs_SPH0645*durns[chirp_to_use])]
-SPH0645_pbk_audio = SPH0645_pbk_audio_or[int(peaks_SPH0645[chirp_to_use]):int(peaks_SPH0645[chirp_to_use]) + int(fs_SPH0645*durns[chirp_to_use])]
+gras_pbk_audio = gras_pbk_audio_filt[int(peaks_gras[chirp_to_use]):int(peaks_gras[chirp_to_use]) + int(fs_SPH0645*durns[chirp_to_use])]
+SPH0645_pbk_audio = SPH0645_pbk_audio_filt[int(peaks_SPH0645[chirp_to_use]):int(peaks_SPH0645[chirp_to_use]) + int(fs_SPH0645*durns[chirp_to_use])]
 
 # Plot the playback signals
 plt.figure(figsize=(10,5))
@@ -178,15 +201,6 @@ plt.xlabel('Time [s]')
 plt.ylabel('Amplitude', fontsize=12)
 plt.grid()
 
-
-#%%
-# Check the SNR at the spectral level - use a silent audio clip from the above recordings
-# to be sure that your measurements mean something useful. Remember garbage in, garbage out.
- 
-# raise NotImplementedError('Check your SNR from the ambient sound!')
-# snr_target = dB(bandwise_tgtmic/tgt_silence_bandwise)
-# snr_gras = dB(bandwise_grasmic/gras_silence_bandwise)
-
 # %% SNR computation between the sweeps and the noise floor measurements for each freq band
 
 central_freq = np.arange(1000, fs_SPH0645//2, 250) 
@@ -201,31 +215,54 @@ def calculate_snr(audio, noise):
     P_noise = np.mean(noise**2)
 
     # Compute SNR in dB
-    SNR = 10 * np.log10(P_signal / P_noise)
+    SNR = P_signal / P_noise
 
-    return SNR
+    SNR_dB = 10 * np.log10(SNR)  # Convert to dB scale
+
+    return SNR, SNR_dB
 
 # Use the initial part opf the GRAS recording as noise
-noise_SPH0645 = SPH0645_pbk_audio_or[int(0.520*fs_SPH0645):int(0.523*fs_SPH0645)] 
+noise_SPH0645_1 = SPH0645_pbk_audio_filt[int(0.5*fs_SPH0645):int(0.505*fs_SPH0645)] 
+noise_SPH0645_2 = SPH0645_pbk_audio_filt[int(1*fs_SPH0645):int(1.005*fs_SPH0645)]
+noise_SPH0645_3 = SPH0645_pbk_audio_filt[int(1.5*fs_SPH0645):int(1.505*fs_SPH0645)]
+noise_SPH0645_4 = SPH0645_pbk_audio_filt[int(2*fs_SPH0645):int(2.005*fs_SPH0645)]
+noise_SPH0645_5 = SPH0645_pbk_audio_filt[int(3*fs_SPH0645):int(3.005*fs_SPH0645)]
+noises = [noise_SPH0645_1, noise_SPH0645_2, noise_SPH0645_3, noise_SPH0645_4, noise_SPH0645_5]
 
-plt.figure()
-plt.plot(np.linspace(0, len(noise_SPH0645)/fs_SPH0645, len(noise_SPH0645)), noise_SPH0645)
+# Plot the noise files
+fig, axs = plt.subplots(3, 2, figsize=(12, 8), sharey=True)
+titles = ['Noise 1', 'Noise 2', 'Noise 3', 'Noise 4', 'Noise 5']
+for i, (noise, title) in enumerate(zip(noises, titles)):
+    ax = axs.flat[i]
+    ax.plot(np.linspace(0, len(noise)/fs_SPH0645, len(noise)), noise)
+    ax.set_title(title)
+    ax.set_xlabel('Time [s]')
+    ax.set_ylabel('Amplitude')
+    ax.grid()
+plt.suptitle('Extracted SPH0645 Noise Floors', fontsize=16)
+plt.tight_layout()
 plt.show()
 
-Noise_fft = np.fft.rfft(noise_SPH0645) # Compute the FFT of the noise files
-Noise_fftfreqs = np.fft.rfftfreq(noise_SPH0645.size, 1/fs_SPH0645)
+# Compute the FFT of the noise files and plot them
+Noise_ffts = []
+fig, axs = plt.subplots(3, 2, figsize=(12, 8), sharey=True)
+for i in range(len(noises)):
+    Noise_fft = np.fft.rfft(noises[i]) # Compute the FFT of the noise files
+    Noise_fftfreqs = np.fft.rfftfreq(noises[i].size, 1/fs_SPH0645)
+    Noise_ffts.append(Noise_fft)
 
-plt.figure()
-plt.plot(Noise_fftfreqs,np.abs(Noise_fft))
-plt.xlabel('Frequency, Hz', fontsize=12)
-plt.ylabel('Amplitude', fontsize=12)
-plt.xticks(np.arange(0, fs_SPH0645//2, 1000), rotation=45)
-plt.title('FFT of the noise floor')
-plt.grid()
+    ax = axs.flat[i]
+    ax.plot(Noise_fftfreqs, np.abs(Noise_fft))
+    ax.set_xlabel('Frequency, Hz', fontsize=12)
+    ax.set_ylabel('Amplitude', fontsize=12)
+    ax.set_xticks(np.arange(0, fs_SPH0645//2, 1000))
+    ax.tick_params(axis='x', rotation=45)
+    ax.set_title(f'FFT of {titles[i]}')
+    ax.grid()
+plt.tight_layout()
 plt.show()
 
 # Signal fft of SPH0645 playback audio
-
 SPH0645_fft = np.fft.rfft(SPH0645_pbk_audio) # Compute the FFT of the noise files
 SPH0645_fftfreqs = np.fft.rfftfreq(SPH0645_pbk_audio.size, 1/fs_SPH0645)
 
@@ -238,22 +275,30 @@ plt.xticks(np.arange(0, fs_SPH0645//2, 1000), rotation=45)
 plt.grid()
 plt.show()
 
-snrs = []
-for fc in central_freq:
-    snr_value = calculate_snr(
-                            SPH0645_fft[(SPH0645_fftfreqs < fc + BW) & (SPH0645_fftfreqs > fc - BW)],    
-                            Noise_fft[(Noise_fftfreqs < fc + BW) & (Noise_fftfreqs > fc - BW)]) # Compute the SNR in the band
-    snrs.append(snr_value)
-snrs = np.array(snrs)
-snrs = snrs - np.min(snrs)
+all_snrs = {}
+for i in range(len(noises)):
+    Noise_fft = Noise_ffts[i]
+    Noise_fftfreqs = np.fft.rfftfreq(noises[i].size, 1/fs_SPH0645)
+    snrs = []
+    for fc in central_freq:
+        snr_value, snr_value_db = calculate_snr(
+                                SPH0645_fft[(SPH0645_fftfreqs < fc + BW) & (SPH0645_fftfreqs > fc - BW)],    
+                                Noise_fft[(Noise_fftfreqs < fc + BW) & (Noise_fftfreqs > fc - BW)]) # Compute the SNR in the band
+        snrs.append(snr_value)
+    snrs = np.array(snrs)
+    # Store SNRs for each noise segment in a list or array indexed by i
+    all_snrs[i] = snrs
+SNR = np.mean(list(all_snrs.values()), axis=0) # Average the SNRs across all noise segments
 
 plt.figure()
-plt.plot(central_freq, snrs, label='SNR')
+plt.plot(central_freq, 10 * np.log10(SNR), label='Mean SNR')
+plt.plot(central_freq, 10 * np.log10(snrs), label= f'SNR from {titles[i]}')
 plt.xlabel('Frequencies, Hz', fontsize=12);
 plt.ylabel('dB', fontsize=12)
 plt.grid()
 plt.xticks(np.arange(0, fs_SPH0645//2, 1000), rotation=45)
 plt.title('SNR of the SPH0645 playback audio')
+plt.legend()
 plt.tight_layout()
 plt.show()
 
@@ -360,8 +405,8 @@ plt.tight_layout()
 # Here we load a separate 'recorded sound' - a 'validation' audio clip let's call it 
 chirp_to_use = 1
 
-gras_pbk_audio_matched = matched_filter(gras_pbk_audio_res, chirp[chirp_to_use])
-SPH0645_pbk_audio_matched = matched_filter(SPH0645_pbk_audio_or, chirp[chirp_to_use])
+gras_pbk_audio_matched = matched_filter(gras_pbk_audio_filt, chirp[chirp_to_use])
+SPH0645_pbk_audio_matched = matched_filter(SPH0645_pbk_audio_filt, chirp[chirp_to_use])
 
 # Detect peaks
 peaks_gras = detect_peaks(gras_pbk_audio_matched, fs_SPH0645)
@@ -387,9 +432,8 @@ plt.ylabel('Amplitude')
 plt.tight_layout()
 plt.show()
 
-
-gras_rec = gras_pbk_audio_res[int(peaks_gras[chirp_to_use]):int(peaks_gras[chirp_to_use]) + int(fs_SPH0645*durns[chirp_to_use])]
-recorded_sound = SPH0645_pbk_audio_or[int(peaks_SPH0645[chirp_to_use]):int(peaks_SPH0645[chirp_to_use]) + int(fs_SPH0645*durns[chirp_to_use])]
+gras_rec = gras_pbk_audio_filt[int(peaks_gras[chirp_to_use]):int(peaks_gras[chirp_to_use]) + int(fs_SPH0645*durns[chirp_to_use])]
+recorded_sound = SPH0645_pbk_audio_filt[int(peaks_SPH0645[chirp_to_use]):int(peaks_SPH0645[chirp_to_use]) + int(fs_SPH0645*durns[chirp_to_use])]
 
 # Plot the playback signals
 plt.figure(figsize=(10,5))
@@ -472,7 +516,7 @@ gras_relevant_freqs = np.logical_and(gras_centrefreqs>=frequency_band[0],
 #%% This is one way to do it - use the RAW audio, and calculate its rms
 # since we the overall flat sensitivity of the GRAS
 gras_overallaudio_Parms = rms(gras_rec)/rms_1Pa_tone
-# This is the other way to do it by combining RMS values - like we did for the Sennheiser
+# This is the other way to do it by combining RMS values
 gras_totalrms_Parms = np.sqrt(np.sum(gras_Pa[gras_relevant_freqs]**2))
 
 print(f'GRAS dBrms SPL measures:{pascal_to_dbspl(gras_overallaudio_Parms)}, {pascal_to_dbspl(gras_totalrms_Parms)}')
