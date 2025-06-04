@@ -15,7 +15,7 @@ ROBAT 226.238:
 - 5 mic array adafruit 5 i2s SPH0645LM4H-B from Knowles (https://cdn-shop.adafruit.com/product-files/3421/i2S+Datasheet.PDF),
     mounted on a custom PCB from Adafruit (https://www.adafruit.com/product/3421#description)
 - 48khz recording from the array mics
-- 192 KHz recoridngs from the GRAS reference mic (GRAS 40BF + 26AC preamplifier)
+- 192 KHz recordings from the GRAS reference mic (GRAS 40BF + 26AC preamplifier)
 - 1.5 meters distance (~ far field = 10𝛌; 𝛌max = fmin; 343/2 = 171 Hz --> 10𝛌 = 1715 Hz; at 1000Hz: 4.5𝛌 = 4.5*0.343 = 1.5435 m)
 
 HW settings:
@@ -44,8 +44,10 @@ from utilities import *
 import scipy.signal as sig
 
 #%%
-durns = np.array([3, 4, 5, 8, 10] )*1e-3
-fs = 48000 # Hz
+# durns = np.array([3, 4, 5, 8, 10] )*1e-3
+durns = np.array([3, 4, 5, 8] )*1e-3
+#fs = 48000 # Hz
+fs = 192000 # Hz
 
 chirp = []
 all_sweeps = []
@@ -84,7 +86,7 @@ plt.ylabel('Frequency [Hz]')
 plt.ylim(0, 25e3)
 plt.tight_layout()
 
-plt.figure(figsize=(15, 10))
+plt.figure(figsize=(15, 12))
 for i, sweep in enumerate(chirp):
     plt.subplot(len(chirp), 2, 2 * i + 1)
     plt.plot(np.linspace(0, len(sweep) / fs, len(sweep)), sweep)
@@ -94,7 +96,7 @@ for i, sweep in enumerate(chirp):
     # Spectrogram plot
 
     plt.subplot(len(chirp), 2, 2 * i + 2)
-    plt.specgram(sweep, Fs=fs, NFFT=32, noverlap=16, cmap='viridis')
+    plt.specgram(sweep, Fs=fs, NFFT=128, noverlap=64, cmap='viridis')
     plt.xlabel('Time [s]')
     plt.ylabel('Frequency [Hz]')
     plt.ylim(0, 25e3)
@@ -102,6 +104,47 @@ for i, sweep in enumerate(chirp):
 
 plt.tight_layout()
 plt.show()
+
+# %% 
+# Extract the single channels
+import os
+import soundfile as sf
+
+# Load audio files, then plot a 6x6 grid
+
+# DIR = "./2025-06-03/original/"  # Directory containing the audio files
+DIR = "./2025-06-03/original_40/"  # Directory containing the audio files
+
+audio_files = os.listdir(DIR)  # List all files in the sweeps directory
+audio_files.sort()  # Sort the files in ascending order
+
+# Directory to save the extracted channels
+output_dir = "./2025-06-03/extracted_channels/"
+os.makedirs(output_dir, exist_ok=True)  # Create the directory if it doesn't exist
+
+# Path to the multi-channel WAV file
+for file in audio_files:
+    file_path = os.path.join(DIR, file)
+
+    angle_name = file.split('.')[0]
+    print(f"Processing file: {angle_name}")
+
+    # Read the multi-channel WAV file
+    audio_data, sample_rate = sf.read(DIR + file)
+    
+    # Check the shape of the audio data
+    print(f"Audio data shape: {audio_data.shape}")  # (samples, channels)
+
+    # Extract individual channels
+    num_channels = audio_data.shape[1]  # Number of channels
+    channels = [audio_data[:, i] for i in range(num_channels)]
+
+    # Save each channel as a separate WAV file
+    for i, channel_data in enumerate(channels):
+        output_file = os.path.join(output_dir + "channel_separation", angle_name+f"_{i + 1}.wav")  # Path to the output file
+        os.makedirs(output_dir + "channel_separation", exist_ok=True)  # Create the directory if it doesn't exist
+        sf.write(output_file, channel_data, sample_rate)
+        print(f"Saved channel {i + 1} to {output_file}")
 
 #%%
 # Define the matched filter function
@@ -113,11 +156,11 @@ def matched_filter(recording, chirp_template):
 
 # Detect peaks in the matched filter output
 def detect_peaks(filtered_output, sample_rate):
-    peaks, properties = signal.find_peaks(filtered_output, prominence=0.5, distance=0.2 * sample_rate)
+    peaks, properties = signal.find_peaks(filtered_output, prominence=0.2, distance=0.2 * sample_rate)
     return peaks
 
 # Design the highpass filter
-cutoff = 300 # cutoff frequency in Hz
+cutoff = 100 # cutoff frequency in Hz
 # Plot the filter frequency response
 b, a = signal.butter(2, cutoff, 'high', analog=True)
 w, h = signal.freqs(b, a)
@@ -131,13 +174,15 @@ plt.axvline(cutoff, color='red') # cutoff frequency
 plt.show()
 
 # load the GRAS and SPH0645 audio files
-gras_pbk_audio_or, fs_gras = sf.read('./2025-06-03/02_24k_5sweeps_channel9_192k.wav')
-SPH0645_pbk_audio_or, fs_SPH0645 = sf.read('./2025-06-03/000_1.wav')
+# gras_pbk_audio_or, fs_gras = sf.read('./2025-06-03/02_24k_5sweeps_channel9_192k.wav')
+gras_pbk_audio_or, fs_gras = sf.read('./2025-06-03/-40db_02-250603_1759-01.wav')
+SPH0645_pbk_audio_or, fs_SPH0645 = sf.read('./2025-06-03/extracted_channels/channel_separation/000_3.wav')
 
 chirp_to_use = 0
 
 # resampling 
 gras_pbk_audio_res = sig.resample(gras_pbk_audio_or, int(fs_SPH0645*len(gras_pbk_audio_or)/fs_gras))
+chirp[chirp_to_use] = sig.resample(chirp[chirp_to_use], int(fs_SPH0645*len(chirp[chirp_to_use])/fs))
 
 # Apply the filter
 sos = signal.butter(2, cutoff, 'hp', fs=fs_SPH0645, output='sos')
@@ -314,16 +359,16 @@ print(f'The calibration mic has a sensitivity of {np.round(rms_1Pa_tone,3)}rms/P
 gras_centrefreqs, gras_freqrms = calc_native_freqwise_rms(gras_pbk_audio, fs_SPH0645)
 
 # Filter out the frequencies that are not in the original signal 
-mask = (gras_centrefreqs >= 200) & (gras_centrefreqs <= 24e3)
+mask = (gras_centrefreqs >= start_f) & (gras_centrefreqs <= end_f)
 
-idx_1k = np.where(gras_centrefreqs >= 2e2)[0][0]
-idx_20k = np.where(gras_centrefreqs <= 24e3)[0][-1]
-print(f"Index for 1 kHz: {idx_1k}, frequency: {gras_centrefreqs[idx_1k]}")
-print(f"Index for 20 kHz: {idx_20k}, frequency: {gras_centrefreqs[idx_20k]}")
+idx_start = np.where(gras_centrefreqs >= start_f)[0][0]
+idx_end = np.where(gras_centrefreqs <= end_f)[0][-1]
+print(f"Index for {start_f} Hz: {idx_start}, frequency: {gras_centrefreqs[idx_start]}")
+print(f"Index for {end_f} Hz: {idx_end}, frequency: {gras_centrefreqs[idx_end]}")
 
 gras_centrefreqs = gras_centrefreqs[mask]
 
-gras_freqrms = gras_freqrms[idx_1k:idx_20k+1]
+gras_freqrms = gras_freqrms[idx_start:idx_end+1]
 
 # Convert from RMS to Pascals (rms equivalent) since we know the GRAS sensitivity
 gras_freqParms = gras_freqrms/rms_1Pa_tone # now the levels of each freq band in Pa_rms
@@ -352,16 +397,16 @@ plt.tight_layout()
 SPH0645_centrefreqs, SPH0645_freqrms = calc_native_freqwise_rms(SPH0645_pbk_audio, fs_SPH0645)
 
 # Filter out the frequencies that are not in the original signal 
-mask = (SPH0645_centrefreqs >= 200) & (SPH0645_centrefreqs <= 24e3)
+mask = (SPH0645_centrefreqs >= start_f) & (SPH0645_centrefreqs <= end_f)
 
-idx_1k = np.where(SPH0645_centrefreqs >= 2e2)[0][0]
-idx_20k = np.where(SPH0645_centrefreqs <= 24e3)[0][-1]
-print(f"Index for 1 kHz: {idx_1k}, frequency: {SPH0645_centrefreqs[idx_1k]}")
-print(f"Index for 20 kHz: {idx_20k}, frequency: {SPH0645_centrefreqs[idx_20k]}")
+idx_start = np.where(SPH0645_centrefreqs >= start_f)[0][0]
+idx_end = np.where(SPH0645_centrefreqs <= end_f)[0][-1]
+print(f"Index for {start_f} Hz: {idx_start}, frequency: {SPH0645_centrefreqs[idx_start]}")
+print(f"Index for {end_f} Hz: {idx_end}, frequency: {SPH0645_centrefreqs[idx_end]}")
 
 SPH0645_centrefreqs = SPH0645_centrefreqs[mask]
 
-SPH0645_freqrms = SPH0645_freqrms[idx_1k:idx_20k+1]
+SPH0645_freqrms = SPH0645_freqrms[idx_start:idx_end+1]
 
 plt.figure()
 a0 = plt.subplot(211)
@@ -383,22 +428,34 @@ plt.tight_layout()
 # Now let's calculate the RMS/Pa sensitivity using the knowledge from the 
 # calibration mic
 SPH0645_sensitivity = np.array(SPH0645_freqrms)/np.array(gras_freqParms)
+# Print and plot the sensitivity at 1000 Hz
+target_freq = 1000  # Hz
+# Find the index closest to 1000 Hz
+idx_1000 = np.argmin(np.abs(SPH0645_centrefreqs - target_freq))
+print(f'The target mic has a sensitivity at {SPH0645_centrefreqs[idx_1000]} Hz is: {dB(SPH0645_sensitivity[idx_1000])} dB a.u. rms/Pa')
 
-print(f'The target mic has a sensitivity at {SPH0645_centrefreqs[2]} Hz is: {dB(SPH0645_sensitivity[2])} dB a.u. rms/Pa')
-plt.figure()
+plt.figure(figsize=(15, 8))
 a0 = plt.subplot(211)
 plt.plot(SPH0645_centrefreqs, SPH0645_sensitivity)
+snr_db = 10 * np.log10(SNR)
+low_snr_mask = snr_db < 20
+if np.any(low_snr_mask):
+    plt.fill_between(central_freq, plt.ylim()[0], plt.ylim()[1], where=low_snr_mask, color='red', alpha=0.2, label='SNR < 20 dB', linewidth=3)
 plt.ylabel('a.u. RMS/Pa', fontsize=12)
 plt.title('Target mic sensitivity')
 plt.grid()
+plt.legend()
 plt.xticks(np.linspace(1000, 20000, 20), rotation=45)
 plt.subplot(212, sharex=a0)
 plt.plot(SPH0645_centrefreqs, dB(SPH0645_sensitivity))
+if np.any(low_snr_mask):
+    plt.fill_between(central_freq, plt.ylim()[0], plt.ylim()[1], where=low_snr_mask, color='red', alpha=0.2, label='SNR < 20 dB', linewidth=3)
 plt.xlabel('Frequencies, Hz', fontsize=12);
 plt.ylabel('dB a.u. rms/Pa', fontsize=12)
 plt.grid()
 plt.xticks(np.linspace(1000, 20000, 20), rotation=45)
 plt.tight_layout()
+plt.legend()
 # plt.ylim(-60,0)
 
 #%% 
@@ -406,7 +463,9 @@ plt.tight_layout()
 # actual dB SPL? 
 
 # Here we load a separate 'recorded sound' - a 'validation' audio clip let's call it 
-chirp_to_use = 1
+chirp_to_use += 1
+
+chirp[chirp_to_use] = sig.resample(chirp[chirp_to_use], int(fs_SPH0645*len(chirp[chirp_to_use])/fs))
 
 gras_pbk_audio_matched = matched_filter(gras_pbk_audio_filt, chirp[chirp_to_use])
 SPH0645_pbk_audio_matched = matched_filter(SPH0645_pbk_audio_filt, chirp[chirp_to_use])
@@ -460,13 +519,13 @@ plt.ylabel('Amplitude', fontsize=12)
 # utilities.py module
 recsound_centrefreqs, freqwise_rms = calc_native_freqwise_rms(recorded_sound, fs_SPH0645)
 
-mask = (recsound_centrefreqs >= 200) & (recsound_centrefreqs <= 24e3)
-idx_1k = np.where(recsound_centrefreqs >= 2e2)[0][0]
-idx_20k = np.where(recsound_centrefreqs <= 24e3)[0][-1]
-print(f"Index for 1 kHz: {idx_1k}, frequency: {recsound_centrefreqs[idx_1k]}")
-print(f"Index for 20 kHz: {idx_20k}, frequency: {recsound_centrefreqs[idx_20k]}")
+mask = (recsound_centrefreqs >= start_f) & (recsound_centrefreqs <= end_f)
+idx_start = np.where(recsound_centrefreqs >= start_f)[0][0]
+idx_end = np.where(recsound_centrefreqs <= end_f)[0][-1]
+print(f"Index for {start_f} Hz: {idx_start}, frequency: {recsound_centrefreqs[idx_start]}")
+print(f"Index for {end_f} Hz: {idx_end}, frequency: {recsound_centrefreqs[idx_end]}")
 recsound_centrefreqs = recsound_centrefreqs[mask]
-freqwise_rms = freqwise_rms[idx_1k:idx_20k+1]
+freqwise_rms = freqwise_rms[idx_start:idx_end+1]
 
 interp_sensitivity = interpolate_freq_response([SPH0645_centrefreqs, SPH0645_sensitivity],
                           recsound_centrefreqs)
@@ -475,19 +534,27 @@ freqwiese_dbspl = pascal_to_dbspl(freqwise_Parms)
 
 gras_centrefreqs, gras_freqrms = calc_native_freqwise_rms(gras_rec, fs_SPH0645)
 
-idx_1k = np.where(gras_centrefreqs >= 2e2)[0][0]
-idx_20k = np.where(gras_centrefreqs <= 24e3)[0][-1]
-print(f"Index for 1 kHz: {idx_1k}, frequency: {gras_centrefreqs[idx_1k]}")
-print(f"Index for 20 kHz: {idx_20k}, frequency: {gras_centrefreqs[idx_20k]}")
+idx_start = np.where(gras_centrefreqs >= start_f)[0][0]
+idx_end = np.where(gras_centrefreqs <= end_f)[0][-1]
+print(f"Index for {start_f} Hz: {idx_start}, frequency: {gras_centrefreqs[idx_start]}")
+print(f"Index for {end_f} Hz: {idx_end} frequency: {gras_centrefreqs[idx_end]}")
 gras_centrefreqs = gras_centrefreqs[mask]
-gras_freqrms = gras_freqrms[idx_1k:idx_20k+1]
+gras_freqrms = gras_freqrms[idx_start:idx_end+1]
 
 gras_Pa = gras_freqrms/rms_1Pa_tone
 gras_dbspl = pascal_to_dbspl(gras_Pa)
 
-plt.figure()
-plt.plot(gras_centrefreqs,gras_dbspl, label='gras')
-plt.plot(recsound_centrefreqs,freqwiese_dbspl, label='SPH0645')
+plt.figure(figsize=(15, 8))
+plt.plot(gras_centrefreqs, gras_dbspl, label='GRAS')
+plt.plot(recsound_centrefreqs, freqwiese_dbspl, label='SPH0645')
+plt.plot(central_freq, 10 * np.log10(SNR), label='Mean SNR')
+
+# Mark with red zone the frequencies with SNR lower than 20 dB
+snr_db = 10 * np.log10(SNR)
+low_snr_mask = snr_db < 20
+if np.any(low_snr_mask):
+    plt.fill_between(central_freq, plt.ylim()[0], plt.ylim()[1], where=low_snr_mask, color='red', alpha=0.2, label='SNR < 20 dB', linewidth=3)
+
 plt.ylabel('dBrms SPL, re 20$\mu$Pa', fontsize=12)
 plt.xlabel('Frequency, Hz', fontsize=12)
 plt.title('Validation by comparing of GRAS and a secondary SPH0645 recording')
@@ -502,7 +569,7 @@ plt.show()
 # We rely on combining the Pa rms of all relevant frequencies 
 # e.g. see https://electronics.stackexchange.com/questions/642109/summing-rms-values-proof
 
-frequency_band = [0.2e3, 15e3] # min, max frequency to do the compensation Hz
+frequency_band = [0.2e3, 24e3] # min, max frequency to do the compensation Hz
 
 # Choose to calculate the dB SPL only for the frequency range of interest.
 # Target mic
