@@ -45,7 +45,7 @@ import scipy.signal as sig
 
 #%%
 # durns = np.array([3, 4, 5, 8, 10] )*1e-3
-durns = np.array([3, 4, 5, 8] )*1e-3
+durns = np.array([3, 4, 5, 8, 10] )*1e-3
 #fs = 48000 # Hz
 fs = 192000 # Hz
 
