@@ -176,7 +176,10 @@ plt.show()
 # load the GRAS and SPH0645 audio files
 # gras_pbk_audio_or, fs_gras = sf.read('./2025-06-03/02_24k_5sweeps_channel9_192k.wav')
 gras_pbk_audio_or, fs_gras = sf.read('./2025-06-03/-40db_02-250603_1759-01.wav')
-SPH0645_pbk_audio_or, fs_SPH0645 = sf.read('./2025-06-03/extracted_channels/channel_separation/000_3.wav')
+file = ('000_5.wav')
+SPH0645_pbk_audio_or, fs_SPH0645 = sf.read('./2025-06-03/extracted_channels/channel_separation/'+ file)
+
+mic_name = file.split('_')[-1].split('.')[0]
 
 chirp_to_use = 0
 
@@ -249,7 +252,7 @@ plt.xlabel('Time [s]')
 plt.ylabel('Amplitude', fontsize=12)
 plt.grid()
 
-# %% SNR computation between the sweeps and the noise floor measurements for each freq band
+#%% SNR computation between the sweeps and the noise floor measurements for each freq band 
 
 central_freq = np.arange(100, fs_SPH0645//2, 250) 
 BW = 0.25e3 # Bandwidth of the bands
@@ -277,37 +280,37 @@ noise_SPH0645_4 = SPH0645_pbk_audio_filt[int(2*fs_SPH0645):int(2.005*fs_SPH0645)
 noise_SPH0645_5 = SPH0645_pbk_audio_filt[int(3*fs_SPH0645):int(3.005*fs_SPH0645)]
 noises = [noise_SPH0645_1, noise_SPH0645_2, noise_SPH0645_3, noise_SPH0645_4, noise_SPH0645_5]
 
-# Plot the noise files
-fig, axs = plt.subplots(3, 2, figsize=(12, 8), sharey=True)
+# Plot the noise files and their FFTs in a 6x2 grid
+fig, axs = plt.subplots(5, 2, figsize=(10, 10), sharey='col', sharex='col')
 titles = ['Noise 1', 'Noise 2', 'Noise 3', 'Noise 4', 'Noise 5']
-for i, (noise, title) in enumerate(zip(noises, titles)):
-    ax = axs.flat[i]
-    ax.plot(np.linspace(0, len(noise)/fs_SPH0645, len(noise)), noise)
-    ax.set_title(title)
-    ax.set_xlabel('Time [s]')
-    ax.set_ylabel('Amplitude')
-    ax.grid()
-plt.suptitle('Extracted SPH0645 Noise Floors', fontsize=16)
-plt.tight_layout()
-plt.show()
 
-# Compute the FFT of the noise files and plot them
 Noise_ffts = []
-fig, axs = plt.subplots(3, 2, figsize=(12, 8), sharey=True)
-for i in range(len(noises)):
-    Noise_fft = np.fft.rfft(noises[i]) # Compute the FFT of the noise files
-    Noise_fftfreqs = np.fft.rfftfreq(noises[i].size, 1/fs_SPH0645)
+for i, (noise, title) in enumerate(zip(noises, titles)):
+    # Time domain plot
+    ax_time = axs[i, 0]
+    ax_time.plot(np.linspace(0, len(noise)/fs_SPH0645, len(noise)), noise)
+    ax_time.set_title(f'{title} (Time Domain)')
+    ax_time.set_xlabel('Time [s]')
+    ax_time.set_ylabel('Amplitude')
+    ax_time.grid()
+
+    # Frequency domain plot
+    Noise_fft = np.fft.rfft(noise)
+    Noise_fftfreqs = np.fft.rfftfreq(noise.size, 1/fs_SPH0645)
     Noise_ffts.append(Noise_fft)
 
-    ax = axs.flat[i]
-    ax.plot(Noise_fftfreqs, np.abs(Noise_fft))
-    ax.set_xlabel('Frequency, Hz', fontsize=12)
-    ax.set_ylabel('Amplitude', fontsize=12)
-    ax.set_xticks(np.arange(0, fs_SPH0645//2, 1000))
-    ax.tick_params(axis='x', rotation=45)
-    ax.set_title(f'FFT of {titles[i]}')
-    ax.grid()
-plt.tight_layout()
+    ax_freq = axs[i, 1]
+    ax_freq.plot(Noise_fftfreqs, np.abs(Noise_fft))
+    ax_freq.set_title(f'{title} (FFT)')
+    ax_freq.set_xlabel('Frequency, Hz')
+    ax_freq.set_ylabel('Amplitude')
+    ax_freq.set_xticks(np.arange(0, fs_SPH0645//2, 1000))
+    ax_freq.tick_params(axis='x', rotation=45, labelsize=8)
+    ax_freq.grid()
+
+
+plt.suptitle('Extracted SPH0645 Noise Floors and FFTs', fontsize=18)
+plt.tight_layout(rect=[0, 0, 1, 0.97])
 plt.show()
 
 # Signal fft of SPH0645 playback audio
@@ -319,7 +322,7 @@ plt.plot(SPH0645_fftfreqs,np.abs(SPH0645_fft))
 plt.xlabel('Frequency, Hz', fontsize=12)
 plt.ylabel('Amplitude', fontsize=12)
 plt.title('FFT of the SPH0645 playback audio')
-plt.xticks(np.arange(0, fs_SPH0645//2, 1000), rotation=45)
+plt.xticks(np.arange(0, fs_SPH0645//2, 1000), rotation=45, fontsize=8)
 plt.grid()
 plt.show()
 
@@ -338,17 +341,24 @@ for i in range(len(noises)):
     all_snrs[i] = snrs
 SNR = np.mean(list(all_snrs.values()), axis=0) # Average the SNRs across all noise segments
 
+# Plot the SNR
 plt.figure()
 plt.plot(central_freq, 10 * np.log10(SNR), label='Mean SNR')
-plt.plot(central_freq, 10 * np.log10(snrs), label= f'SNR from {titles[i]}')
+# Mark with red zone the frequencies with SNR lower than 20 dB
+snr_db = 10 * np.log10(SNR)
+low_snr_mask = snr_db < 20
+if np.any(low_snr_mask):
+    plt.fill_between(central_freq, plt.ylim()[0], plt.ylim()[1], where=low_snr_mask, color='red', alpha=0.2, label='SNR < 20 dB', linewidth=3)
+
 plt.xlabel('Frequencies, Hz', fontsize=12);
 plt.ylabel('dB', fontsize=12)
 plt.grid()
-plt.xticks(np.arange(0, fs_SPH0645//2, 1000), rotation=45)
+plt.xticks(np.arange(0, fs_SPH0645//2, 1000), rotation=45, fontsize=8)
 plt.title('SNR of the SPH0645 playback audio')
 plt.legend()
 plt.tight_layout()
 plt.show()
+
 
 #%%
 # Calibration mic: Calculate the rms_Pascal of the 1 Pa calibration tone
@@ -363,8 +373,9 @@ mask = (gras_centrefreqs >= start_f) & (gras_centrefreqs <= end_f)
 
 idx_start = np.where(gras_centrefreqs >= start_f)[0][0]
 idx_end = np.where(gras_centrefreqs <= end_f)[0][-1]
-print(f"Index for {start_f} Hz: {idx_start}, frequency: {gras_centrefreqs[idx_start]}")
-print(f"Index for {end_f} Hz: {idx_end}, frequency: {gras_centrefreqs[idx_end]}")
+print("\nInfos about the frequencies considered in the analysis:")
+print(f"Index for starting freq = {start_f} Hz: {idx_start}, correspondent frequency band: {gras_centrefreqs[idx_start]} Hz")
+print(f"Index for ending freq = {end_f} Hz: {idx_end}, correspondent frequency band: {gras_centrefreqs[idx_end]} Hz")
 
 gras_centrefreqs = gras_centrefreqs[mask]
 
@@ -401,8 +412,9 @@ mask = (SPH0645_centrefreqs >= start_f) & (SPH0645_centrefreqs <= end_f)
 
 idx_start = np.where(SPH0645_centrefreqs >= start_f)[0][0]
 idx_end = np.where(SPH0645_centrefreqs <= end_f)[0][-1]
-print(f"Index for {start_f} Hz: {idx_start}, frequency: {SPH0645_centrefreqs[idx_start]}")
-print(f"Index for {end_f} Hz: {idx_end}, frequency: {SPH0645_centrefreqs[idx_end]}")
+print("\nInfos about the frequencies considered in the analysis:")
+print(f"Index for starting freq = {start_f} Hz: {idx_start}, correspondent frequency band: {SPH0645_centrefreqs[idx_start]} Hz")
+print(f"Index for ending freq = {end_f} Hz: {idx_end}, correspondent frequency band: {SPH0645_centrefreqs[idx_end]} Hz")
 
 SPH0645_centrefreqs = SPH0645_centrefreqs[mask]
 
@@ -442,7 +454,7 @@ low_snr_mask = snr_db < 20
 if np.any(low_snr_mask):
     plt.fill_between(central_freq, plt.ylim()[0], plt.ylim()[1], where=low_snr_mask, color='red', alpha=0.2, label='SNR < 20 dB', linewidth=3)
 plt.ylabel('a.u. RMS/Pa', fontsize=12)
-plt.title('Target mic sensitivity')
+plt.title(f'Target mic {mic_name} sensitivity')
 plt.grid()
 plt.legend()
 plt.xticks(np.linspace(1000, 20000, 20), rotation=45)
@@ -522,8 +534,10 @@ recsound_centrefreqs, freqwise_rms = calc_native_freqwise_rms(recorded_sound, fs
 mask = (recsound_centrefreqs >= start_f) & (recsound_centrefreqs <= end_f)
 idx_start = np.where(recsound_centrefreqs >= start_f)[0][0]
 idx_end = np.where(recsound_centrefreqs <= end_f)[0][-1]
-print(f"Index for {start_f} Hz: {idx_start}, frequency: {recsound_centrefreqs[idx_start]}")
-print(f"Index for {end_f} Hz: {idx_end}, frequency: {recsound_centrefreqs[idx_end]}")
+print("\nInfos about the frequencies considered in the analysis:")
+print(f"Index for starting freq = {start_f} Hz: {idx_start}, correspondent frequency band: {recsound_centrefreqs[idx_start]} Hz")
+print(f"Index for ending freq = {end_f} Hz: {idx_end}, correspondent frequency band: {recsound_centrefreqs[idx_end]} Hz")
+
 recsound_centrefreqs = recsound_centrefreqs[mask]
 freqwise_rms = freqwise_rms[idx_start:idx_end+1]
 
@@ -536,8 +550,10 @@ gras_centrefreqs, gras_freqrms = calc_native_freqwise_rms(gras_rec, fs_SPH0645)
 
 idx_start = np.where(gras_centrefreqs >= start_f)[0][0]
 idx_end = np.where(gras_centrefreqs <= end_f)[0][-1]
-print(f"Index for {start_f} Hz: {idx_start}, frequency: {gras_centrefreqs[idx_start]}")
-print(f"Index for {end_f} Hz: {idx_end} frequency: {gras_centrefreqs[idx_end]}")
+print("\nInfos about the frequencies considered in the analysis:")
+print(f"Index for starting freq = {start_f} Hz: {idx_start}, correspondent frequency band: {gras_centrefreqs[idx_start]} Hz")
+print(f"Index for ending freq = {end_f} Hz: {idx_end}, correspondent frequency band: {gras_centrefreqs[idx_end]} Hz")
+
 gras_centrefreqs = gras_centrefreqs[mask]
 gras_freqrms = gras_freqrms[idx_start:idx_end+1]
 
