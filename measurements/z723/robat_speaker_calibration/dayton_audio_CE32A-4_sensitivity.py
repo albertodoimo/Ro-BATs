@@ -37,6 +37,8 @@ import soundfile as sf
 import matplotlib.pyplot as plt 
 from utilities import *
 import scipy.signal as sig
+from IPython.display import Image
+from IPython.display import display
 
 #%%
 durns = np.array([3, 4, 5, 8, 10] )*1e-3
@@ -273,22 +275,6 @@ gras_freqrms = gras_freqrms[idx_start:idx_end+1]
 # Convert from RMS to Pascals (rms equivalent) since we know the GRAS sensitivity
 gras_freqParms = gras_freqrms/rms_1Pa_tone # now the levels of each freq band in Pa_rms
 
-
-plt.figure()
-a0 = plt.subplot(211)
-plt.plot(gras_centrefreqs, gras_freqrms)
-plt.ylabel('a.u. rmseqv.', fontsize=15)
-plt.title('GRAS mic recording of playback')
-plt.grid()
-plt.xticks(np.linspace(1000, 20000, 20), rotation=45)
-plt.subplot(212, sharex=a0)
-plt.plot(gras_centrefreqs, dB(gras_freqrms))
-plt.xlabel('Frequencies, Hz', fontsize=12);
-plt.ylabel('dBrms a.u.', fontsize=12)
-plt.grid()
-plt.xticks(np.linspace(1000, 20000, 20), rotation=45)
-plt.tight_layout()
-
 plt.figure()
 a0 = plt.subplot(211)
 plt.plot(gras_centrefreqs, gras_freqParms)
@@ -315,92 +301,180 @@ plt.grid()
 plt.xticks(np.linspace(1000, 20000, 20), rotation=45)
 plt.tight_layout()
 
-#%% 
-# We now have the target mic sensitivity - how do we use it to calculate the
-# actual dB SPL? 
+#%%
 
-# Here we load a separate 'recorded sound' - a 'validation' audio clip let's call it 
-chirp_to_use += 1
+# Reference input signal (chirp)
+ref_pbk_audio = chirp[chirp_to_use]
+val_pbk_audio = chirp[chirp_to_use+1]
 
-#  Define the matched filter function
-def matched_filter(recording, chirp_template):
-    filtered_output = np.roll(signal.correlate(recording, chirp_template, 'same', method='direct'), -len(chirp_template)//2)
-    filtered_output *= signal.windows.tukey(filtered_output.size, 0.1)
-    filtered_envelope = np.abs(signal.hilbert(filtered_output))
-    return filtered_envelope
+# Now measure chirp RMS over all frequency bands
+ref_pbk_centrefreqs, ref_pbk_freqrms = calc_native_freqwise_rms(ref_pbk_audio, fs)
 
-# Detect peaks in the matched filter output
-def detect_peaks(filtered_output, sample_rate):
-    peaks, properties = signal.find_peaks(filtered_output, prominence=0.2, distance=0.1 * sample_rate)
-    return peaks
+mask = (ref_pbk_centrefreqs >= start_f) & (ref_pbk_centrefreqs <= end_f)
 
-gras_pbk_audio_filt = gras_pbk_audio_filt[int(peaks_gras[amplitude_index]-0.5*fs):-1*fs] 
+idx_start = np.where(ref_pbk_centrefreqs >= start_f)[0][0]
+idx_end = np.where(ref_pbk_centrefreqs <= end_f)[0][-1]
+print("\nInfos about the frequencies considered in the analysis:")
+print(f"Index for starting freq = {start_f} Hz: {idx_start}, correspondent frequency band: {ref_pbk_centrefreqs[idx_start]} Hz")
+print(f"Index for ending freq = {end_f} Hz: {idx_end}, correspondent frequency band: {ref_pbk_centrefreqs[idx_end]} Hz")
 
-gras_pbk_audio_matched = matched_filter(gras_pbk_audio_filt, chirp[chirp_to_use])
+ref_pbk_centrefreqs = ref_pbk_centrefreqs[mask]
+    
+ref_pbk_freqrms = ref_pbk_freqrms[idx_start:idx_end+1]
 
-# Detect peaks
-peaks_gras = detect_peaks(gras_pbk_audio_matched, fs)
-print(f"Detected peaks: gras = {len(peaks_gras)}")
-
-# plot the peaks
-plt.figure(figsize=(15, 5))
-plt.subplot(2, 1, 1)
-plt.plot(np.linspace(0, len(gras_pbk_audio_matched) / fs, len(gras_pbk_audio_matched)), gras_pbk_audio_matched)
-plt.plot(peaks_gras/fs, gras_pbk_audio_matched[peaks_gras], 'ro')
-plt.title('Matched Filter Output - GRAS')
-plt.xlabel('Time [s]')
-plt.ylabel('Amplitude')
+plt.figure()
+a0 = plt.subplot(211)
+plt.plot(ref_pbk_centrefreqs, ref_pbk_freqrms)
+plt.ylabel('a.u. rmseqv.', fontsize=15)
+plt.title('Reference playback chirp from dayton loudspeaker')
+plt.grid()
+plt.xticks(np.linspace(1000, 20000, 20), rotation=45)
+plt.subplot(212, sharex=a0)
+plt.plot(ref_pbk_centrefreqs, dB(ref_pbk_freqrms))
+plt.xlabel('Frequencies, Hz', fontsize=12);
+plt.ylabel('dBrms a.u.', fontsize=12)
+plt.grid()
+plt.xticks(np.linspace(1000, 20000, 20), rotation=45)
 plt.tight_layout()
+
+#%% Now let's calculate the Pa/RMS sensitivity of the loudspeaker
+
+ref_pbk_freqrms_int = interpolate_freq_response([gras_centrefreqs, gras_freqParms],
+                          ref_pbk_freqrms)
+
+loudsp_sensitivity = np.array(gras_freqParms)/np.array(ref_pbk_freqrms_int) # Pa/RMS 
+# loudsp_sensitivity = np.array(ref_pbk_freqrms_int)/np.array(gras_freqParms) # RMS/Pa
+# # Print and plot the sensitivity at 1000 Hz
+# target_freq = 1000  # Hz
+# # Find the index closest to 1000 Hz
+# idx_1000 = np.argmin(np.abs(SPH0645_centrefreqs - target_freq))
+# print(f'The target mic has a sensitivity at {SPH0645_centrefreqs[idx_1000]} Hz of: {dB(SPH0645_sensitivity[idx_1000])} dB a.u. rms/Pa')
+# 
+plt.figure(figsize=(10, 6))
+a0 = plt.subplot(211)
+plt.plot(ref_pbk_centrefreqs, loudsp_sensitivity)
+snr_db = 10 * np.log10(SNR)
+low_snr_mask = snr_db < 20
+if np.any(low_snr_mask):
+    plt.fill_between(central_freq, plt.ylim()[0], plt.ylim()[1], where=low_snr_mask, color='red', alpha=0.2, label='SNR < 20 dB', linewidth=3)
+plt.ylabel('Pa/a.u.RMS', fontsize=12)
+plt.title('Sensitivity')
+plt.grid()
+plt.legend()
+plt.xticks(np.linspace(1000, 20000, 20), rotation=45)
+plt.subplot(212, sharex=a0)
+plt.plot(ref_pbk_centrefreqs, dB(loudsp_sensitivity))
+if np.any(low_snr_mask):
+    plt.fill_between(central_freq, plt.ylim()[0], plt.ylim()[1], where=low_snr_mask, color='red', alpha=0.2, label='SNR < 20 dB', linewidth=3)
+plt.xlabel('Frequencies, Hz', fontsize=12);
+plt.ylabel('dB Pa/a.u.RMS', fontsize=12)
+plt.grid()
+plt.xticks(np.linspace(1000, 20000, 20), rotation=45)
+plt.tight_layout()
+plt.legend()
 plt.show()
 
-gras_rec = gras_pbk_audio_filt[int(peaks_gras[chirp_to_use]):int(peaks_gras[chirp_to_use]) + int(fs*durns[chirp_to_use])]
+display(
+    Image(filename="./dayton_audio_CE32A-4_freq_response.png", width=900),
+)
+# #%% 
+# # Here we load a separate 'recorded sound' - a 'validation' audio clip let's call it 
+# chirp_to_use += 1
 
-# Plot the playback signals
-plt.figure(figsize=(10,5))
-plt.plot(np.linspace(0,len(gras_rec)/fs, len(gras_rec)) ,gras_rec)
-plt.title('Validation signal from GRAS mic')
-plt.grid()
-plt.xlabel('Time [s]')
-plt.ylabel('Amplitude', fontsize=12)
+# #  Define the matched filter function
+# def matched_filter(recording, chirp_template):
+#     filtered_output = np.roll(signal.correlate(recording, chirp_template, 'same', method='direct'), -len(chirp_template)//2)
+#     filtered_output *= signal.windows.tukey(filtered_output.size, 0.1)
+#     filtered_envelope = np.abs(signal.hilbert(filtered_output))
+#     return filtered_envelope
+
+# # Detect peaks in the matched filter output
+# def detect_peaks(filtered_output, sample_rate):
+#     peaks, properties = signal.find_peaks(filtered_output, prominence=0.2, distance=0.2* sample_rate)
+#     return peaks
+
+# gras_pbk_audio_filt = gras_pbk_audio_filt[int(peaks_gras[amplitude_index]-1*fs):-1*fs] 
+
+# gras_pbk_audio_matched = matched_filter(gras_pbk_audio_filt, chirp[chirp_to_use])
+
+# # Detect peaks
+# peaks_gras = detect_peaks(gras_pbk_audio_matched, fs)
+# print(f"Detected peaks: gras = {len(peaks_gras)}")
+
+# # plot the peaks
+# plt.figure(figsize=(15, 5))
+# plt.subplot(2, 1, 1)
+# plt.plot(np.linspace(0, len(gras_pbk_audio_matched) / fs, len(gras_pbk_audio_matched)), gras_pbk_audio_matched)
+# plt.plot(peaks_gras/fs, gras_pbk_audio_matched[peaks_gras], 'ro')
+# plt.title('Matched Filter Output - GRAS')
+# plt.xlabel('Time [s]')
+# plt.ylabel('Amplitude')
+# plt.tight_layout()
+# plt.show()
+
+# gras_valid_rec = gras_pbk_audio_filt[int(peaks_gras[chirp_to_use]):int(peaks_gras[chirp_to_use]) + int(fs*durns[chirp_to_use])]
+
+# # Plot the playback signals
+# plt.figure(figsize=(10,5))
+# plt.plot(np.linspace(0,len(gras_valid_rec)/fs, len(gras_valid_rec)) ,gras_valid_rec)
+# plt.title('Validation signal from GRAS mic')
+# plt.grid()
+# plt.xlabel('Time [s]')
+# plt.ylabel('Amplitude', fontsize=12)
 
 
 #%%
 # And finally let's check that the calibration makes sense
 # using a sound that we didn't use to calculate the sensitivity
 # If the length of the recorded target mic audio here is not the same as the calibration audio. 
-#  then you'll need to interpolate the microphone sensitivity using interpolate_freq_response in the
+# then you'll need to interpolate the sensitivity using interpolate_freq_response in the
 # utilities.py module
 
-gras_centrefreqs_check, gras_freqrms_check = calc_native_freqwise_rms(gras_rec, fs)
+#recsound_centrefreqs, freqwise_rms = calc_native_freqwise_rms(gras_valid_rec, fs)
+recsound_centrefreqs, freqwise_rms = calc_native_freqwise_rms(val_pbk_audio,fs)
 
-mask = (gras_centrefreqs_check >= start_f) & (gras_centrefreqs_check <= end_f)
+mask = (recsound_centrefreqs >= start_f) & (recsound_centrefreqs <= end_f)
+idx_start = np.where(recsound_centrefreqs >= start_f)[0][0]
+idx_end = np.where(recsound_centrefreqs <= end_f)[0][-1]
+print("\nInfos about the frequencies considered in the analysis for the SPH0645LM4H-B:")
+print(f"Index for starting freq = {start_f} Hz: {idx_start}, correspondent frequency band: {recsound_centrefreqs[idx_start]} Hz")
+print(f"Index for ending freq = {end_f} Hz: {idx_end}, correspondent frequency band: {recsound_centrefreqs[idx_end]} Hz")
 
-idx_start = np.where(gras_centrefreqs_check >= start_f)[0][0]
-idx_end = np.where(gras_centrefreqs_check <= end_f)[0][-1]
-print("\nInfos about the frequencies considered in the analysis:")
-print(f"Index for starting freq = {start_f} Hz: {idx_start}, correspondent frequency band: {gras_centrefreqs_check[idx_start]} Hz")
-print(f"Index for ending freq = {end_f} Hz: {idx_end}, correspondent frequency band: {gras_centrefreqs_check[idx_end]} Hz")
+recsound_centrefreqs = recsound_centrefreqs[mask]
+freqwise_rms = freqwise_rms[idx_start:idx_end+1]
 
-gras_centrefreqs_check = gras_centrefreqs_check[mask]
-gras_freqrms_check = gras_freqrms_check[idx_start:idx_end+1]
+plt.figure()
+a0 = plt.subplot(211)
+plt.plot(recsound_centrefreqs, freqwise_rms)
+plt.ylabel('a.u. rmseqv.', fontsize=15)
+plt.title('Validation playback chirp from dayton loudspeaker')
+plt.grid()
+plt.xticks(np.linspace(1000, 20000, 20), rotation=45)
+plt.subplot(212, sharex=a0)
+plt.plot(recsound_centrefreqs, dB(freqwise_rms))
+plt.xlabel('Frequencies, Hz', fontsize=12);
+plt.ylabel('dBrms a.u.', fontsize=12)
+plt.grid()
+plt.xticks(np.linspace(1000, 20000, 20), rotation=45)
+plt.tight_layout()
 
-gras_Pa_check = gras_freqrms_check/rms_1Pa_tone
-gras_dbspl_check = pascal_to_dbspl(gras_Pa_check)
+interp_sensitivity = interpolate_freq_response([ref_pbk_centrefreqs, loudsp_sensitivity],
+                          recsound_centrefreqs)
 
-plt.figure(figsize=(15, 8))
-plt.plot(gras_centrefreqs, pascal_to_dbspl(gras_freqParms), label='original')
-plt.plot(gras_centrefreqs_check, gras_dbspl_check, label='check')
-plt.plot(central_freq, 10 * np.log10(SNR), label='SNR original')
+freqwise_Parms = freqwise_rms*interp_sensitivity
 
+plt.figure(figsize=(10, 5))
+plt.plot(gras_centrefreqs, pascal_to_dbspl(gras_freqParms), label='Original')
+plt.plot(recsound_centrefreqs, pascal_to_dbspl(freqwise_Parms), label='Validation')
+# plt.plot(central_freq, 10 * np.log10(SNR), label='SNR original')
 # Mark with red zone the frequencies with SNR lower than 20 dB
 snr_db = 10 * np.log10(SNR)
 low_snr_mask = snr_db < 20
 if np.any(low_snr_mask):
     plt.fill_between(central_freq, plt.ylim()[0], plt.ylim()[1], where=low_snr_mask, color='red', alpha=0.2, label='SNR < 20 dB', linewidth=3)
-
-plt.ylabel('dBrms SPL, re 20$\mu$Pa', fontsize=12)
 plt.xlabel('Frequency, Hz', fontsize=12)
-plt.title('Validation by comparing of GRAS and a secondary SPH0645 recording')
+plt.title('Validation by comparing of different recordings')
+plt.ylabel('dBrms SPL re 20$\mu$Pa', fontsize=12)
 plt.legend()
 plt.grid()
 plt.xticks(np.linspace(1000, 20000, 20), rotation=45)
@@ -414,15 +488,16 @@ plt.show()
 
 frequency_band = [0.2e3, 24e3] # min, max frequency to do the compensation Hz
 
+tgtmic_relevant_freqs = np.logical_and(gras_centrefreqs>=frequency_band[0],
+                                gras_centrefreqs<=frequency_band[1])
+total_rms_freqwise_Parms = np.sqrt(np.sum(gras_freqParms[tgtmic_relevant_freqs]**2))
 
-tgtmic_relevant_freqs = np.logical_and(gras_centrefreqs_check>=frequency_band[0],
-                                gras_centrefreqs_check<=frequency_band[1])
-total_rms_freqwise_Parms = np.sqrt(np.sum(gras_Pa_check[tgtmic_relevant_freqs]**2))
+valid_tgtmic_relevant_freqs = np.logical_and(recsound_centrefreqs>=frequency_band[0],
+                                recsound_centrefreqs<=frequency_band[1])
+valid_total_rms_freqwise_Parms = np.sqrt(np.sum(freqwise_Parms[valid_tgtmic_relevant_freqs]**2))
 
-
-gras_relevant_freqs = np.logical_and(gras_centrefreqs_check>=frequency_band[0],
-                                gras_centrefreqs_check<=frequency_band[1])
 
 print(f'GRAS dBrms SPL measure: {pascal_to_dbspl(total_rms_freqwise_Parms)}')
+print(f'GRAS dBrms SPL measure: {pascal_to_dbspl(valid_total_rms_freqwise_Parms)}')
 
 # %%

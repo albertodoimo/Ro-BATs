@@ -42,6 +42,7 @@ import soundfile as sf
 import matplotlib.pyplot as plt 
 from utilities import *
 import scipy.signal as sig
+import csv
 
 #%%
 # durns = np.array([3, 4, 5, 8, 10] )*1e-3
@@ -439,7 +440,22 @@ plt.tight_layout()
 #%%
 # Now let's calculate the RMS/Pa sensitivity using the knowledge from the 
 # calibration mic
+
+def save_data_to_csv(array, filename, path, overwrite=False):
+    full_path = os.path.join(path, filename)
+    mode = "w" if overwrite or not os.path.exists(full_path) else "a"
+    with open(full_path, mode, newline='') as file:
+        writer = csv.writer(file)
+        writer.writerows(array)
+
 SPH0645_sensitivity = np.array(SPH0645_freqrms)/np.array(gras_freqParms)
+
+# Save the sensitivity data to a CSV file 
+output_path = '/home/alberto/Documents/ActiveSensingCollectives_lab/Ro-BATs/measurements/z723/array_calibration/226_238' 
+
+SPH0645_full_sensitivity = np.column_stack((SPH0645_centrefreqs, SPH0645_sensitivity))
+save_data_to_csv(SPH0645_full_sensitivity, 'Knowles_SPH0645LM4H-B_sensitivity.csv', output_path)
+
 # Print and plot the sensitivity at 1000 Hz
 target_freq = 1000  # Hz
 # Find the index closest to 1000 Hz
