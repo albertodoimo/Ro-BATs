@@ -115,7 +115,7 @@ def detect_peaks(filtered_output, sample_rate):
     return peaks
 
 # Design the highpass filter
-cutoff = 100 # cutoff frequency in Hz
+cutoff = 50 # cutoff frequency in Hz
 # Plot the filter frequency response
 b, a = signal.butter(2, cutoff, 'high', analog=True)
 w, h = signal.freqs(b, a)
@@ -129,9 +129,9 @@ plt.axvline(cutoff, color='red') # cutoff frequency
 plt.show()
 
 # load the GRAS audio files
-gras_pbk_audio_or, fs = sf.read('./2025-06-11/in9_192khz_chA_+40db_1m_take2.wav')
+gras_pbk_audio_or, fs = sf.read('./2025-06-11/in9_192khz_chA_+40db_1m.wav')
 
-chirp_to_use = 0
+chirp_to_use = 1
 
 # Apply the filter
 sos = signal.butter(2, cutoff, 'hp', fs=fs, output='sos')
@@ -158,7 +158,7 @@ plt.show()
 amplitude = 1 # Amplitude of the chirp to use referred to the amps_1 array
 
 # Get the index of the amplitude variable inside amps_1 array
-amplitude_index = amps_2.index(amplitude)
+amplitude_index = amps_1.index(amplitude)
 
 gras_pbk_audio = gras_pbk_audio_filt[int(peaks_gras[amplitude_index]):int(peaks_gras[amplitude_index]) + int(fs*durns[chirp_to_use])]
 
