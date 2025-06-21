@@ -42,6 +42,7 @@ import soundfile as sf
 import matplotlib.pyplot as plt 
 from utilities import *
 import scipy.signal as sig
+import csv
 
 #%%
 # durns = np.array([3, 4, 5, 8, 10] )*1e-3
@@ -160,7 +161,7 @@ def detect_peaks(filtered_output, sample_rate):
     return peaks
 
 # Design the highpass filter
-cutoff = 100 # cutoff frequency in Hz
+cutoff = 50 # cutoff frequency in Hz
 # Plot the filter frequency response
 b, a = signal.butter(2, cutoff, 'high', analog=True)
 w, h = signal.freqs(b, a)
@@ -439,7 +440,24 @@ plt.tight_layout()
 #%%
 # Now let's calculate the RMS/Pa sensitivity using the knowledge from the 
 # calibration mic
+
+def save_data_to_csv(array, filename, path, headers=None):
+    full_path = os.path.join(path, filename)
+    mode = "x" if not os.path.exists(full_path) else "w"
+    with open(full_path, mode, newline='') as file:
+        writer = csv.writer(file)
+        if headers is not None:
+            writer.writerow(headers)
+        writer.writerows(array)
+
 SPH0645_sensitivity = np.array(SPH0645_freqrms)/np.array(gras_freqParms)
+
+# Save the sensitivity data to a CSV file 
+output_path = '/home/alberto/Documents/ActiveSensingCollectives_lab/Ro-BATs/measurements/z723/array_calibration/226_238' 
+
+SPH0645_full_sensitivity = np.column_stack((SPH0645_centrefreqs, SPH0645_sensitivity))
+save_data_to_csv(SPH0645_full_sensitivity, 'Knowles_SPH0645LM4H-B_sensitivity.csv', output_path, headers=['Frequency (Hz)', 'Sensitivity (a.u. rms/Pa)'])
+
 # Print and plot the sensitivity at 1000 Hz
 target_freq = 1000  # Hz
 # Find the index closest to 1000 Hz
