@@ -131,7 +131,7 @@ plt.show()
 # load the GRAS audio files
 gras_pbk_audio_or, fs = sf.read('./2025-06-11/in9_192khz_chA_+40db_1m.wav')
 
-chirp_to_use = 1
+chirp_to_use = 3
 
 # Apply the filter
 sos = signal.butter(2, cutoff, 'hp', fs=fs, output='sos')
@@ -298,6 +298,7 @@ plt.ylabel('a.u. RMS/Pa', fontsize=12)
 plt.xlabel('Frequencies, Hz', fontsize=12);
 plt.ylabel('Sound pressure level,\n dBrms SPL re 20$\mu$Pa', fontsize=12)
 plt.grid()
+plt.yticks(np.arange(-10,75,3))
 plt.xticks(np.linspace(1000, 20000, 20), rotation=45)
 plt.tight_layout()
 
@@ -305,7 +306,7 @@ plt.tight_layout()
 
 # Reference input signal (chirp)
 ref_pbk_audio = chirp[chirp_to_use]
-val_pbk_audio = chirp[chirp_to_use+1]
+val_pbk_audio = chirp[chirp_to_use-2]
 
 # Now measure chirp RMS over all frequency bands
 ref_pbk_centrefreqs, ref_pbk_freqrms = calc_native_freqwise_rms(ref_pbk_audio, fs)
@@ -317,7 +318,6 @@ idx_end = np.where(ref_pbk_centrefreqs <= end_f)[0][-1]
 print("\nInfos about the frequencies considered in the analysis:")
 print(f"Index for starting freq = {start_f} Hz: {idx_start}, correspondent frequency band: {ref_pbk_centrefreqs[idx_start]} Hz")
 print(f"Index for ending freq = {end_f} Hz: {idx_end}, correspondent frequency band: {ref_pbk_centrefreqs[idx_end]} Hz")
-
 ref_pbk_centrefreqs = ref_pbk_centrefreqs[mask]
     
 ref_pbk_freqrms = ref_pbk_freqrms[idx_start:idx_end+1]
@@ -339,10 +339,7 @@ plt.tight_layout()
 
 #%% Now let's calculate the Pa/RMS sensitivity of the loudspeaker
 
-ref_pbk_freqrms_int = interpolate_freq_response([gras_centrefreqs, gras_freqParms],
-                          ref_pbk_freqrms)
-
-loudsp_sensitivity = np.array(gras_freqParms)/np.array(ref_pbk_freqrms_int) # Pa/RMS 
+loudsp_sensitivity = np.array(gras_freqParms)/np.array(ref_pbk_freqrms) # Pa/RMS 
 # loudsp_sensitivity = np.array(ref_pbk_freqrms_int)/np.array(gras_freqParms) # RMS/Pa
 # # Print and plot the sensitivity at 1000 Hz
 # target_freq = 1000  # Hz
@@ -463,10 +460,10 @@ interp_sensitivity = interpolate_freq_response([ref_pbk_centrefreqs, loudsp_sens
 
 freqwise_Parms = freqwise_rms*interp_sensitivity
 
-plt.figure(figsize=(10, 5))
+plt.figure(figsize=(15, 8))
 plt.plot(gras_centrefreqs, pascal_to_dbspl(gras_freqParms), label='Original')
 plt.plot(recsound_centrefreqs, pascal_to_dbspl(freqwise_Parms), label='Validation')
-# plt.plot(central_freq, 10 * np.log10(SNR), label='SNR original')
+plt.plot(central_freq, 10 * np.log10(SNR), label='SNR original')
 # Mark with red zone the frequencies with SNR lower than 20 dB
 snr_db = 10 * np.log10(SNR)
 low_snr_mask = snr_db < 20
@@ -477,9 +474,22 @@ plt.title('Validation by comparing of different recordings')
 plt.ylabel('dBrms SPL re 20$\mu$Pa', fontsize=12)
 plt.legend()
 plt.grid()
+plt.yticks(np.arange(-10,70,3))
 plt.xticks(np.linspace(1000, 20000, 20), rotation=45)
 plt.show()
 
+gras_freqParms_int = interpolate_freq_response([gras_centrefreqs, gras_freqParms],
+                          recsound_centrefreqs)
+
+print(f'The original signal is {len(gras_pbk_audio)/fs} ms long\nThe validation signal is {len(val_pbk_audio)/fs} ms long\nThe difference in length is equal to {(len(val_pbk_audio)-len(gras_pbk_audio))/fs}')
+print(f'Expected energy difference in dB (because of signal lenght): {10*np.log10(np.mean(np.square(freqwise_Parms))/np.mean(np.square(gras_freqParms_int)))} dB')
+idx_start = np.where(recsound_centrefreqs >= 3e3)[0][0]
+idx_end = np.where(recsound_centrefreqs <= 20e3)[0][-1]
+
+print(f"starting freq = {3e3} Hz")
+print(f"ending freq = {20e3} Hz")
+diff = np.mean((pascal_to_dbspl(freqwise_Parms[idx_start:idx_end+1])-pascal_to_dbspl(gras_freqParms_int[idx_start:idx_end+1])))
+print(f'Calculated difference: {diff}\n!! We expect the longer signal to have more energy so it should be positive !!')
 #%%
 # Now we know the sensitivity of the target mic - let's finally calculate
 # the dB SPL of the recorded sound!
