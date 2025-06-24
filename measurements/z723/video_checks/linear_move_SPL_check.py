@@ -25,7 +25,7 @@ from utilities import *
 video_DIR = '/home/alberto/Videos/GOPRO/2025-06-18/'
 audio_DIR = './2025-06-18/'
 
-amplitude = 1
+amplitude = 0.5
 
 if amplitude == 1:
     video_name = np.array(['GX010558.MP4','GX010559.MP4',]) # run1, amplitude 1
@@ -75,21 +75,21 @@ for mic_num in range(5):
 
     # result plots
     plt.figure(figsize=(15, 15),)
+    plt.yticks([])
 
     plt.subplot(3, 1, 1, sharex=plt.gca())
     plt.plot(time_camera, camera_audio)
     plt.title('Camera Audio')
-    plt.xlabel('Distance [m]')
     plt.ylabel('Amplitude')
     plt.grid()
 
     plt.subplot(3, 1, 2, sharex=plt.gca())
     plt.plot(time_robot, robot_audio_delayed)
     plt.axvline(time_1m_mark, color = 'c', linestyle='-', label='1m Mark')
-    plt.axvline(time_05m_mark, color='b', linestyle='-', label='0.5m Mark')
+    plt.axvline(time_05m_mark, color='orange', linestyle='-', label='0.5m Mark')
     plt.title('Robot Audio')
-    plt.xlabel('Time [s]')
     plt.ylabel('Amplitude')
+    plt.legend()
     plt.grid()
 
     plt.subplot(3, 1, 3, sharex=plt.gca())
@@ -101,8 +101,6 @@ for mic_num in range(5):
     plt.ylabel('Correlation')
     plt.legend()
     plt.grid()
-
-    plt.tight_layout()
 
     plt.show(block=False)
 
@@ -136,6 +134,10 @@ for mic_num in range(5):
     chirp_template = chirp_template[int(0.1*fs_chirp): int((0.1+chirp_len)*fs_chirp)] 
 
     plt.plot(np.arange(0, len(chirp_template)) / fs_chirp, chirp_template)
+    plt.grid()
+    plt.title('Chirp Template')
+    plt.xlabel('Time [s]')
+    plt.ylabel('Amplitude')
     robot_audio_matched = matched_filter(robot_audio_trim, chirp_template)
 
     peaks = detect_peaks(robot_audio_matched, fs)
@@ -147,10 +149,11 @@ for mic_num in range(5):
     plt.subplot(2, 1, 1)
     plt.plot(np.linspace(0, len(robot_audio_matched) / fs, len(robot_audio_matched)), robot_audio_matched)
     plt.plot(peaks/fs, robot_audio_matched[peaks], 'ro')
-    plt.title('Matched Filter Output - GRAS')
+    plt.title('Matched Filter Output')
     plt.xlabel('Time [s]')
     plt.ylabel('Amplitude')
     plt.tight_layout()
+    plt.grid()
     plt.show(block=False)
 
     # %%
@@ -160,19 +163,31 @@ for mic_num in range(5):
     robot_audio_trim_1m = robot_audio_trim[(peaks[0]): int(peaks[0] + chirp_len*fs_chirp)]
     rms_1m = rms(robot_audio_trim_1m)
 
-    plt.plot(robot_audio_trim_1m)
+    # Plot the trimmed audio at 1m mark
+    plt.figure()
+    plt.plot(np.arange(len(robot_audio_trim_1m)) / fs, robot_audio_trim_1m)
+    plt.title('Trimmed Audio at 1m Mark')
+    plt.xlabel('Samples')
+    plt.ylabel('Amplitude')
+    plt.grid()
     plt.show(block=False)
+
         
     # peak at 0.5 m mark
     plt.figure()
     robot_audio_trim_05m = robot_audio_trim[(peaks[-1]): int(peaks[-1] + chirp_len*fs_chirp)]
     rms_05m = rms(robot_audio_trim_05m)
 
-    plt.plot(robot_audio_trim_05m)
+    # Plot the trimmed audio at 0.5m mark
+    plt.plot(np.arange(len(robot_audio_trim_05m)) / fs, robot_audio_trim_05m)
+    plt.xlabel('Time [ms]')
+    plt.title('Trimmed Audio at 0.5m Mark')
+    plt.xlabel('Samples')
+    plt.ylabel('Amplitude')
+    plt.grid()
     plt.show(block=False)
 
     # Analyze all detected peaks in the audio
-
     window_length = int(chirp_len * fs_chirp)  # 4 ms window
     audio_segments = []
     rms_values = []
@@ -186,15 +201,16 @@ for mic_num in range(5):
         rms_val = rms(segment)
         rms_values.append(rms_val)
 
-    print("RMS values for each detected peak:")
-    for i, val in enumerate(rms_values):
-        print(f"Peak {i+1}: RMS = {val}")
+    # print("RMS values for each detected peak:")
+    # for i, val in enumerate(rms_values):
+    #     print(f"Peak {i+1}: RMS = {val}")
 
     # For compatibility with later code, keep the first and last segments as 1m and 0.5m marks
     robot_audio_trim_1m = audio_segments[0]
     robot_audio_trim_05m = audio_segments[-1]
     rms_1m = rms_values[0]
     rms_05m = rms_values[-1]
+    
     # %%
     # upload array sensitivity
     sensitivity_path = '/home/alberto/Documents/ActiveSensingCollectives_lab/Ro-BATs/measurements/z723/array_calibration/226_238/Knowles_SPH0645LM4H-B_sensitivity.csv'
@@ -202,13 +218,16 @@ for mic_num in range(5):
     freqs = np.array(sensitivity.iloc[:, 0])  # first column contains frequencies
     sens_freqwise_rms = np.array(sensitivity.iloc[:, 1])  # Last column contains sensitivity values 
 
+    # Plot the uploaded sensitivity
     plt.figure(figsize=(15, 8))
     a0 = plt.subplot(211)
     plt.plot(freqs, sens_freqwise_rms)
-    plt.title(f' sensitivity')
+    plt.xlabel('Frequencies, Hz', fontsize=12);
+    plt.ylabel('dB a.u. rms/Pa', fontsize=12)
+    plt.title(f'Knowles SPH0645LM4H-B Sensitivity', fontsize=20)
     plt.grid()
-    plt.legend()
     plt.xticks(np.linspace(1000, 20000, 20), rotation=45)
+
     plt.subplot(212, sharex=a0)
     plt.plot(freqs, dB(sens_freqwise_rms))
     plt.xlabel('Frequencies, Hz', fontsize=12);
@@ -216,12 +235,12 @@ for mic_num in range(5):
     plt.grid()
     plt.xticks(np.linspace(1000, 20000, 20), rotation=45)
     plt.tight_layout()
-    plt.legend()
+    plt.show(block=False)
 
     recsound_centrefreqs_1m, freqwise_rms_1m = calc_native_freqwise_rms(robot_audio_trim_1m, fs)
     recsound_centrefreqs_05m, freqwise_rms_05m = calc_native_freqwise_rms(robot_audio_trim_05m, fs)
+    
     # Loop over all audio segments to compute SPL for each detected peak
-
     interp_sensitivity_1m = interpolate_freq_response([freqs, sens_freqwise_rms],
                             recsound_centrefreqs_1m)
     freqwise_Parms_1m = freqwise_rms_1m/interp_sensitivity_1m # go from rms to Pa(rmseq.)

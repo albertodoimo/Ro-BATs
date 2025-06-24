@@ -131,7 +131,7 @@ plt.show()
 # load the GRAS audio files
 gras_pbk_audio_or, fs = sf.read('./2025-06-11/in9_192khz_chA_+40db_1m.wav')
 
-chirp_to_use = 3
+chirp_to_use = 0
 
 # Apply the filter
 sos = signal.butter(2, cutoff, 'hp', fs=fs, output='sos')
@@ -298,7 +298,6 @@ plt.ylabel('a.u. RMS/Pa', fontsize=12)
 plt.xlabel('Frequencies, Hz', fontsize=12);
 plt.ylabel('Sound pressure level,\n dBrms SPL re 20$\mu$Pa', fontsize=12)
 plt.grid()
-plt.yticks(np.arange(-10,75,3))
 plt.xticks(np.linspace(1000, 20000, 20), rotation=45)
 plt.tight_layout()
 
@@ -306,7 +305,8 @@ plt.tight_layout()
 
 # Reference input signal (chirp)
 ref_pbk_audio = chirp[chirp_to_use]
-val_pbk_audio = chirp[chirp_to_use-2]
+# Validation input signal (chirp)
+val_pbk_audio = chirp[chirp_to_use+1]
 
 # Now measure chirp RMS over all frequency bands
 ref_pbk_centrefreqs, ref_pbk_freqrms = calc_native_freqwise_rms(ref_pbk_audio, fs)
@@ -374,50 +374,6 @@ plt.show()
 display(
     Image(filename="./dayton_audio_CE32A-4_freq_response.png", width=900),
 )
-# #%% 
-# # Here we load a separate 'recorded sound' - a 'validation' audio clip let's call it 
-# chirp_to_use += 1
-
-# #  Define the matched filter function
-# def matched_filter(recording, chirp_template):
-#     filtered_output = np.roll(signal.correlate(recording, chirp_template, 'same', method='direct'), -len(chirp_template)//2)
-#     filtered_output *= signal.windows.tukey(filtered_output.size, 0.1)
-#     filtered_envelope = np.abs(signal.hilbert(filtered_output))
-#     return filtered_envelope
-
-# # Detect peaks in the matched filter output
-# def detect_peaks(filtered_output, sample_rate):
-#     peaks, properties = signal.find_peaks(filtered_output, prominence=0.2, distance=0.2* sample_rate)
-#     return peaks
-
-# gras_pbk_audio_filt = gras_pbk_audio_filt[int(peaks_gras[amplitude_index]-1*fs):-1*fs] 
-
-# gras_pbk_audio_matched = matched_filter(gras_pbk_audio_filt, chirp[chirp_to_use])
-
-# # Detect peaks
-# peaks_gras = detect_peaks(gras_pbk_audio_matched, fs)
-# print(f"Detected peaks: gras = {len(peaks_gras)}")
-
-# # plot the peaks
-# plt.figure(figsize=(15, 5))
-# plt.subplot(2, 1, 1)
-# plt.plot(np.linspace(0, len(gras_pbk_audio_matched) / fs, len(gras_pbk_audio_matched)), gras_pbk_audio_matched)
-# plt.plot(peaks_gras/fs, gras_pbk_audio_matched[peaks_gras], 'ro')
-# plt.title('Matched Filter Output - GRAS')
-# plt.xlabel('Time [s]')
-# plt.ylabel('Amplitude')
-# plt.tight_layout()
-# plt.show()
-
-# gras_valid_rec = gras_pbk_audio_filt[int(peaks_gras[chirp_to_use]):int(peaks_gras[chirp_to_use]) + int(fs*durns[chirp_to_use])]
-
-# # Plot the playback signals
-# plt.figure(figsize=(10,5))
-# plt.plot(np.linspace(0,len(gras_valid_rec)/fs, len(gras_valid_rec)) ,gras_valid_rec)
-# plt.title('Validation signal from GRAS mic')
-# plt.grid()
-# plt.xlabel('Time [s]')
-# plt.ylabel('Amplitude', fontsize=12)
 
 
 #%%
@@ -427,7 +383,6 @@ display(
 # then you'll need to interpolate the sensitivity using interpolate_freq_response in the
 # utilities.py module
 
-#recsound_centrefreqs, freqwise_rms = calc_native_freqwise_rms(gras_valid_rec, fs)
 recsound_centrefreqs, freqwise_rms = calc_native_freqwise_rms(val_pbk_audio,fs)
 
 mask = (recsound_centrefreqs >= start_f) & (recsound_centrefreqs <= end_f)
@@ -489,7 +444,7 @@ idx_end = np.where(recsound_centrefreqs <= 20e3)[0][-1]
 print(f"starting freq = {3e3} Hz")
 print(f"ending freq = {20e3} Hz")
 diff = np.mean((pascal_to_dbspl(freqwise_Parms[idx_start:idx_end+1])-pascal_to_dbspl(gras_freqParms_int[idx_start:idx_end+1])))
-print(f'Calculated difference: {diff}\n!! We expect the longer signal to have more energy so it should be positive !!')
+print(f'Calculated difference: {diff}\n')
 #%%
 # Now we know the sensitivity of the target mic - let's finally calculate
 # the dB SPL of the recorded sound!
@@ -498,7 +453,7 @@ print(f'Calculated difference: {diff}\n!! We expect the longer signal to have mo
 
 frequency_band = [0.2e3, 24e3] # min, max frequency to do the compensation Hz
 
-tgtmic_relevant_freqs = np.logical_and(gras_centrefreqs>=frequency_band[0],
+tgtmic_relevant_freqs = np.logical_and(gras_centrefreqs>=frequency_band[0], 
                                 gras_centrefreqs<=frequency_band[1])
 total_rms_freqwise_Parms = np.sqrt(np.sum(gras_freqParms[tgtmic_relevant_freqs]**2))
 
@@ -507,7 +462,7 @@ valid_tgtmic_relevant_freqs = np.logical_and(recsound_centrefreqs>=frequency_ban
 valid_total_rms_freqwise_Parms = np.sqrt(np.sum(freqwise_Parms[valid_tgtmic_relevant_freqs]**2))
 
 
-print(f'GRAS dBrms SPL measure: {pascal_to_dbspl(total_rms_freqwise_Parms)}')
-print(f'GRAS dBrms SPL measure: {pascal_to_dbspl(valid_total_rms_freqwise_Parms)}')
+print(f'Original dBrms SPL measure: {pascal_to_dbspl(total_rms_freqwise_Parms)}')
+print(f'Validation dBrms SPL measure: {pascal_to_dbspl(valid_total_rms_freqwise_Parms)}')
 
 # %%
