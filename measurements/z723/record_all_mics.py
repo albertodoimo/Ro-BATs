@@ -72,6 +72,8 @@ parser.add_argument(
     '-t', '--subtype', type=str, help='sound file subtype (e.g. "PCM_24")')
 parser.add_argument(
     '-a', '--angle', type=str, help='angle')
+parser.add_argument(
+    '-dir', '--directory', type=str, default='./array_calibration/')
 args = parser.parse_args(remaining)
 
 q = queue.Queue()
@@ -86,20 +88,26 @@ def callback(indata, frames, time, status):
 # Create folder for saving recordings
 timenow = datetime.datetime.now()
 time = timenow.strftime('%Y-%m-%d')
-save_path = './array_calibration/'
-folder_name = str(time)
+if not args.directory:
+    save_path = './array_calibration/'
+    folder_name = str(time)
+else:
+    save_path = args.directory
+    folder_name = str(time)
 folder_path = os.path.join(save_path, folder_name)
 os.makedirs(folder_path, exist_ok=True)
 
 time1 = timenow.strftime('%Y-%m-%d__%H-%M-%S')
-#name = 'MULTIWAV_' + str(time1) + '.wav'
-name = args.angle + '.wav'
+if not args.angle:
+    name = 'MULTIWAV_' + str(time1) + '.wav'
+else:
+    name = args.angle + '.wav'
 args.filename = os.path.join(folder_path, name)
 args.device = get_card(sd.query_devices())
 print(sd.query_devices())
 print('device = ', args.device)
-args.samplerate = 96000
-args.channels = 5
+args.samplerate = 48000
+args.channels = 1
 
 try:
     if args.samplerate is None:  

@@ -4,17 +4,17 @@ import os
 import traceback
 import yaml
 import numpy as np
-import pyautogui as pag
 import sys
 import io
 import ffmpeg
 import soundfile as sf
 import librosa
-from sonar import sonar
 from scipy import signal
 from das_v2 import das_filter
 from capon import capon_method
 from matplotlib import pyplot as plt
+
+import ffmpeg
 
 # Cross product in 2D
 def cross2d(x, y):
@@ -148,25 +148,26 @@ def pow_two_pad_and_window(vec, show=False):
 
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
-file_name = '20250516_15-59-38'
+file_name = 'GX010584'
 
-camera_path = './videos/' + file_name + '.mp4'
-robot_path = './audio/' + file_name + '.wav'
-offsets_path = './offsets/' + file_name + '.yaml'
+camera_path = '/home/alberto/Videos/GOPRO/2025-07-21/' + file_name + '.mp4'
+robot_path = './audio/' + 'MULTIWAV_134.34.226.238_2025-07-21__15-53-15' + '.wav'
+# offsets_path = './offsets/' + file_name + '.yaml'
 
-with open(offsets_path, "r") as file:
-    try:
-        data = yaml.safe_load(file)  # Use safe_load to avoid potential security issues
-    except yaml.YAMLError as error:
-        print(f"Error loading YAML file: {error}")
-reading_points = data['reading_points']
-reading_points = np.array(reading_points)
-offsets = data['offsets']
-offsets = np.array(offsets)
+# with open(offsets_path, "r") as file:
+#     try:
+#         data = yaml.safe_load(file)  # Use safe_load to avoid potential security issues
+#     except yaml.YAMLError as error:
+#         print(f"Error loading YAML file: {error}")
+# reading_points = data['reading_points']
+# reading_points = np.array(reading_points)
+# offsets = data['offsets']
+# offsets = np.array(offsets)
+offsets = np.array([1, 1, 0, 0])  # Insert 0 at the beginning
 
 gopro_fps = 60
-screen_width, screen_height = pag.size()
-robot_id = 0
+screen_width, screen_height = 4000, 3000
+robot_id = 8
 arena_w = 1.55
 arena_l = 2
 # Load video file
@@ -201,17 +202,15 @@ try:
     video_frames = np.astype((reading_points) / fs * gopro_fps + start_frame, np.int32)
     interp_video_frames = np.astype(insert_between_large_diffs(video_frames), np.int32)
 
-    fs = 176400
-    dur = 3e-3
-    hi_freq = 60e3
+    fs = 48000
+    dur = 20e-3
+    hi_freq = 2e3
     low_freq = 20e3
     output_threshold = -50 # [dB]
 
     METHOD = 'das' # 'das', 'capon'
     if METHOD == 'das':
         spatial_filter = das_filter
-    elif METHOD == 'capon':
-        spatial_filter = capon_method
 
     t_tone = np.linspace(0, dur, int(fs*dur))
     chirp = signal.chirp(t_tone, hi_freq, t_tone[-1], low_freq)    
