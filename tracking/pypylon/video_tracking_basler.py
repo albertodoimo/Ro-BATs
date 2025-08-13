@@ -37,7 +37,7 @@ except yaml.YAMLError as exc:
 # Setup the camera
 # camera model = ace2 R a2A4508-20umBAS
 recording_bool = True
-enable_screen_recording = False  # Set to True to enable screen recording (may cause issues on some systems)
+enable_screen_recording = True  # Set to True to enable screen recording (may cause issues on some systems)
 tl_factory = pylon.TlFactory.GetInstance()
 devices = tl_factory.EnumerateDevices()
 if not devices:

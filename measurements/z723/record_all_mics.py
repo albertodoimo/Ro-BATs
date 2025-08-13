@@ -107,7 +107,7 @@ args.device = get_card(sd.query_devices())
 print(sd.query_devices())
 print('device = ', args.device)
 args.samplerate = 48000
-args.channels = 1
+args.channels = 6
 
 try:
     if args.samplerate is None:  
