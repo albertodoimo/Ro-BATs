@@ -1,8 +1,8 @@
 #!/bin/bash
 
 USER="thymio"
-PI_LIST="pi_list.txt"
-
+PI_LIST="./tracking/pi_list.txt"
+PASSWORD="thymio"
 echo "🔍 Checking Chrony sync status on Raspberry Pis..."
 echo ""
 
@@ -16,7 +16,7 @@ for IP in "${PI_ARRAY[@]}"; do
         echo "✅ $IP is reachable via ping."
 
         echo "🔐 Connecting via SSH..."
-        SYNC_OUTPUT=$(ssh -o ConnectTimeout=3 -o BatchMode=no "${USER}@${IP}" "chronyc tracking" 2>/dev/null)
+        SYNC_OUTPUT=$(sshpass -p "$PASSWORD" ssh -o ConnectTimeout=3 -o BatchMode=no "${USER}@${IP}" "sudo systemctl restart chrony && chronyc tracking" 2>/dev/null)
 
         if [[ $? -eq 0 && -n "$SYNC_OUTPUT" ]]; then
             echo "$SYNC_OUTPUT" | grep -E 'Reference ID|Stratum|Last offset|Leap status'
