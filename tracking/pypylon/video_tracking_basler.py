@@ -36,7 +36,7 @@ except yaml.YAMLError as exc:
 
 # Setup the camera
 # camera model = ace2 R a2A4508-20umBAS
-recording_bool = True
+recording_bool = False
 enable_screen_recording = True  # Set to True to enable screen recording (may cause issues on some systems)
 tl_factory = pylon.TlFactory.GetInstance()
 devices = tl_factory.EnumerateDevices()
@@ -72,26 +72,26 @@ converter.OutputPixelFormat = pylon.PixelType_BGR8packed
 converter.OutputBitAlignment = pylon.OutputBitAlignment_MsbAligned
 
 # Load ArUco dictionary
-aruco_dict = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_6X6_50)
+aruco_dict = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_6X6_250)
 # aruco_dict = cv2.aruco.extendDictionary(40, 3)
 aruco_params = cv2.aruco.DetectorParameters()
 print("Press ESC to exit...")
 
 # Create output directory 
-video_fps = 10
+# video_fps = 10
 # print (f"Video FPS set to: {1/video_fps}")
 camera_fps = camera.ResultingFrameRate.GetValue()
 print(f"Hardware Camera FPS output: {camera_fps}")
 
-output_dir = './tracking/pypylon/videos/'
-video_file_name = datetime.now().strftime('%Y-%m-%d_%H-%M-%S:%f')[:-2] + '_basler_tracking'
+output_dir = './tracking/pypylon/data/'
+# video_file_name = datetime.now().strftime('%Y-%m-%d_%H-%M-%S:%f')[:-2] + '_basler_tracking'
 file_name = datetime.now().strftime('%Y-%m-%d_%H-%M-%S:%f')[:-2] + '_basler_tracking'
-if recording_bool == True:
-    fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+# if recording_bool == True:
+#     fourcc = cv2.VideoWriter_fourcc(*'mp4v')
 
-    if not os.path.exists(output_dir):
-        os.makedirs(output_dir)
-    out = cv2.VideoWriter(output_dir + video_file_name + '.MP4', fourcc, video_fps, (crop_w, crop_h))
+#     if not os.path.exists(output_dir):
+#         os.makedirs(output_dir)
+#     out = cv2.VideoWriter(output_dir + video_file_name + '.MP4', fourcc, video_fps, (crop_w, crop_h))
 
 # Set the upper limit of the camera's frame rate to 30 fps
 camera.AcquisitionFrameRateEnable.Value = True
@@ -147,7 +147,7 @@ def get_pair_centers(marker_pairs, centers_dict, corners, ids, reference_positio
             pair_centers[(a, b)] = center
     return pair_centers
 
-def draw_heading_arrows(frame, pair_centers, corners, ids, reference_position, pixel_per_meters):
+def draw_heading_arrows(frame, pair_centers, robot_names, corners, ids, reference_position, pixel_per_meters):
     heading_vectors = {}
     pixel_centers = {}
     id_list = ids.flatten().tolist() if ids is not None else []
@@ -182,7 +182,18 @@ def draw_heading_arrows(frame, pair_centers, corners, ids, reference_position, p
                 arrow_start = np.array(center)
             arrow_length = 100
             arrow_end = arrow_start + heading_vec * arrow_length
+
+            # Heading angle: 0 deg is vertical (facing top), increases clockwise (0-360)
+            heading_angle_rad = np.arctan2(heading_vec[1], heading_vec[0])  # negative y for top
+            heading_angle_deg = (np.degrees(heading_angle_rad) + 90) % 360  # 0 deg is top
+            if 'heading_angle' not in locals():
+                heading_angle = {}
+            robot_name = robot_names.get((a, b), f"{a}-{b}") if 'robot_names' in locals() else f"{a}-{b}"
+            heading_angle[robot_name] = heading_angle_deg
+
+            # cv2.putText(frame, f"{angle_deg:.1f} deg", (arrow_start[0], arrow_start[1] - 20), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
             cv2.arrowedLine(frame, tuple(arrow_start.astype(int)), tuple(arrow_end.astype(int)), (255, 255, 255), 4, tipLength=0.25)
+            # cv2.putText(frame, str(heading_vec), (arrow_start[0], arrow_start[1]), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1 )
             pixel_centers[(a, b)] = arrow_start
         else:
             if reference_position is not None and pixel_per_meters > 0:
@@ -192,7 +203,9 @@ def draw_heading_arrows(frame, pair_centers, corners, ids, reference_position, p
                 ])
             else:
                 pixel_centers[(a, b)] = np.array(center)
-    return heading_vectors, pixel_centers
+
+
+    return heading_vectors, pixel_centers, heading_angle
 
 
 
@@ -229,7 +242,7 @@ def draw_heading_angles(frame, heading_vectors, pair_centers, robot_names):
                 closest_center = np.array(other_center)
                 closest_robot = robot_names.get((other_a, other_b), f"{other_a}-{other_b}")
                 
-        angle_deg = None
+        closest_robot_angle = None
         if closest_center is not None:
             to_closest = closest_center - this_center
             if np.linalg.norm(to_closest) > 0:
@@ -237,16 +250,16 @@ def draw_heading_angles(frame, heading_vectors, pair_centers, robot_names):
                 angle_rad = np.arctan2(
                     to_closest_norm[1], to_closest_norm[0]
                 ) - np.arctan2(heading_vec[1], heading_vec[0])
-                angle_deg = np.degrees(angle_rad) % 360
+                closest_robot_angle = np.degrees(angle_rad) % 360
                 text_pos = (int(this_center[0] + 40), int(this_center[1] - 20))
-                cv2.putText(frame, f"{angle_deg:.0f} deg", text_pos, cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
+                cv2.putText(frame, f"{closest_robot_angle:.0f} deg", text_pos, cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
                 # Draw arrow towards closest robot
                 arrow_length = 100
                 arrow_end = this_center + to_closest_norm * arrow_length
                 cv2.arrowedLine(frame, tuple(this_center.astype(int)), tuple(arrow_end.astype(int)), (0, 0, 255), 3, tipLength=0.25)
         angle_results[robot_names.get((a, b), f"{a}-{b}")] = {
             'closest_robot': closest_robot,
-            'angle_deg': angle_deg,
+            'angle_deg': closest_robot_angle,
         }
     return angle_results
 
@@ -345,9 +358,9 @@ except Exception as e:
 
 def main():
     # Initialize screen recording variables
-    recorder = None
-    recording_started = False
-    screen_recording_enabled = False
+    # recorder = None
+    # recording_started = False
+    # screen_recording_enabled = False
     
     try:
         i = datetime.timestamp(datetime.now())
@@ -357,6 +370,7 @@ def main():
             if grab_result.GrabSucceeded():
                 image = converter.Convert(grab_result)
                 frame = image.GetArray()
+                original_frame = frame.copy()
                 h, w = frame.shape[:2]
 
                 corners, ids, _ = cv2.aruco.detectMarkers(frame, aruco_dict, parameters=aruco_params)
@@ -383,80 +397,69 @@ def main():
                 cv2.putText(frame, 'Y', (y_axis_end[0], y_axis_end[1] + 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
                 
                 pair_centers = get_pair_centers(marker_pairs, centers_dict, corners, ids, reference_position, pixel_per_meters)
-                heading_vectors, pixel_centers = draw_heading_arrows(frame, pair_centers, corners, ids, reference_position, pixel_per_meters)
-                angle_results = draw_heading_angles(frame, heading_vectors, pixel_centers, robot_names)
+                heading_vectors, pixel_centers, heading_angle = draw_heading_arrows(frame, pair_centers, robot_names, corners, ids, reference_position, pixel_per_meters)
+                closest_robot_angle = draw_heading_angles(frame, heading_vectors, pixel_centers, robot_names)
                 draw_pair_centers(frame, pair_centers, robot_names, reference_position, pixel_per_meters)
                 intradistances = draw_closest_pair_line(frame, pair_centers, robot_names, reference_position, pixel_per_meters)
+            
 
-                data_queue.put({
-                    'timestamp[POSIX]': timestamp,
-                    'pair_centers[m]': {
+                # Save to npy file as dictionary (append mode)
+                npy_file = output_dir + file_name + '_markers.npy'
+                data_dict = {
+                    'timestamp': timestamp,
+                    'origin': (reference_position[0], reference_position[1]),
+                    'robot_positions[m]': {
                         robot_names.get((a, b), f"{a}-{b}"): center
                         for (a, b), center in pair_centers.items()
                     },
-                    'distances[mm]': intradistances if len(pair_centers) >= 2 else [],
-                    'angle_results[deg]': angle_results
-                })
+                    'robot_heading_angles[deg]': {
+                        robot_name: float(heading_angle) if heading_angle is not None else None
+                        for robot_name, heading_angle in heading_angle.items()
+                    },
+                    'noise_on': True if (ids is not None and 200 in ids) else False
+                }
+                
+                if not os.path.exists(npy_file):
+                    np.save(npy_file, [data_dict])
+                else:
+                    existing_data = list(np.load(npy_file, allow_pickle=True))
+                    existing_data.append(data_dict)
+                    np.save(npy_file, existing_data)
 
                 text_size, _ = cv2.getTextSize(timestamp, cv2.FONT_HERSHEY_SIMPLEX, 1, 2)
                 text_x = (frame.shape[1] - text_size[0]) // 2
                 text_y = 40
                 cv2.putText(frame, timestamp, (text_x, text_y), cv2.FONT_HERSHEY_SIMPLEX,
                             1.3, (0, 0, 0), 3, cv2.LINE_AA)
-                
-                # Start screen recording when the window opens
-                if enable_screen_recording and recorder is None:
-                    try:
-                        recorder = pyscreenrec.ScreenRecorder()
-                        screen_video_path = output_dir + file_name + '_screen.mp4'
-                        screen_recording_enabled = True
-                        print("Screen recording initialized successfully")
-                    except Exception as e:
-                        print(f"Warning: Screen recording failed to initialize: {e}")
-                        recorder = None
-                        screen_recording_enabled = False
 
-                cv2.namedWindow("Basler Camera original", cv2.WINDOW_NORMAL)
-                cv2.resizeWindow("Basler Camera original", 800, 600)
+                cv2.namedWindow("Basler Camera tracking", cv2.WINDOW_NORMAL)
+                cv2.resizeWindow("Basler Camera tracking", 1600, 1200)
                 # Show the camera window
-                cv2.imshow("Basler Camera original", frame)
-                
-                # Write frame to video file if recording is enabled
-                if recording_bool and 'out' in globals():
-                    out.write(frame)
+                cv2.imshow("Basler Camera tracking", frame)
 
-                # Start screen recording if the window is open and not already recording
-                if screen_recording_enabled and recorder is not None and cv2.getWindowProperty("Basler Camera original", cv2.WND_PROP_VISIBLE) >= 1 and not recording_started:
-                    try:
-                        recorder.start_recording(screen_video_path, camera_fps)
-                        recording_started = True
-                        print("Screen recording started")
-                    except Exception as e:
-                        print(f"Warning: Screen recording failed to start: {e}")
-                        screen_recording_enabled = False
-                        recorder = None
-                    
+                # # Show the original camera feed
+                # cv2.namedWindow("Basler Camera original", cv2.WINDOW_NORMAL)
+                # cv2.resizeWindow("Basler Camera original", 1600, 1200)
+                # cv2.imshow("Basler Camera original", original_frame)
+
+                # # Write frame to video file if recording is enabled
+                # if recording_bool and 'out' in globals():
+                #     out.write(frame)
+
                 # Stop recording and save data when ESC is pressed or window is closed
-                if (cv2.waitKey(1) & 0xFF == 27 or cv2.getWindowProperty("Basler Camera original", cv2.WND_PROP_VISIBLE) < 1):
-                    if screen_recording_enabled and recorder is not None and recording_started:
-                        try:
-                            recorder.stop_recording()
-                            print("Screen recording stopped")
-                        except Exception as e:
-                            print(f"Warning: Error stopping screen recording: {e}")
-                        recording_started = False
-                    csv_file = output_dir + file_name + '_markers.csv'
-                    with open(csv_file, 'w', newline='') as f:
-                        writer = csv.writer(f)
-                        writer.writerow(['timestamp[POSIX]', 'pair_centers[m]', 'distances[mm]', 'angle_results[deg]'])
-                        while not data_queue.empty():
-                            item = data_queue.get()
-                            writer.writerow([
-                                item['timestamp[POSIX]'],
-                                item['pair_centers[m]'],
-                                item['distances[mm]'],
-                                item['angle_results[deg]']
-                            ])
+                if (cv2.waitKey(1) & 0xFF == 27 or cv2.getWindowProperty("Basler Camera tracking", cv2.WND_PROP_VISIBLE) < 1):
+                    # csv_file = output_dir + file_name + '_markers.csv'
+                    # with open(csv_file, 'w', newline='') as f:
+                    #     writer = csv.writer(f)
+                    #     writer.writerow(['timestamp[POSIX]', 'pair_centers[m]', 'distances[mm]', 'angle_results[deg]'])
+                    #     while not data_queue.empty():
+                    #         item = data_queue.get()
+                    #         writer.writerow([
+                    #             item['timestamp[POSIX]'],
+                    #             item['pair_centers[m]'],
+                    #             item['distances[mm]'],
+                    #             item['angle_results[deg]']
+                    #         ])
                     break
 
             grab_result.Release()
@@ -464,17 +467,6 @@ def main():
         camera.StopGrabbing()
         camera.Close()
         cv2.destroyAllWindows()
-        # Clean up video writer
-        if recording_bool and 'out' in globals():
-            out.release()
-            print(f"Video saved to: {output_dir + video_file_name + '.MP4'}")
-        # Clean up screen recording
-        if 'recorder' in locals() and recorder is not None and recording_started:
-            try:
-                recorder.stop_recording()
-                print("Screen recording cleanup completed")
-            except Exception as e:
-                print(f"Warning: Error during screen recording cleanup: {e}")
 
 if __name__ == "__main__":
     main()
