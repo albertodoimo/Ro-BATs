@@ -18,9 +18,21 @@ yaml_file = "./tracking/camera_calibration/calibration_matrix_basler_2560-1600.y
 #     ["python3", "/home/alberto/Documents/ActiveSensingCollectives_lab/Ro-BATs/measurements/z723/record_all_mics.py", "-dir", "/home/alberto/Documents/ActiveSensingCollectives_lab/Ro-BATs/tracking/pypylon/"],
 # )\
 
-# # Run the check_pi_sync.sh script and wait for it to finish before continuing
-# subprocess.run(
-#     ["bash", "/home/alberto/Documents/ActiveSensingCollectives_lab/Ro-BATs/tracking/check_pi_sync.sh"])
+# activate chrony
+subprocess.run(
+    ["bash", "-c", "sudo systemctl restart chrony"],
+    check=True
+)
+# Run the check_pi_sync.sh script and wait for it to finish before continuing
+subprocess.run(
+    ["bash", "/home/alberto/Documents/ActiveSensingCollectives_lab/Ro-BATs/tracking/check_pi_sync.sh"],
+    check=True
+)
+
+subprocess.run(
+    ["bash", "/home/alberto/Documents/ActiveSensingCollectives_lab/Ro-BATs/tracking/run_all_robots.sh"],
+    check=True
+)
 
 try:
     with open(yaml_file, 'r') as file:
@@ -467,6 +479,15 @@ def main():
         camera.StopGrabbing()
         camera.Close()
         cv2.destroyAllWindows()
+        subprocess.run(
+            ["bash", "-c", "chronyc -n tracking"],
+            check=True
+        )
+
+        subprocess.run(
+            ["bash", "/home/alberto/Documents/ActiveSensingCollectives_lab/Ro-BATs/tracking/stop_all_robots.sh"],
+            check=True
+        )       
 
 if __name__ == "__main__":
     main()
