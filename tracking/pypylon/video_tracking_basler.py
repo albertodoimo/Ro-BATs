@@ -4,7 +4,7 @@ import numpy as np
 import os
 import yaml
 import subprocess
-from datetime import datetime
+import datetime
 import queue
 import csv
 import pyscreenrec
@@ -18,21 +18,21 @@ yaml_file = "./tracking/camera_calibration/calibration_matrix_basler_2560-1600.y
 #     ["python3", "/home/alberto/Documents/ActiveSensingCollectives_lab/Ro-BATs/measurements/z723/record_all_mics.py", "-dir", "/home/alberto/Documents/ActiveSensingCollectives_lab/Ro-BATs/tracking/pypylon/"],
 # )\
 
-# activate chrony
 subprocess.run(
-    ["bash", "-c", "sudo systemctl restart chrony"],
-    check=True
-)
-# Run the check_pi_sync.sh script and wait for it to finish before continuing
-subprocess.run(
-    ["bash", "/home/alberto/Documents/ActiveSensingCollectives_lab/Ro-BATs/tracking/check_pi_sync.sh"],
+    ["bash", "-c", "chronyc -n tracking"],
     check=True
 )
 
-subprocess.run(
-    ["bash", "/home/alberto/Documents/ActiveSensingCollectives_lab/Ro-BATs/tracking/run_all_robots.sh"],
-    check=True
-)
+# # # Run the check_pi_sync.sh script and wait for it to finish before continuing
+# subprocess.run(
+#     ["bash", "/home/alberto/Documents/ActiveSensingCollectives_lab/Ro-BATs/tracking/check_pi_sync.sh"],
+#     check=True
+# )
+
+# subprocess.run(
+#     ["bash", "/home/alberto/Documents/ActiveSensingCollectives_lab/Ro-BATs/tracking/run_all_robots.sh"],
+#     check=True
+# )
 
 try:
     with open(yaml_file, 'r') as file:
@@ -97,7 +97,7 @@ print(f"Hardware Camera FPS output: {camera_fps}")
 
 output_dir = './tracking/pypylon/data/'
 # video_file_name = datetime.now().strftime('%Y-%m-%d_%H-%M-%S:%f')[:-2] + '_basler_tracking'
-file_name = datetime.now().strftime('%Y-%m-%d_%H-%M-%S:%f')[:-2] + '_basler_tracking'
+file_name = datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S:%f')[:-2] + '_basler_tracking'
 # if recording_bool == True:
 #     fourcc = cv2.VideoWriter_fourcc(*'mp4v')
 
@@ -322,7 +322,7 @@ def draw_closest_pair_line(frame, pair_centers, robot_names, reference_position,
 try:
     pixel_per_meters = 0
     camera.TimestampLatch.Execute()
-    i = datetime.timestamp(datetime.now())
+    i = datetime.datetime.timestamp(datetime.datetime.now(datetime.timezone.utc))
     while camera.IsGrabbing():
         grab_result = camera.RetrieveResult(5000, pylon.TimeoutHandling_ThrowException)
 
@@ -361,7 +361,7 @@ try:
                     pixel_per_meters = np.mean([np.linalg.norm(corners_1[:, 3] - corners_2[:, 0], axis=1)/arena_w, np.linalg.norm(corners_2[:, 0] - corners_3[:, 1], axis=1)/arena_l])
                     print('Pixel per meters: %.2f' % pixel_per_meters)
                 except ValueError:
-                    print('Marker 0, 1 or 2 not found')
+                    print('Corner Marker 0, 1 or 2 not found')
             if pixel_per_meters > 0:
                 break
             grab_result.Release()
@@ -375,7 +375,7 @@ def main():
     # screen_recording_enabled = False
     
     try:
-        i = datetime.timestamp(datetime.now())
+        i = datetime.datetime.timestamp(datetime.datetime.now(datetime.timezone.utc))
         while camera.IsGrabbing():
             grab_result = camera.RetrieveResult(5000, pylon.TimeoutHandling_ThrowException)
 
@@ -386,7 +386,7 @@ def main():
                 h, w = frame.shape[:2]
 
                 corners, ids, _ = cv2.aruco.detectMarkers(frame, aruco_dict, parameters=aruco_params)
-                timestamp = str(datetime.timestamp(datetime.now()))
+                timestamp = str(datetime.datetime.timestamp(datetime.datetime.now(datetime.timezone.utc)))
                 marker_pairs = [(4, 5), (6, 7), (10, 11)]
                 robot_names = {(4, 5): "241", (6, 7): "240", (10, 11): "238"}
 
@@ -479,10 +479,6 @@ def main():
         camera.StopGrabbing()
         camera.Close()
         cv2.destroyAllWindows()
-        subprocess.run(
-            ["bash", "-c", "chronyc -n tracking"],
-            check=True
-        )
 
         subprocess.run(
             ["bash", "/home/alberto/Documents/ActiveSensingCollectives_lab/Ro-BATs/tracking/stop_all_robots.sh"],
