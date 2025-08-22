@@ -8,6 +8,7 @@ import datetime
 import queue
 import csv
 import pyscreenrec
+import time
 
 # Specify the path to your YAML file
 yaml_file = "./tracking/camera_calibration/calibration_matrix_basler_2560-1600.yaml"
@@ -23,11 +24,11 @@ subprocess.run(
     check=True
 )
 
-# # # Run the check_pi_sync.sh script and wait for it to finish before continuing
-# subprocess.run(
-#     ["bash", "/home/alberto/Documents/ActiveSensingCollectives_lab/Ro-BATs/tracking/check_pi_sync.sh"],
-#     check=True
-# )
+# Run the check_pi_sync.sh script and wait for it to finish before continuing
+subprocess.run(
+    ["bash", "/home/alberto/Documents/ActiveSensingCollectives_lab/Ro-BATs/tracking/check_pi_sync.sh"],
+    check=True
+)
 
 # subprocess.run(
 #     ["bash", "/home/alberto/Documents/ActiveSensingCollectives_lab/Ro-BATs/tracking/run_all_robots.sh"],
@@ -105,9 +106,9 @@ file_name = datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S:%f')[:-2] + '_ba
 #         os.makedirs(output_dir)
 #     out = cv2.VideoWriter(output_dir + video_file_name + '.MP4', fourcc, video_fps, (crop_w, crop_h))
 
-# Set the upper limit of the camera's frame rate to 30 fps
+# Set the upper limit of the camera's frame rate
 camera.AcquisitionFrameRateEnable.Value = True
-camera.AcquisitionFrameRate.Value = 20
+camera.AcquisitionFrameRate.Value = 30
 
 data_queue = queue.Queue()
 
@@ -387,6 +388,7 @@ def main():
 
                 corners, ids, _ = cv2.aruco.detectMarkers(frame, aruco_dict, parameters=aruco_params)
                 timestamp = str(datetime.datetime.timestamp(datetime.datetime.now(datetime.timezone.utc)))
+                start_time = time.time()
                 marker_pairs = [(4, 5), (6, 7), (10, 11)]
                 robot_names = {(4, 5): "241", (6, 7): "240", (10, 11): "238"}
 
@@ -417,6 +419,7 @@ def main():
 
                 # Save to npy file as dictionary (append mode)
                 npy_file = output_dir + file_name + '_markers.npy'
+
                 data_dict = {
                     'timestamp': timestamp,
                     'origin': (reference_position[0], reference_position[1]),
@@ -430,6 +433,7 @@ def main():
                     },
                     'noise_on': True if (ids is not None and 200 in ids) else False
                 }
+                # print(f'diff: {time.time()-start_time}')
                 
                 if not os.path.exists(npy_file):
                     np.save(npy_file, [data_dict])
@@ -480,10 +484,10 @@ def main():
         camera.Close()
         cv2.destroyAllWindows()
 
-        subprocess.run(
-            ["bash", "/home/alberto/Documents/ActiveSensingCollectives_lab/Ro-BATs/tracking/stop_all_robots.sh"],
-            check=True
-        )       
+        # subprocess.run(
+        #     ["bash", "/home/alberto/Documents/ActiveSensingCollectives_lab/Ro-BATs/tracking/stop_all_robots.sh"],
+        #     check=True
+        # )       
 
 if __name__ == "__main__":
     main()

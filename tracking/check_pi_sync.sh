@@ -20,7 +20,7 @@ for IP in "${PI_ARRAY[@]}"; do
         echo ""
 
         echo "📝 Updating Chrony server IP on $IP to $NEW_CHRONY_SERVER..."
-        sshpass -p "$PASSWORD" ssh -o ConnectTimeout=3 -o BatchMode=no "${USER}@${IP}" \
+        sshpass -p "$PASSWORD" ssh -o ConnectTimeout=1 -o BatchMode=no "${USER}@${IP}" \
             "sudo sed -i 's/^server .*/server $NEW_CHRONY_SERVER iburst minpoll 2 maxpoll 2 xleave/' /etc/chrony/chrony.conf" 2>/dev/null
         
 
@@ -30,7 +30,7 @@ for IP in "${PI_ARRAY[@]}"; do
         
         echo "⏳ Waiting for chrony to stabilize..."
         echo ""
-        sleep 3
+        sleep 5
 
         echo "🔍 Checking chrony tracking status..."
         echo ""
