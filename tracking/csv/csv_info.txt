@@ -1,9 +1,0 @@
-CSV FILES EXPLANATION
-
-Data are organized in columns as: 
-
-1 = index
-2 = distance between ro-bat and closest obstacle
-3 = ground truth angle 
-4 = estimated angle
-5 = closest difference between 3 and 4 (considering the array symmetry)

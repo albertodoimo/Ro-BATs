@@ -1,0 +1,8 @@
+2025-08-22
+
+timesync between robot and camera is off by ~120 ms consistently
+
+no idea why, maybe the screen refreshingrate even thogh it should be at least 60hz which is 16 ms 
+(try a different one to make sure)
+
+
