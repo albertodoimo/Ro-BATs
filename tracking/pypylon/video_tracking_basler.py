@@ -17,18 +17,18 @@ yaml_file = "./tracking/camera_calibration/calibration_matrix_basler_2560-1600.y
 
 # subprocess.Popen(
 #     ["python3", "/home/alberto/Documents/ActiveSensingCollectives_lab/Ro-BATs/measurements/z723/record_all_mics.py", "-dir", "/home/alberto/Documents/ActiveSensingCollectives_lab/Ro-BATs/tracking/pypylon/"],
-# )\
+# # )\
 
-subprocess.run(
-    ["bash", "-c", "chronyc -n tracking"],
-    check=True
-)
+# subprocess.run(
+#     ["bash", "-c", "chronyc -n tracking"],
+#     check=True
+# )
 
-# Run the check_pi_sync.sh script and wait for it to finish before continuing
-subprocess.run(
-    ["bash", "/home/alberto/Documents/ActiveSensingCollectives_lab/Ro-BATs/tracking/check_pi_sync.sh"],
-    check=True
-)
+# # Run the check_pi_sync.sh script and wait for it to finish before continuing
+# subprocess.run(
+#     ["bash", "/home/alberto/Documents/ActiveSensingCollectives_lab/Ro-BATs/tracking/check_pi_sync.sh"],
+#     check=True
+# )
 
 # subprocess.run(
 #     ["bash", "/home/alberto/Documents/ActiveSensingCollectives_lab/Ro-BATs/tracking/run_all_robots.sh"],
@@ -96,6 +96,9 @@ print("Press ESC to exit...")
 camera_fps = camera.ResultingFrameRate.GetValue()
 print(f"Hardware Camera FPS output: {camera_fps}")
 
+# Get the current device temperature
+print(f"Temperature: {camera.DeviceTemperature.Value}")
+
 output_dir = './tracking/pypylon/data/'
 # video_file_name = datetime.now().strftime('%Y-%m-%d_%H-%M-%S:%f')[:-2] + '_basler_tracking'
 file_name = datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S:%f')[:-2] + '_basler_tracking'
@@ -108,7 +111,19 @@ file_name = datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S:%f')[:-2] + '_ba
 
 # Set the upper limit of the camera's frame rate
 camera.AcquisitionFrameRateEnable.Value = True
-camera.AcquisitionFrameRate.Value = 30
+camera.AcquisitionFrameRate.Value = 35
+
+# Determine the sensor readout time at the current settings
+readout_time = camera.SensorReadoutTime.Value
+print(f"Readout time: {readout_time}")
+
+# Determine the sensor readout time at the current settings
+exposure_time = camera.ExposureTime.Value
+print(f"Exposure time: {exposure_time}")
+
+# Determine the sensor readout time at the current settings
+eff_exposure_time = camera.BslEffectiveExposureTime.Value
+print(f"Effective exposure time: {eff_exposure_time}")
 
 data_queue = queue.Queue()
 
@@ -323,7 +338,6 @@ def draw_closest_pair_line(frame, pair_centers, robot_names, reference_position,
 try:
     pixel_per_meters = 0
     camera.TimestampLatch.Execute()
-    i = datetime.datetime.timestamp(datetime.datetime.now(datetime.timezone.utc))
     while camera.IsGrabbing():
         grab_result = camera.RetrieveResult(5000, pylon.TimeoutHandling_ThrowException)
 
@@ -376,18 +390,21 @@ def main():
     # screen_recording_enabled = False
     
     try:
-        i = datetime.datetime.timestamp(datetime.datetime.now(datetime.timezone.utc))
         while camera.IsGrabbing():
             grab_result = camera.RetrieveResult(5000, pylon.TimeoutHandling_ThrowException)
 
             if grab_result.GrabSucceeded():
+                timestamp = str(datetime.datetime.timestamp(datetime.datetime.now(datetime.timezone.utc))-readout_time)
+
                 image = converter.Convert(grab_result)
                 frame = image.GetArray()
                 original_frame = frame.copy()
                 h, w = frame.shape[:2]
 
                 corners, ids, _ = cv2.aruco.detectMarkers(frame, aruco_dict, parameters=aruco_params)
-                timestamp = str(datetime.datetime.timestamp(datetime.datetime.now(datetime.timezone.utc)))
+                if ids is not None:
+                    noise_on = 200 in ids
+                    print(f"Noise on: {noise_on}")
                 start_time = time.time()
                 marker_pairs = [(4, 5), (6, 7), (10, 11)]
                 robot_names = {(4, 5): "241", (6, 7): "240", (10, 11): "238"}
@@ -431,7 +448,7 @@ def main():
                         robot_name: float(heading_angle) if heading_angle is not None else None
                         for robot_name, heading_angle in heading_angle.items()
                     },
-                    'noise_on': True if (ids is not None and 200 in ids) else False
+                    'noise_on': noise_on
                 }
                 # print(f'diff: {time.time()-start_time}')
                 

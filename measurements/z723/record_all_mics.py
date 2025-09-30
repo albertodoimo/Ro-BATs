@@ -32,7 +32,7 @@ def get_card(device_list):
     """
     for i, each in enumerate(device_list):
         dev_name = each['name']
-        name = 'MCHStreamer' in dev_name
+        name = 'Scarlett' in dev_name
         if name:
             return i
     return None
@@ -106,9 +106,8 @@ args.filename = os.path.join(folder_path, name)
 args.device = get_card(sd.query_devices())
 print(sd.query_devices())
 print('device = ', args.device)
-args.samplerate = 48000
-args.channels = 6
-
+args.samplerate = 192000
+args.channels = 8
 try:
     if args.samplerate is None:  
         print('error!: no samplerate set! Using default')

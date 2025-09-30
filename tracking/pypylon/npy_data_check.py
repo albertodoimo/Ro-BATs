@@ -3,7 +3,7 @@
 import numpy as np
 import os
 data = np.load('/home/alberto/Documents/ActiveSensingCollectives_lab/' \
-'Ro-BATs/tracking/pypylon/data/2025-08-22_15-00-27:0876_basler_tracking_markers.npy', allow_pickle=True)
+'Ro-BATs/tracking/pypylon/data/2025-08-25_11-40-05:5327_basler_tracking_markers.npy', allow_pickle=True)
 # %%
 print(data)
 # %%
@@ -23,4 +23,8 @@ print(data)
 # %%
 
 # timestamps_npy_file = os.path.join(dir, 'data', '134.34.226.241', 'TIMESTAMPS_134.34.226.241_2025-08-22__17-07-23.npy')
-timestamps = np.load('/home/alberto/Documents/ActiveSensingCollectives_lab/Ro-BATs/tracking/audio_camera_sync/data/134.34.226.241/TIMESTAMPS_134.34.226.241_2025-08-22__17-07-23.npy', allow_pickle=True)
+timestamps = np.load('/home/alberto/Documents/ActiveSensingCollectives_lab/Ro-BATs/tracking/audio_camera_sync/data/134.34.226.241/TIMESTAMPS_134.34.226.241_2025-08-25__11-50-33.npy', allow_pickle=True)
+np.set_printoptions(threshold=np.inf)
+print("Extended data:")
+print(timestamps)
+# %%
