@@ -129,13 +129,5 @@ for ip in ips:
             plt.tight_layout()
             plt.show()
 
-# %%
-
-
-csv = pd.read_csv(os.path.join(output_dir, date_dir, robot_rec_dir, "ip_238_call_times.csv"), header=None)
-print(csv.shape)
-csv.T
- 
-pd.DataFrame.to_csv(csv.T, 'test.csv', index=False, header=False)
 
 # %%
