@@ -27,6 +27,7 @@ import cv2
 import sys
 
 #%%
+saving_bool = False # whether to save the output video with tracking
 
 ips = [238, 240, 241]
 project_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))) # project directory
@@ -167,6 +168,7 @@ try:
                 ind3 = np.where(ids == 3)[0]
                 if len(ind3) == 0:
                     raise ValueError('Marker 2 not found')
+                
                 # bottom left of 1, top left of 2, top right of 3
                 corners_1 = corners_array[ind1]
                 corners_2 = corners_array[ind2]
@@ -221,33 +223,36 @@ def main():
             if ids is not None:
                 marker_centers = get_marker_centers(corners, ids)
                 id_list = ids.flatten().tolist() if ids is not None else []
-                centers_dict = {id_: center for id_, center in zip(id_list, marker_centers)}
+                centers_dict = {id_: center for id_, center in zip(id_list, marker_centers)} # dictionary containing the center of each detected marker
 
                 # Draw axes on the video to indicate increasing X (right) and Y (down) directions
                 axis_length = 100  # pixels
+
                 # X axis: right from reference_position
                 x_axis_end = (int(reference_position[0] + axis_length), int(reference_position[1]))
                 # Y axis: down from reference_position
                 y_axis_end = (int(reference_position[0]), int(reference_position[1] + axis_length))
-                # Draw X axis (red)
 
+                # Draw X axis (red)
                 cv2.arrowedLine(frame, tuple(reference_position.astype(int)), x_axis_end, (0, 0, 255), 4, tipLength=0.2)
                 cv2.putText(frame, 'X', (x_axis_end[0] + 10, x_axis_end[1]), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
                 # Draw Y axis (green)
                 cv2.arrowedLine(frame, tuple(reference_position.astype(int)), y_axis_end, (0, 0, 255), 4, tipLength=0.2)
                 cv2.putText(frame, 'Y', (y_axis_end[0], y_axis_end[1] + 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
-                
-                pair_centers = get_pair_centers(marker_pairs, centers_dict, corners, ids, reference_position, pixel_per_meters)
-                heading_vectors, pixel_centers, heading_angle = draw_heading_arrows(frame, pair_centers, robot_names, corners, ids, reference_position, pixel_per_meters)
-                closest_robot_angle = draw_heading_angles(frame, heading_vectors, pixel_centers, robot_names)
-                draw_pair_centers(frame, pair_centers, robot_names, reference_position, pixel_per_meters)
-                intradistances = draw_closest_pair_line(frame, pair_centers, robot_names, reference_position, pixel_per_meters)
 
-                # Extract and draw the center for robot 238 (marker pair (10, 11))
+                # Draw tracking parameters on the frame
+                robot_radius = 100 # pixels
+                pair_centers = get_pair_centers(marker_pairs, centers_dict, corners, ids, reference_position, pixel_per_meters)
+                draw_and_label_pair_centers(frame, pair_centers, robot_names, reference_position, pixel_per_meters, robot_radius)
+                heading_vectors, heading_angle = draw_heading_arrows(frame, pair_centers, robot_names, corners, ids, reference_position, pixel_per_meters, robot_radius)
+                draw_closest_robot_arrow(frame, reference_position , pixel_per_meters,heading_vectors,  pair_centers, robot_names, robot_radius)
+                draw_closest_pair_line(frame, pair_centers, robot_names, reference_position, pixel_per_meters, robot_radius)
+
+
                 # Check if frame_count matches closely any entry in robot_238_calls['call_time']
                 for robot_id, call_times in robot_call_times.items():
                     if any(abs(frame_count / video_fps - t) < 0.01 for t in call_times):
-                        print(f"Robot {robot_id} call at frame {frame_count}, time {frame_count / video_fps}s")
+                        # print(f"Robot {robot_id} call at frame {frame_count}, time {frame_count / video_fps}s")
                         pair = robot_names.get(str(robot_id))
                         if pair is not None:
                             center = pair_centers.get(pair)
@@ -257,73 +262,55 @@ def main():
                                     int(reference_position[1] + center[1] * pixel_per_meters)
                                 )
                                 # Use different colors for each robot
-
-                                color = color_map.get(str(robot_id), (255, 255, 0))  # Default: Cyan
-                                cv2.circle(frame, tuple(np.int32(draw_center)), 100, color, -1)  # filled circle
+                                color = color_map.get(str(robot_id), (255, 255, 0))  
+                                cv2.circle(frame, tuple(np.int32(draw_center)), robot_radius, color, -1)  # filled circle
 
                 # pts = np.array([[10,5],[20,30],[70,20],[50,10]], np.int32)
                 # # pts = pts.reshape((-1,1,2))
                 # cv2.polylines(frame,[pts],True,(0,255,255))
 
-                # # Save to npy file as dictionary (append mode)
-                # npy_file = output_dir + file_name + '_markers.npy'
+                # Save tracking data to a pandas DataFrame
+                data = {
+                    'origin_x': reference_position[0],
+                    'origin_y': reference_position[1],
+                }
+                # Add robot positions (meters)
+                for robot_name, pair in robot_names.items():
+                    center = pair_centers.get(pair)
+                    if center is not None:
+                        data[f"{robot_name}_x_m"] = center[0]
+                        data[f"{robot_name}_y_m"] = center[1]
+                    else:
+                        data[f"{robot_name}_x_m"] = None
+                        data[f"{robot_name}_y_m"] = None
 
-                # data_dict = {
-                #     'origin': (reference_position[0], reference_position[1]),
-                #     'robot_positions[m]': {
-                #         robot_names.get((a, b), f"{a}-{b}"): center
-                #         for (a, b), center in pair_centers.items()
-                #     },
-                #     'robot_heading_angles[deg]': {
-                #         robot_name: float(heading_angle) if heading_angle is not None else None
-                #         for robot_name, heading_angle in heading_angle.items()
-                #     },
-                #     'noise_on': noise_on
-                # }
-                # # print(f'diff: {time.time()-start_time}')
-                
-                # if not os.path.exists(npy_file):
-                #     np.save(npy_file, [data_dict])
-                # else:
-                #     existing_data = list(np.load(npy_file, allow_pickle=True))
-                #     existing_data.append(data_dict)
-                #     np.save(npy_file, existing_data)
+                # Add robot heading angles (degrees)
+                for robot_name, angle in heading_angle.items():
+                    data[f"{robot_name}_heading_deg"] = float(angle) if angle is not None else None
 
-                # text_size, _ = cv2.getTextSize(timestamp, cv2.FONT_HERSHEY_SIMPLEX, 1, 2)
-                # text_x = (frame.shape[1] - text_size[0]) // 2
-                # text_y = 40
-                # cv2.putText(frame, timestamp, (text_x, text_y), cv2.FONT_HERSHEY_SIMPLEX,
-                #             1.3, (0, 0, 0), 3, cv2.LINE_AA)
-                out.write(frame)
+                # Append to CSV file
+                df = pd.DataFrame([data])
+                csv_path = os.path.join(project_dir, input_dir, file_name + '_data.csv')
+                if not os.path.exists(csv_path):
+                    df.to_csv(csv_path, index=False, mode='w')
+                else:
+                    df.to_csv(csv_path, index=False, mode='a', header=False)
+
+                # Write frame to video file if recording is enabled
+                if saving_bool and 'out' in globals():
+                    out.write(frame)
+
                 cv2.namedWindow(f"{file_name}", cv2.WINDOW_NORMAL)
                 cv2.resizeWindow(f"{file_name}", 1600, 1200)
                 # Show the camera window
 
                 cv2.imshow(f"{file_name}", frame)
 
-                # # Show the original camera feed
-                # cv2.namedWindow("Basler Camera original", cv2.WINDOW_NORMAL)
-                # cv2.resizeWindow("Basler Camera original", 1600, 1200)
-                # cv2.imshow("Basler Camera original", original_frame)
-
-                # # Write frame to video file if recording is enabled
-                # if recording_bool and 'out' in globals():
-                #     out.write(frame)
                 frame_count += 1
+
                 # Stop recording and save data when ESC is pressed or window is closed
                 if (cv2.waitKey(1) & 0xFF == 27 or cv2.getWindowProperty(f"{file_name}", cv2.WND_PROP_VISIBLE) < 1):
-                    # csv_file = output_dir + file_name + '_markers.csv'
-                    # with open(csv_file, 'w', newline='') as f:
-                    #     writer = csv.writer(f)
-                    #     writer.writerow(['timestamp[POSIX]', 'pair_centers[m]', 'distances[mm]', 'angle_results[deg]'])
-                    #     while not data_queue.empty():
-                    #         item = data_queue.get()
-                    #         writer.writerow([
-                    #             item['timestamp[POSIX]'],
-                    #             item['pair_centers[m]'],
-                    #             item['distances[mm]'],
-                    #             item['angle_results[deg]']
-                    #         ])
+                    print("Exiting...")
                     cap.release()
                     out.release()
                     cv2.destroyAllWindows()
@@ -332,12 +319,7 @@ def main():
     finally:
         cap.release()
         out.release()
-        cv2.destroyAllWindows()
-
-        # subprocess.run(
-        #     ["bash", "/home/alberto/Documents/ActiveSensingCollectives_lab/Ro-BATs/tracking/stop_all_robots.sh"],
-        #     check=True
-        # )       
+        cv2.destroyAllWindows()    
 
 if __name__ == "__main__":
     main()
