@@ -23,6 +23,9 @@ import shutil
 import os
 import csv
 import cv2
+from scipy.interpolate import interp1d
+from functions import *
+from functions.das_v2 import das_filter
 
 def save_data_to_csv(matrix, filename, path):
     """
@@ -540,3 +543,298 @@ def draw_closest_pair_line(frame, pair_centers, robot_names, reference_position,
 
     return name_pair, dist
 
+##########################################################################################
+# AUDIO PROCESSING UTILS
+##########################################################################################
+
+
+def pascal_to_dbspl(X):
+    '''
+    Converts Pascals to dB SPL re 20 uPa
+    '''
+    return dB(X/20e-6)
+
+def rms(X):
+    return np.sqrt(np.mean(X**2))
+
+dB = lambda X: 20*np.log10(abs(np.array(X).flatten()))
+
+db_to_linear = lambda X: 10**(X/20)
+
+
+# bin width clarification https://stackoverflow.com/questions/10754549/fft-bin-width-clarification
+def get_rms_from_fft(freqs, spectrum, **kwargs):
+    '''Use Parseval's theorem to get the RMS level of each frequency component
+    This only works for RFFT spectrums!!!
+    
+    Parameters
+    ----------
+    freqs : (Nfreqs,) np.array >0 values
+    spectrum : (Nfreqs,) np.array (complex)
+    freq_range : (2,) array-like
+        Min and max values
+    
+    Returns 
+    -------
+    root_mean_squared : float
+        The RMS of the signal within the min-max frequency range
+   
+    '''
+    minfreq, maxfreq = kwargs['freq_range']
+    relevant_freqs = np.logical_and(freqs>=minfreq, freqs<=maxfreq)
+    spectrum_copy = spectrum.copy()
+    spectrum_copy[~relevant_freqs] = 0
+    mean_sigsquared = np.sum(abs(spectrum_copy)**2)/spectrum.size
+    root_mean_squared = np.sqrt(mean_sigsquared/(2*spectrum.size-1))
+    return root_mean_squared
+
+
+def calc_native_freqwise_rms(X, fs):
+    '''
+    Converts the FFT spectrum into a band-wise rms output. 
+    The frequency-resolution of the spectrum/audio size decides
+    the frequency resolution in general. 
+    
+    Parameters
+    ----------
+    X : np.array
+        Audio
+    fs : int
+        Sampling rate in Hz
+    
+    Returns 
+    -------
+    fftfreqs, freqwise_rms : np.array
+        fftfreqs holds the frequency bins from the RFFT
+        freqwise_rms is the RMS value of each frequency bin. 
+    '''
+    rfft = np.fft.rfft(X)
+    fftfreqs = np.fft.rfftfreq(X.size, 1/fs)
+    # now calculate the rms per frequency-band
+    # print('RFFT computation time:', time.time() - time1)
+    freqwise_rms = []
+
+    abs_rfft_squared = np.abs(rfft)**2
+    mean_sq_freq = abs_rfft_squared / rfft.size
+    rms_freq = np.sqrt(mean_sq_freq / (2*rfft.size-1))
+    freqwise_rms = rms_freq.tolist()
+
+    # freqwise_rms2 = []
+    # for each in rfft:
+    #     mean_sq_freq2 = np.sum(abs(each)**2)/rfft.size
+    #     rms_freq2 = np.sqrt(mean_sq_freq2/(2*rfft.size-1))
+    #     freqwise_rms2.append(rms_freq2)
+    return fftfreqs, freqwise_rms
+
+    
+
+# Make an interpolation function 
+def interpolate_freq_response(mic_freq_response, new_freqs):
+    ''' 
+    Parameters
+    ----------
+    mic_freq_response : tuple/list
+        A tuple/list with two entries: (centrefreqs, centrefreq_RMS).
+        
+    new_freqs : list/array-like
+        A set of new centre frequencies that need to be interpolated to. 
+
+    Returns 
+    -------
+    tgtmicsens_interp : 
+        
+    Attention
+    ---------
+    Any frequencies outside of the calibration range will automatically be 
+    assigned to the lowest sensitivity values measured in the input centrefreqs
+    
+    '''
+    centrefreqs, mic_sensitivity = mic_freq_response 
+    tgtmic_sens_interpfn = interp1d(centrefreqs, mic_sensitivity,
+                                    kind='cubic', bounds_error=False,
+                                    fill_value=np.min(mic_sensitivity))
+    # interpolate the sensitivity of the mic to intermediate freqs
+    tgtmicsens_interp = tgtmic_sens_interpfn(new_freqs)
+    return tgtmicsens_interp
+
+
+
+def update_das(buffer, fs, sos, ref, analyzed_buffer_time, tgtmic_relevant_freqs, interp_sensitivity, das_filter, channels, mic_spacing, highpass_freq, lowpass_freq, theta_das, critical_level, trigger_level, N_peaks):
+    in_buffer = buffer
+    # print('buffer queue time seconds=', start_time_1 - start_time)
+
+    # Plot and save the raw input buffer for the reference channel
+    # import matplotlib.pyplot as plt
+    # plt.figure(figsize=(10, 4))
+    # plt.plot(in_buffer[:, self.ref])
+    # plt.title('Raw Input Buffer - Reference Channel')
+    # plt.xlabel('Sample')
+    # plt.ylabel('Amplitude')
+    # plt.tight_layout()
+    # plt.savefig('raw_input_buffer_ref_channel.png')
+    # plt.close()
+
+    # Apply highpass filter to each channel using sosfiltfilt
+    in_sig = signal.sosfiltfilt(sos, in_buffer, axis=0)
+    # Apply matched filter to each channel separately
+
+    # # Match filter the input with the output template to find similar sweeps
+    # mf_signal = matched_filter(in_sig[:, self.ref], self.sweep)
+    # peaks = detect_peaks(mf_signal, self.fs, prominence=0.5, distance=0.01)
+    # if len(peaks) > 0:
+    #     start_idx = peaks[0]
+    #     end_idx = int(start_idx + self.sweep.shape[0])
+    #     trimmed_input_peaks = in_sig[start_idx:end_idx, :]
+
+    #     # plot trimmed input peaks 
+    #     plt.figure(figsize=(10, 12))
+    #     for ch in range(trimmed_input_peaks.shape[1]):
+    #         ax = plt.subplot(trimmed_input_peaks.shape[1], 1, ch + 1, sharey=None if ch == 0 else plt.gca())
+    #         plt.plot(trimmed_input_peaks[:, ch])
+    #         plt.title(f'Trimmed Input Peaks - Channel {ch+1}')
+    #         plt.xlabel('Sample')
+    #         plt.grid(True)
+    #         if ch == 0:
+    #             plt.ylabel('Amplitude')
+    #     plt.tight_layout()
+    #     plt.savefig('trimmed_input_peaks_ref_channel.png')
+    #     plt.close()
+
+    # Filter the input with its envelope but without signal reference template
+    filtered_envelope = np.abs(signal.hilbert(in_sig[:, ref], axis=0))
+    # peaks = detect_peaks(in_sig[:, self.ref], self.fs, prominence=0.5, distance=0.01)
+
+    max_envelope_idx = np.argmax(filtered_envelope)
+    max_envelope_value = filtered_envelope[max_envelope_idx]
+    # print('Max envelope value:', max_envelope_value)
+
+    # Trim around the max
+    trim_ms = analyzed_buffer_time # ms
+    trim_samples = int(fs * trim_ms)
+    half_trim = trim_samples // 2
+    trimmed_signal = np.zeros((trim_samples, in_sig.shape[1]), dtype=in_sig.dtype)
+    
+    # Ensure trimmed_signal always has exactly trim_samples rows (matching trim_ms duration)
+    if max_envelope_idx - half_trim < 0:
+        start_idx = 0
+        end_idx = trim_samples
+    elif max_envelope_idx + half_trim > in_sig.shape[0]:
+        end_idx = in_sig.shape[0]
+        start_idx = end_idx - trim_samples
+    else:
+        start_idx = max_envelope_idx - half_trim
+        end_idx = start_idx + trim_samples
+    trimmed_signal = in_sig[start_idx:end_idx, :]
+
+    # # plot trimmed input peaks 
+    # plt.figure(figsize=(10, 12))
+    # for ch in range(trimmed_signal.shape[1]):
+    #     ax = plt.subplot(trimmed_signal.shape[1], 1, ch + 1, sharey=None if ch == 0 else plt.gca())
+    #     plt.plot(trimmed_signal[:, ch])
+    #     plt.title(f'Trimmed Input Peaks - Channel {ch+1}')
+    #     plt.xlabel('Sample')
+    #     plt.grid(True)
+    #     if ch == 0:
+    #         plt.ylabel('Amplitude')
+    # plt.tight_layout()
+    # plt.savefig('trimmed_input.png')
+    # plt.close()
+
+
+    # print('matched filter time seconds=', start_time_3 - start_time_2)
+
+    # Plot matched filtered signal and detected peaks for the reference channel
+    # plt.figure(figsize=(10, 4))
+    # plt.plot(in_sig[:, self.ref], label='Matched Filtered Envelope')
+    # plt.plot(peaks, mf_signal[peaks], "rx", label='Detected Peaks')
+    # plt.title('Matched Filtered Envelope and Detected Peaks - Reference Channel')
+    # plt.xlabel('Sample')
+    # plt.ylabel('Amplitude')
+    # plt.legend()
+    # plt.tight_layout()
+    # plt.savefig('matched_filtered_peaks_ref_channel.png')
+    # plt.close()
+
+
+    # Plot the filtered signal for the reference channel
+    # plt.figure(figsize=(10, 4))
+    # plt.plot(in_sig[:, self.ref])
+    # plt.title('Filtered Signal - Reference Channel')
+    # plt.xlabel('Sample')
+    # plt.ylabel('Amplitude')
+    # plt.tight_layout()
+    # plt.savefig('filtered_signal_ref_channel.png')
+    # plt.close()
+
+    # centrefreqs_list = []
+    # freqrms_list = []
+    # for ch in range(in_sig.shape[1]):
+    #     centrefreqs_ch, freqrms_ch = calc_native_freqwise_rms(in_sig[:, ch], self.fs)
+    #     centrefreqs_list.append(centrefreqs_ch)
+    #     freqrms_list.append(freqrms_ch)
+    # centrefreqs = np.array(centrefreqs_list).T
+    # freqrms = np.array(freqrms_list).T
+    
+    centrefreqs, freqrms = calc_native_freqwise_rms(trimmed_signal[:, ref], fs)
+    freqwise_Parms = freqrms/interp_sensitivity
+    # print('rms freqwise time =', start_time_4 - start_time_3)
+    # # Calculate and save the average noise spectrum (ANS) figure
+
+    # plt.figure(figsize=(10, 4))
+    # plt.plot(centrefreqs, freqwise_Parms)
+    # plt.title('freqwise_Parms')
+    # plt.xlabel('Frequency (Hz)')
+    # plt.ylabel('Amplitude')
+    # plt.tight_layout()
+    # plt.savefig('filtered_spectrum.png')
+    # plt.close()
+
+    # Compute total RMS for each channel separately over the relevant frequency band
+    # total_rms_freqwise_Parms = []
+    # for ch in range(freqwise_Parms.shape[1]):
+    #     relevant = self.tgtmic_relevant_freqs[:, ch]
+    #     total_rms = np.sqrt(np.sum(freqwise_Parms[relevant, ch]**2))
+    #     total_rms_freqwise_Parms.append(total_rms)
+    # total_rms_freqwise_Parms = np.array(total_rms_freqwise_Parms)
+
+    total_rms_freqwise_Parms = np.sqrt(np.sum(freqwise_Parms[tgtmic_relevant_freqs]**2))
+    dB_SPL_level = pascal_to_dbspl(total_rms_freqwise_Parms) #dB SPL level for reference channel
+    print('db SPL:', dB_SPL_level)
+
+    # print('time to calculate dB SPL =', time.time() - start_time_4)
+
+    theta, spatial_resp, f_spec_axis, spectrum, bands = das_filter(trimmed_signal, fs, channels, mic_spacing, [highpass_freq, lowpass_freq], theta=theta_das)
+
+    # print('freq axis', f_spec_axis.shape, 'bands shape', bands.shape, 'spectrum shape', spectrum.shape)
+
+    # plt.figure(figsize=(10, 4))
+    # plt.plot(f_spec_axis, np.abs(spectrum[:, self.ref, :]))
+    # plt.title('DAS Spectrum')
+    # plt.xlabel('Frequency (Hz)')
+    # plt.ylabel('Amplitude ')
+    # plt.tight_layout()
+    # plt.savefig('das_spectrum.png')
+    # plt.close()
+
+
+    #spatial_resp = gaussian_filter1d(spatial_resp, sigma=4)
+    peaks, _ = signal.find_peaks(spatial_resp)  # Adjust height as needed
+    # peak_angle = theta_das[np.argmax(spatial_resp)]
+    peak_angles = theta[peaks]
+    N = N_peaks # Number of peaks to keep
+
+    # Sort peaks by their height and keep the N largest ones
+    peak_heights = spatial_resp[peaks]
+    top_n_peak_indices = np.argsort(peak_heights)[-N:]  # Indices of the N largest peaks # Indices of the N largest peaks
+    top_n_peak_indices = top_n_peak_indices[::-1]
+    peak_angles = theta[peaks[top_n_peak_indices]]  # Corresponding angles
+    print('peak angles', peak_angles, 'peak heights', peak_heights[top_n_peak_indices], '\n')
+
+    # print('peak finding =', end_time - start_time_6)
+
+    # print('update time seconds =', end_time - start_time)
+    if dB_SPL_level > trigger_level or dB_SPL_level > critical_level:
+        return peak_angles[0], dB_SPL_level
+    else:
+        peak_angles = None
+        return peak_angles, dB_SPL_level

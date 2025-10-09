@@ -2,3 +2,4 @@ tracking/audio_camera_sync/data
 SwarmTracking/Data
 tracking/pypylon/data
 tracking/simulation
+*.pyc
