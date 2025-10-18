@@ -104,7 +104,8 @@ for ip in ips:
             peak_times = (peaks / fs_file)
             print(f"Detected peaks: {len(peaks)} in IP {ip} at {peak_times}, file {fname}")
             # Save peaks to CSV
-            pd.DataFrame(peak_times).to_csv(os.path.join(output_dir, date_dir, robot_rec_dir, f"ip_{ip}_call_times.csv"), index=False, header=False)
+            columns = ['call_time_s']
+            pd.DataFrame(peak_times, columns=columns).to_csv(os.path.join(output_dir, date_dir, robot_rec_dir, f"ip_{ip}_call_times.csv"), index=False)
 
             # plot results
             plt.figure(figsize=(15, 8))

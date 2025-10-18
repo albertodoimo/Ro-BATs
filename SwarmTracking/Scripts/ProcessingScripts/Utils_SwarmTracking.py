@@ -50,7 +50,7 @@ def matched_filter(recording, chirp_template):
     filtered_output = np.roll(signal.correlate(recording, chirp_template, 'same', method='direct'), -len(chirp_template)//2)
     # filtered_output *= signal.windows.tukey(filtered_output.size, 0.1) # apply a Tukey window to reduce edge effects
     filtered_envelope = np.abs(signal.hilbert(filtered_output)) # compute the envelope of the matched filter output
-    return filtered_envelope
+    return filtered_output
 
 
 # Detect peaks in the matched filter output
@@ -393,7 +393,7 @@ def draw_heading_arrows(frame, pair_centers, robot_names, corners, ids, referenc
             robot_name = [k for k, v in robot_names.items() if v == (a,b)]
             heading_angle[robot_name[0]] = heading_angle_deg
 
-            cv2.putText(frame, f"{heading_angle[robot_name[0]]:.1f} deg", (arrow_start[0] + robot_radius + 20, arrow_start[1] ), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
+            # cv2.putText(frame, f"{heading_angle[robot_name[0]]:.1f} deg", (arrow_start[0] + robot_radius + 20, arrow_start[1] ), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
             cv2.arrowedLine(frame, tuple(arrow_start.astype(int)), tuple(arrow_end.astype(int)), (255, 255, 255), 4, tipLength=0.25)
 
     return heading_vectors, heading_angle
@@ -676,6 +676,7 @@ def update_das(buffer, fs, sos, ref, analyzed_buffer_time, tgtmic_relevant_freqs
 
     # Apply highpass filter to each channel using sosfiltfilt
     in_sig = signal.sosfiltfilt(sos, in_buffer, axis=0)
+
     # Apply matched filter to each channel separately
 
     # # Match filter the input with the output template to find similar sweeps
@@ -799,7 +800,6 @@ def update_das(buffer, fs, sos, ref, analyzed_buffer_time, tgtmic_relevant_freqs
 
     total_rms_freqwise_Parms = np.sqrt(np.sum(freqwise_Parms[tgtmic_relevant_freqs]**2))
     dB_SPL_level = pascal_to_dbspl(total_rms_freqwise_Parms) #dB SPL level for reference channel
-    print('db SPL:', dB_SPL_level)
 
     # print('time to calculate dB SPL =', time.time() - start_time_4)
 
@@ -828,13 +828,12 @@ def update_das(buffer, fs, sos, ref, analyzed_buffer_time, tgtmic_relevant_freqs
     top_n_peak_indices = np.argsort(peak_heights)[-N:]  # Indices of the N largest peaks # Indices of the N largest peaks
     top_n_peak_indices = top_n_peak_indices[::-1]
     peak_angles = theta[peaks[top_n_peak_indices]]  # Corresponding angles
-    print('peak angles', peak_angles, 'peak heights', peak_heights[top_n_peak_indices], '\n')
+    # print('peak angles', f"{peak_angles[0]}, dB SPL: {dB_SPL_level}, peak heights: {peak_heights[top_n_peak_indices]}\n")
 
-    # print('peak finding =', end_time - start_time_6)
+    return peak_angles[0], dB_SPL_level
 
-    # print('update time seconds =', end_time - start_time)
-    if dB_SPL_level > trigger_level or dB_SPL_level > critical_level:
-        return peak_angles[0], dB_SPL_level
-    else:
-        peak_angles = None
-        return peak_angles, dB_SPL_level
+    # if dB_SPL_level > trigger_level or dB_SPL_level > critical_level:
+    #     return peak_angles[0], dB_SPL_level
+    # else:
+    #     peak_angles = None
+    #     return peak_angles, dB_SPL_level

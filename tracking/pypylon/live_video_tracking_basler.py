@@ -11,7 +11,7 @@ import pyscreenrec
 import time
 
 # Specify the path to your YAML file
-yaml_file = "./tracking/camera_calibration/calibration_matrix_basler_2560-1600.yaml"
+yaml_file = "/home/alberto/Documents/ActiveSensingCollectives_lab/Ro-BATs/tracking/camera_calibration/calibration_matrix_basler_2560-1600.yaml"
 # Run a subprocess to record all microphones and save to a file
 # Example using arecord (Linux ALSA utility), adjust as needed for your setup
 
@@ -50,7 +50,6 @@ except yaml.YAMLError as exc:
 # Setup the camera
 # camera model = ace2 R a2A4508-20umBAS
 recording_bool = False
-enable_screen_recording = True  # Set to True to enable screen recording (may cause issues on some systems)
 tl_factory = pylon.TlFactory.GetInstance()
 devices = tl_factory.EnumerateDevices()
 if not devices:
@@ -371,7 +370,7 @@ try:
                     corners_1 = corners_array[ind1]
                     corners_2 = corners_array[ind2]
                     reference_position = corners_2[:, 2][0] # Use the bottom right corner of marker 2 as reference
-                    # print(f"Reference: {reference_position}")
+                    print(f"Reference: {reference_position}, type: {type(reference_position)}")
                     corners_3 = corners_array[ind3]
                     pixel_per_meters = np.mean([np.linalg.norm(corners_1[:, 3] - corners_2[:, 0], axis=1)/arena_w, np.linalg.norm(corners_2[:, 0] - corners_3[:, 1], axis=1)/arena_l])
                     print('Pixel per meters: %.2f' % pixel_per_meters)
@@ -452,12 +451,12 @@ def main():
                 }
                 # print(f'diff: {time.time()-start_time}')
                 
-                if not os.path.exists(npy_file):
-                    np.save(npy_file, [data_dict])
-                else:
-                    existing_data = list(np.load(npy_file, allow_pickle=True))
-                    existing_data.append(data_dict)
-                    np.save(npy_file, existing_data)
+                # if not os.path.exists(npy_file):
+                #     np.save(npy_file, [data_dict])
+                # else:
+                #     existing_data = list(np.load(npy_file, allow_pickle=True))
+                #     existing_data.append(data_dict)
+                #     np.save(npy_file, existing_data)
 
                 text_size, _ = cv2.getTextSize(timestamp, cv2.FONT_HERSHEY_SIMPLEX, 1, 2)
                 text_x = (frame.shape[1] - text_size[0]) // 2

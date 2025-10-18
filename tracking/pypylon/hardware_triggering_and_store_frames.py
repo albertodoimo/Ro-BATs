@@ -3,7 +3,7 @@
 
 # Documentation at:
 # https://github.com/basler/pypylon/issues/842
-
+#%%
 import pypylon.pylon as pylon
 import time
 import datetime
@@ -61,11 +61,12 @@ platform_name = 'Linux'
 timenow = datetime.datetime.now()
 time = timenow.strftime('%Y-%m-%d')
 time1 = timenow.strftime('%Y-%m-%d_%H-%M-%S')
-
+#%%
+file_dir = os.path.dirname(os.path.abspath(__file__)) # project directory
 save_path = 'data/'
 date_folder_name = str(time)
 hour_folder_name = str(time1)
-folder_path = os.path.join(save_path, date_folder_name, hour_folder_name)
+folder_path = os.path.join(file_dir, save_path, date_folder_name, hour_folder_name)
 os.makedirs(folder_path, exist_ok=True)
 
 print('\nCamera is ready and waiting for a trigger signal on Line1...\n')
@@ -74,6 +75,7 @@ def main():
 
     try:
         while camera.IsGrabbing():
+            print('Recording ... (???)')
             with camera.RetrieveResult(20000, pylon.TimeoutHandling_ThrowException) as result:
                 
                 # Calling AttachGrabResultBuffer creates another reference to the

@@ -28,6 +28,7 @@ import matplotlib.pyplot as plt
 import soundfile as sf
 import os 
 from Utils_SwarmTracking import *
+import pandas as pd
 
 #%%
  
@@ -163,7 +164,9 @@ for ip in ips:
             peak_times = peaks / fs_file
             # Save all peak times for this IP to CSV (append mode)
             csv_path = os.path.join(output_dir, date_dir, robot_rec_dir)
-            save_data_to_csv([ip, peak_times], f"ip_{ip}_sync_times.csv", csv_path)
+            df = pd.DataFrame({'IP': [ip]*len(peak_times), 'PeakTime': peak_times})
+            csv_file = os.path.join(csv_path, f"ip_{ip}_sync_times.csv")
+            df.to_csv(csv_file, index=False)
 
             # plot results
             plt.figure(figsize=(18, 8))

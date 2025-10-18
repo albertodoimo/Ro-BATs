@@ -25,89 +25,66 @@ from Utils_SwarmTracking import *
 from functions import *
 from functions.das_v2 import das_filter
 
+# --- Configuration and Paths ---
 ips = [238, 240, 241]
-project_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))) # project directory
-input_dir = "Data/IntermediateData/"
+project_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # Project directory
+input_dir = "./Data/IntermediateData/"
 date_dir = '2025-10-02/'
 robot_rec_dir = '2025-10-02_18-45-28/'
 
-file_name = '2025-09-24_20-04-23_upsampled'
+trim_dir = os.path.join(project_dir, input_dir, date_dir, robot_rec_dir, "trimmed_audio")  # Trimmed audio directory
 
-trim_dir = os.path.join(project_dir, input_dir, date_dir, robot_rec_dir, "hp_filtered_trimmed_audio") # trimmed audio directory
-
-# Get the index of the USB card
-usb_fireface_index = None
-
-# Define the variables for the audio processing
-
-trigger_level =  70 # dB SPL
-critical_level = 75 # dB SPL
-c = 343   # speed of sound
+# --- Audio Parameters ---
+trigger_level = 70  # dB SPL
+critical_level = 75  # dB SPL
+c = 343  # Speed of sound
 fs = 48000
-
 rec_samplerate = 48000
-input_buffer_time = 0.04 # seconds
-block_size = int(input_buffer_time*fs)  #used for the shared queue from which the doa is computed, not anymore for the output stream
+input_buffer_time = 0.04  # seconds
+block_size = int(input_buffer_time * fs)
 channels = 5
-mic_spacing = 0.018 #m
-ref = channels//2 #central mic in odd array as ref
-#print('ref=',ref) 
-#ref= 0 #left most mic as reference
+mic_spacing = 0.018  # meters
+ref = channels // 2  # Central mic as reference
 
-# Possible algorithms for computing DOA: CC, DAS
+# --- DOA Algorithm Parameters ---
 method = 'DAS'
+theta_das = np.linspace(-90, 90, 61)  # Angles for DAS spectrum
+N_peaks = 1  # Number of peaks to detect
 
-# Parameters for the DAS algorithm
-theta_das = np.linspace(-90, 90, 61) # angles resolution for DAS spectrum
-N_peaks = 1 # Number of peaks to detect in DAS spectrum
+# --- Chirp Signal Parameters ---
+duration_out = 20e-3
+silence_post = 110  # ms
+amplitude = 0.5
 
-# Parameters for the chirp signal
-duration_out = 20e-3  # Duration in seconds
-silence_post = 110 # [ms] can probably pushed to 20
-amplitude = 0.5 # Amplitude of the chirp
-
-t = np.linspace(0, duration_out, int(fs*duration_out))
+t = np.linspace(0, duration_out, int(fs * duration_out))
 start_f, end_f = 24e3, 2e3
 sweep = signal.chirp(t, start_f, t[-1], end_f)
 sweep *= signal.windows.tukey(sweep.size, 0.2)
 sweep *= 0.8
 
-silence_samples_post = int(silence_post * fs/1000)
-silence_vec_post = np.zeros((silence_samples_post, ))
+silence_samples_post = int(silence_post * fs / 1000)
+silence_vec_post = np.zeros((silence_samples_post,))
 post_silence_sig = np.concatenate((sweep, silence_vec_post))
 full_sig = post_silence_sig
 
 stereo_sig = np.hstack([full_sig.reshape(-1, 1), full_sig.reshape(-1, 1)])
 data = amplitude * np.float32(stereo_sig)
 
-out_blocksize = int(len(data))  # Length of the output signal
+out_blocksize = int(len(data))
 print('out_blocksize =', out_blocksize)
 
-# plot and save data 
-# plt.figure(figsize=(10, 4))
-# plt.plot(np.arange(len(full_sig)) / fs, data[:, 0], label='Left Channel')
-# plt.plot(np.arange(len(full_sig)) / fs, data[:, 1], label='Right Channel')
-# plt.title('Chirp Signal')
-# plt.xlabel('Time [s]')
-# plt.ylabel('Amplitude')
-# plt.legend()
-# plt.tight_layout()
-# plt.savefig('chirp_signal.png')
-# plt.close()
-
-# Calculate highpass and lowpass frequencies based on the array geometry
-auto_hipas_freq = int(343/(2*(mic_spacing*(channels-1))))
+# --- Frequency Calculations ---
+auto_hipas_freq = int(343 / (2 * (mic_spacing * (channels - 1))))
 print('HP frequency:', auto_hipas_freq)
-auto_lowpas_freq = int(343/(2*mic_spacing))
+auto_lowpas_freq = int(343 / (2 * mic_spacing))
 print('LP frequency:', auto_lowpas_freq)
-highpass_freq, lowpass_freq = [auto_hipas_freq ,auto_lowpas_freq]
-#highpass_freq, lowpass_freq = [200 ,20e3]
+highpass_freq, lowpass_freq = [auto_hipas_freq, auto_lowpas_freq]
 freq_range = [start_f, end_f]
 
-cutoff = auto_hipas_freq # [Hz] highpass filter cutoff frequency
+cutoff = auto_hipas_freq
 sos = signal.butter(1, cutoff, 'hp', fs=fs, output='sos')
 
-# Set the path for the sensitivity CSV file relative to the current script location
+# --- Mics Sensitivity ---
 script_dir = os.path.dirname(os.path.abspath(__file__))
 sensitivity_path = os.path.join(project_dir, input_dir, 'Knowles_SPH0645LM4H-B_sensitivity.csv')
 sensitivity = pd.read_csv(sensitivity_path)
@@ -115,65 +92,135 @@ sensitivity = pd.read_csv(sensitivity_path)
 analyzed_buffer_time = 0.01
 block_size_analyzed_buffer = int(analyzed_buffer_time * fs)
 
-in_sig = np.zeros(block_size_analyzed_buffer, dtype=np.float32)  # Initialize the buffer for the audio input stream
+in_sig = np.zeros(block_size_analyzed_buffer, dtype=np.float32)
 print('in_sig shape:', np.shape(in_sig))
 centrefreqs, freqrms = calc_native_freqwise_rms(in_sig, fs)
 
-freqs = np.array(sensitivity.iloc[:, 0])  # first column contains frequencies
-sens_freqwise_rms = np.array(sensitivity.iloc[:, 1])  # Last column contains sensitivity values 
-interp_sensitivity = interpolate_freq_response([freqs, sens_freqwise_rms],
-                centrefreqs)
+freqs = np.array(sensitivity.iloc[:, 0])
+sens_freqwise_rms = np.array(sensitivity.iloc[:, 1])
+interp_sensitivity = interpolate_freq_response([freqs, sens_freqwise_rms], centrefreqs)
 
-frequency_band = [2e3, 20e3] # min, max frequency to do the compensation Hz
-tgtmic_relevant_freqs = np.logical_and(centrefreqs>=frequency_band[0],
-                            centrefreqs<=frequency_band[1])
+frequency_band = [2e3, 20e3]
+tgtmic_relevant_freqs = np.logical_and(centrefreqs >= frequency_band[0], centrefreqs <= frequency_band[1])
 
-# args = {}
-# args.buffer = np.zeros((block_size, channels))
-
-# # Set initial parameters for the audio processing
-# args.samplerate = fs
-# args.rec_samplerate = rec_samplerate
-# args.angle = 0
-# # Create instances of the AudioProcessor and RobotMove classes
-# audio_processor = AudioProcessor(fs, channels, block_size, analyzed_buffer_time, data, args, trigger_level, critical_level, mic_spacing, ref, highpass_freq, lowpass_freq, theta_das, N_peaks,
-#                                     usb_fireface_index, args.subtype, interp_sensitivity, tgtmic_relevant_freqs, args.filename, args.rec_samplerate, sos, sweep)
-# # robot_move = RobotMove(speed, turn_speed, left_sensor_threshold, right_sensor_threshold, critical_level, trigger_level, ground_sensors_bool = True)
-# doa_calc = AudioProcessor.update_das()
-
-# inputstream_thread = audio_processor.input_stream
-# inputstream_thread.start()
-
+# --- Parameter Summary ---
 print(f"\n !! Verify parameter matching between this signal and the one used in the experiment !! \n")
-print(f" Current signal characteristics: \n Fs: {fs},\n Range: {start_f} - {end_f} Hz,\n Amplitude: {amplitude},\n Duration: {duration_out} [s],\n Silence after call: {silence_post} [ms]\n")
-# user_input = input("Do you want to continue? (y/n): ").strip().lower()
-# if user_input != 'y':
-#     print("Operation cancelled by user.")
-#     exit(0)
+print(f" Current signal characteristics: ")
+print(f"  - Sampling rate (Fs): {fs} Hz")
+print(f"  - Frequency sweep range: {start_f} Hz to {end_f} Hz")
+print(f"  - Amplitude: {amplitude}")
+print(f"  - Duration: {duration_out} s ({duration_out*1000:.1f} ms)")
+print(f"  - Silence after call: {silence_post} ms ({silence_samples_post} samples)")
+print(f"  - Output block size: {out_blocksize} samples")
+print(f"  - Channels: {channels}")
+print(f"  - Highpass filter cutoff: {highpass_freq} Hz")
+print(f"  - Lowpass filter cutoff: {lowpass_freq} Hz")
+print(f"  - Analyzed buffer time: {analyzed_buffer_time} s ({block_size_analyzed_buffer} samples)")
+print(f"  - Trigger level: {trigger_level} dB SPL")
+print(f"  - Critical level: {critical_level} dB SPL")
+print(f"  - Robot recording directory: {robot_rec_dir}")
+
 #%%
 
-# Match filtering and peak detection on channel 3 of each IP
+# --- Stack Multi-channel Audio for DOA calculation ---
 for ip in ips:
     ip_folder = os.path.join(trim_dir, f"ip_{ip}")
-    # Define the time for trimming 
-    for fname in os.listdir(ip_folder):
-        if fname.lower().startswith('mic_') and fname.lower().endswith('.wav'):
-            mic_num = fname.split('_')[1].split('.')[0]  # Extract mic number
-            fpath = os.path.join(ip_folder, fname)
-            audio_data, fs_file = sf.read(fpath)
-            peak_times = pd.read_csv(os.path.join(project_dir, input_dir, date_dir, robot_rec_dir, f"ip_{ip}_call_times.csv"), header=None).values.flatten()
-            print(f"IP: {ip} Mic: {mic_num}")
-            # Run over peak times
-            for i in range(len(peak_times) - 1):
-                peak_time = peak_times[i]
-                next_peak_time = peak_times[i + 1]
-                
-                intercall_audio = audio_data[int(peak_time*fs_file):int(next_peak_time*fs_file)]
-                # print(f"IP: {ip} Mic: {mic_num} Processing peak at {peak_time:.3f}s, next peak at {next_peak_time:.3f}s, buffer length: {len(intercall_audio)/fs_file:.3f} secs")
+    if not os.path.exists(ip_folder):
+        print(f"Warning: Folder {ip_folder} does not exist. Skipping IP {ip}.")
+        continue
+    mic_data = []
+    mic_files = []
+    for mic_idx in range(channels):
+        mic_fname = f"mic_{mic_idx+1}.wav"
+        mic_fpath = os.path.join(ip_folder, mic_fname)
+        if os.path.exists(mic_fpath):
+            mic_audio, _ = sf.read(mic_fpath)
+            mic_data.append(mic_audio)
+            mic_files.append(mic_fname)
+        else:
+            print(f"Warning: File {mic_fpath} does not exist. Skipping mic {mic_idx} for IP {ip}.")
+    if len(mic_data) != channels:
+        print(f"Warning: Not all channels found for IP {ip}. Found {len(mic_data)} channels. Skipping.")
+        continue
 
-                # buffer = intercall_audio[int(0.09*fs_file):]
+    mic_data = np.stack(mic_data, axis=-1)
+    multichannel_path = os.path.join(ip_folder, f"ip_{ip}_multichannel.wav")
+    sf.write(multichannel_path, mic_data, fs)
+    print(f"Saved multi-channel audio for IP {ip} to {multichannel_path}, shape: {mic_data.shape}, channel order: {mic_files}")
 
-                # update_das(buffer, fs, sos, ref, analyzed_buffer_time, tgtmic_relevant_freqs, interp_sensitivity, das_filter, channels, mic_spacing, highpass_freq, lowpass_freq, theta_das, critical_level, trigger_level, N_peaks)
+#  Apply DAS algorithms as in the robats to extract DOA ---
+for ip in ips:
+    results = []
+    print(f"IP: {ip}")
+    peak_times_path = os.path.join(project_dir, input_dir, date_dir, robot_rec_dir, f"ip_{ip}_call_times.csv")
+    if not os.path.exists(peak_times_path):
+        print(f"Warning: Peak times file {peak_times_path} does not exist. Skipping.")
+        continue
+    peak_times = pd.read_csv(peak_times_path)
+    if 'Call_time' in peak_times.columns:
+        peak_times = peak_times['Call_time'].values.flatten()
+    else:
+        peak_times = peak_times.values.flatten()
+    if len(peak_times) < 2:
+        print(f"Warning: Not enough peak times in {peak_times_path} to process. Skipping.")
+        continue
 
+    for i in range(len(peak_times) - 1):
+        peak_time = peak_times[i]
+        next_peak_time = peak_times[i + 1]
+        intercall_audio = mic_data[int((peak_time + duration_out) * fs):int((next_peak_time - 0.01) * fs), :]
+
+        ts = silence_post / 1000 - input_buffer_time
+        if intercall_audio.shape[0] < int(ts * fs):
+            print(f"Skipping: intercall_audio too short for ts={ts:.3f}s (length={intercall_audio.shape[0]/fs:.3f}s)")
+            continue
+        # Take a chunk of length input_buffer_time starting from ts for all channels
+        start_idx = int(ts * fs)
+        end_idx = start_idx + int(input_buffer_time*fs)
+        buffer = intercall_audio[start_idx:end_idx, :]
+
+        # # Plot waveform and spectrogram for the reference channel
+        import matplotlib.pyplot as plt
+
+        ref_channel_audio = buffer[:, ref]
+
+        plt.figure(figsize=(12, 6))
+
+        # Waveform
+        plt.subplot(2, 1, 1)
+        plt.plot(np.arange(ref_channel_audio.size) / fs, ref_channel_audio)
+        plt.title(f'Waveform (IP {ip}, Call {i}, Ref Channel)')
+        plt.xlabel('Time [s]')
+        plt.ylabel('Amplitude')
+
+        # Spectrogram
+        plt.subplot(2, 1, 2)
+        f, t_spec, Sxx = signal.spectrogram(ref_channel_audio, fs=fs, nperseg=128, noverlap=64)
+        plt.pcolormesh(t_spec, f, 10 * np.log10(Sxx), shading='gouraud')
+        plt.title('Spectrogram')
+        plt.ylabel('Frequency [Hz]')
+        plt.xlabel('Time [s]')
+        plt.colorbar(label='Power [dB]')
+        plt.tight_layout()
+        plt.show()
+
+
+        peak_angles = [None]
+        dB_SPL_level = None
+        peak_angles, dB_SPL_level = update_das(
+            buffer, fs, sos, ref, analyzed_buffer_time, tgtmic_relevant_freqs,
+            interp_sensitivity, das_filter, channels, mic_spacing,
+            highpass_freq, lowpass_freq, theta_das, critical_level,
+            trigger_level, N_peaks
+        )
+
+        results.append([peak_time, peak_angles, dB_SPL_level[0]])
+
+        results_df = pd.DataFrame(results, columns=['Call_time', 'DOA_angle', 'dB_SPL_level'])
+        results_df.to_csv(
+            os.path.join(project_dir, input_dir, date_dir, robot_rec_dir, f"ip_{ip}_audio_tracking.csv"),
+            index=False, header=True
+        )
+    print(f"Saved results for IP {ip} to ip_{ip}_audio_tracking.csv")
 
 # %%
