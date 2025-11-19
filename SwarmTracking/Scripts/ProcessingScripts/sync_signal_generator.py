@@ -44,7 +44,7 @@ if __name__ == "__main__":
     # Audio settings
     total_duration = 30*60  # seconds 
     interval = 60  # seconds interval between start of the segments
-    fs = 48000 # audio sample rate
+    fs = 192000 # audio sample rate
     freq = 15  # Hz square wave frequency
 
     ###################################################################
@@ -80,7 +80,7 @@ if __name__ == "__main__":
 
     # Apply low-pass filter to avoid interference with robots DOA
     sos = signal.butter(8, 2000, 'low', fs=fs, output='sos')
-    filtered_sweep = signal.sosfiltfilt(sos, sweep_signal)
+    filtered_sweep = 0.8*signal.sosfiltfilt(sos, sweep_signal)
 
     # Check if an .wav file already exists in the directory
     existing_wav = [f for f in os.listdir(output_dir) if f.lower().endswith('.wav')]
@@ -100,8 +100,17 @@ if __name__ == "__main__":
 
     ###################################################################
     # generate 15 Hz square wave
+    # Add 3 seconds of silence at the beginning of both channels
+    silence_seconds = 3
+    silence_samples = int(silence_seconds * fs)
+    silence = np.zeros(silence_samples)
+
     t = np.linspace(0, total_duration, int(fs * total_duration), endpoint=False)
     square_wave = 0.8 * signal.square(2 * np.pi * freq * t)
+
+    # Prepend silence to both square wave and sync signal
+    square_wave = np.concatenate((silence, square_wave))
+    sync_signal = np.concatenate((silence, sync_signal))
 
     # Stack into stereo: L=square wave, R=sync signal
     stereo = np.stack([square_wave, sync_signal], axis=1)

@@ -29,17 +29,14 @@ import soundfile as sf
 import os 
 from Utils_SwarmTracking import *
 import pandas as pd
+from config import *
 
 #%%
- 
-# Define the directories
-os.chdir(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))  # project directory
-input_dir = "./Data"
-output_dir = "./Data/IntermediateData"
-os.makedirs(output_dir, exist_ok=True)
-
+            
 # Upload the sync_sig signal
-sync_sig, fs_sync_sig = sf.read(output_dir + '/filtered_sweep.wav')
+sync_sig, fs_sync_sig = sf.read(interm_data_dir + '/filtered_sweep.wav')
+sync_sig = signal.resample_poly(sync_sig, 48000, fs_sync_sig)
+fs_sync_sig = 48000
 
 # Plot the sync_sig signal
 # Time-domain plot
@@ -61,10 +58,8 @@ plt.show()
 # %%
 
 # Load the recordings
-ips = [238, 240, 241]
-date_dir = '2025-10-02/'
-robot_rec_dir = '2025-10-02_18-45-28/'
-list_of_files = os.listdir(input_dir + '/InputData/' + date_dir + robot_rec_dir)
+
+list_of_files = os.listdir(orig_dir)
 wav_files = [f for f in list_of_files if f.lower().endswith('.wav')]
 print(f"Found {len(wav_files)} .wav files in the directory.")
 
@@ -79,14 +74,14 @@ for ip in ips:
     print(f"Selected file for IP {ip}: {file_ip}")
 
     # Load the audio file
-    orig_audio, fs = sf.read(os.path.join(input_dir + '/InputData/' + date_dir + robot_rec_dir, file_ip))
+    orig_audio, fs = sf.read(os.path.join(orig_dir, file_ip))
     if orig_audio.ndim == 1:
         orig_audio = orig_audio[:, np.newaxis]
     num_channels = orig_audio.shape[1]
     channels = [orig_audio[:, i] for i in range(num_channels)]
 
     # Prepare output subfolder for this IP
-    ip_folder = os.path.join(output_dir, date_dir, robot_rec_dir, "multich_audio_separation", f"ip_{ip}")
+    ip_folder = os.path.join(date_time_folder, "multich_audio_separation", f"ip_{ip}")
     os.makedirs(ip_folder, exist_ok=True)
 
     # Save each channel as a separate WAV file
@@ -128,8 +123,8 @@ plt.show()
 
 # Directory containing separated channel files
 for ip in ips:
-    ip_folder = os.path.join(output_dir, date_dir, robot_rec_dir, "multich_audio_separation", f"ip_{ip}")
-    ip_folder_lp = os.path.join(output_dir, date_dir, robot_rec_dir, "lp_filtered_audio", f"ip_{ip}")
+    ip_folder = os.path.join(date_time_folder, "multich_audio_separation", f"ip_{ip}")
+    ip_folder_lp = os.path.join(date_time_folder, "lp_filtered_audio", f"ip_{ip}")
     os.makedirs(ip_folder_lp, exist_ok=True)
     for fname in os.listdir(ip_folder):
         if fname.lower().endswith('.wav'):
@@ -144,7 +139,7 @@ for ip in ips:
 
 # Match filtering and peak detection on channel 3 of each IP
 for ip in ips:
-    ip_folder = os.path.join(output_dir, date_dir, robot_rec_dir, "multich_audio_separation", f"ip_{ip}")
+    ip_folder = os.path.join(date_time_folder, "multich_audio_separation", f"ip_{ip}")
     os.makedirs(ip_folder, exist_ok=True)
     for fname in os.listdir(ip_folder):
         if fname.lower() == 'mic_3.wav':
@@ -156,14 +151,14 @@ for ip in ips:
 
             # Normalize the matched filter output
             matched = matched / np.max(np.abs(matched))
-            peaks = detect_peaks(matched, fs_file)
+            peaks = detect_peaks(matched, fs_file,0.7)
             print(f"Detected peaks: {len(peaks)} in IP {ip} at {peaks/ fs_file}, file {fname}")
 
             # Save peaks to CSV
             # Extract times from peak indices
             peak_times = peaks / fs_file
             # Save all peak times for this IP to CSV (append mode)
-            csv_path = os.path.join(output_dir, date_dir, robot_rec_dir)
+            csv_path = os.path.join(date_time_folder)
             df = pd.DataFrame({'IP': [ip]*len(peak_times), 'PeakTime': peak_times})
             csv_file = os.path.join(csv_path, f"ip_{ip}_sync_times.csv")
             df.to_csv(csv_file, index=False)
@@ -194,7 +189,7 @@ for ip in ips:
 
     # Trim audio files at the first detected peak
 
-    trim_dir = os.path.join(output_dir, date_dir, robot_rec_dir, "trimmed_audio") # create trimmed audio directory
+    trim_dir = os.path.join(date_time_folder, "trimmed_audio") # create trimmed audio directory
     os.makedirs(trim_dir, exist_ok=True)
     ip_folder_trim = os.path.join(trim_dir, f"ip_{ip}") # create subfolder for each IP
     os.makedirs(ip_folder_trim, exist_ok=True)
@@ -212,7 +207,7 @@ for ip in ips:
             else:
                 print(f"No peaks found in {fpath}, file not trimmed.")
 
-    ip_folder_hp = os.path.join(output_dir, date_dir, robot_rec_dir, "hp_filtered_trimmed_audio", f"ip_{ip}")
+    ip_folder_hp = os.path.join(date_time_folder, "hp_filtered_trimmed_audio", f"ip_{ip}")
     os.makedirs(ip_folder_hp, exist_ok=True)
     print('\n')
     for fname in os.listdir(ip_folder_trim):

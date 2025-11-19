@@ -1,7 +1,7 @@
 #!/bin/bash
 
 USER="thymio"
-PI_LIST="./tracking/pi_list.txt"
+PI_LIST="/home/alberto/Documents/ActiveSensingCollectives_lab/Ro-BATs/tracking/pi_list.txt"
 PASSWORD="thymio"
 NEW_CHRONY_SERVER=$(hostname -I | awk '{print $1}')
 

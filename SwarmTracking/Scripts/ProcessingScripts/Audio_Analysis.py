@@ -24,40 +24,12 @@ from AudioProcessor import AudioProcessor
 from Utils_SwarmTracking import *
 from functions import *
 from functions.das_v2 import das_filter
-
+from config import *
 # --- Configuration and Paths ---
-ips = [238, 240, 241]
-project_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # Project directory
-input_dir = "./Data/IntermediateData/"
-date_dir = '2025-10-02/'
-robot_rec_dir = '2025-10-02_18-45-28/'
-
-trim_dir = os.path.join(project_dir, input_dir, date_dir, robot_rec_dir, "trimmed_audio")  # Trimmed audio directory
-
-# --- Audio Parameters ---
-trigger_level = 70  # dB SPL
-critical_level = 75  # dB SPL
-c = 343  # Speed of sound
-fs = 48000
-rec_samplerate = 48000
-input_buffer_time = 0.04  # seconds
-block_size = int(input_buffer_time * fs)
-channels = 5
-mic_spacing = 0.018  # meters
-ref = channels // 2  # Central mic as reference
-
-# --- DOA Algorithm Parameters ---
-method = 'DAS'
-theta_das = np.linspace(-90, 90, 61)  # Angles for DAS spectrum
-N_peaks = 1  # Number of peaks to detect
+trim_dir = os.path.join(date_time_folder, "trimmed_audio")  # Trimmed audio directory
 
 # --- Chirp Signal Parameters ---
-duration_out = 20e-3
-silence_post = 110  # ms
-amplitude = 0.5
-
 t = np.linspace(0, duration_out, int(fs * duration_out))
-start_f, end_f = 24e3, 2e3
 sweep = signal.chirp(t, start_f, t[-1], end_f)
 sweep *= signal.windows.tukey(sweep.size, 0.2)
 sweep *= 0.8
@@ -86,7 +58,7 @@ sos = signal.butter(1, cutoff, 'hp', fs=fs, output='sos')
 
 # --- Mics Sensitivity ---
 script_dir = os.path.dirname(os.path.abspath(__file__))
-sensitivity_path = os.path.join(project_dir, input_dir, 'Knowles_SPH0645LM4H-B_sensitivity.csv')
+sensitivity_path = os.path.join( interm_data_dir, 'Knowles_SPH0645LM4H-B_sensitivity.csv')
 sensitivity = pd.read_csv(sensitivity_path)
 
 analyzed_buffer_time = 0.01
@@ -118,7 +90,7 @@ print(f"  - Lowpass filter cutoff: {lowpass_freq} Hz")
 print(f"  - Analyzed buffer time: {analyzed_buffer_time} s ({block_size_analyzed_buffer} samples)")
 print(f"  - Trigger level: {trigger_level} dB SPL")
 print(f"  - Critical level: {critical_level} dB SPL")
-print(f"  - Robot recording directory: {robot_rec_dir}")
+print(f"  - Robot recording directory: {date_time_folder}")
 
 #%%
 
@@ -152,7 +124,7 @@ for ip in ips:
 for ip in ips:
     results = []
     print(f"IP: {ip}")
-    peak_times_path = os.path.join(project_dir, input_dir, date_dir, robot_rec_dir, f"ip_{ip}_call_times.csv")
+    peak_times_path = os.path.join(date_time_folder, f"ip_{ip}_call_times.csv")
     if not os.path.exists(peak_times_path):
         print(f"Warning: Peak times file {peak_times_path} does not exist. Skipping.")
         continue
@@ -218,7 +190,7 @@ for ip in ips:
 
         results_df = pd.DataFrame(results, columns=['Call_time', 'DOA_angle', 'dB_SPL_level'])
         results_df.to_csv(
-            os.path.join(project_dir, input_dir, date_dir, robot_rec_dir, f"ip_{ip}_audio_tracking.csv"),
+            os.path.join(date_time_folder, f"ip_{ip}_audio_tracking.csv"),
             index=False, header=True
         )
     print(f"Saved results for IP {ip} to ip_{ip}_audio_tracking.csv")

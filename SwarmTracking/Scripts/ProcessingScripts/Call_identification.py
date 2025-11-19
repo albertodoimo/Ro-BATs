@@ -22,23 +22,13 @@ import soundfile as sf
 import os 
 from Utils_SwarmTracking import *
 import pandas as pd 
+from config import *
 
 # %%
 
-# Define the directories
-os.chdir(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))  # project directory
-input_dir = "./Data"
-output_dir = "./Data/IntermediateData"
-os.makedirs(output_dir, exist_ok=True)
-
-# Chirp signal template
-fs_call_sig = 48000 # Sampling frequency
-duration_out = 20e-3  # Duration in seconds
-silence_post = 110 # [ms] can probably pushed to 20
-amplitude = 0.5 # Amplitude of the chirp
 
 t = np.linspace(0, duration_out, int(fs_call_sig*duration_out))
-start_f, end_f = 24e3, 2e3
+
 sweep = signal.chirp(t, start_f, t[-1], end_f)
 sweep *= signal.windows.tukey(sweep.size, 0.2)
 sweep *= 0.8
@@ -80,11 +70,7 @@ plt.show()
 #%%
 
 # Load the recordings
-ips = [238, 240, 241]
-date_dir = '2025-10-02/'
-robot_rec_dir = '2025-10-02_18-45-28/'
-
-trim_dir = os.path.join(output_dir, date_dir, robot_rec_dir, "hp_filtered_trimmed_audio") # trimmed audio directory
+trim_dir = os.path.join(date_time_folder, "hp_filtered_trimmed_audio") # trimmed audio directory
 
 # Match filtering and peak detection on channel 3 of each IP
 for ip in ips:
@@ -100,12 +86,12 @@ for ip in ips:
 
             # Normalize the matched filter output
             matched = matched / np.max(np.abs(matched))
-            peaks = detect_peaks(matched, fs_file)
+            peaks = detect_peaks(matched, fs_file, 0.3)
             peak_times = (peaks / fs_file)
             print(f"Detected peaks: {len(peaks)} in IP {ip} at {peak_times}, file {fname}")
             # Save peaks to CSV
             columns = ['call_time_s']
-            pd.DataFrame(peak_times, columns=columns).to_csv(os.path.join(output_dir, date_dir, robot_rec_dir, f"ip_{ip}_call_times.csv"), index=False)
+            pd.DataFrame(peak_times, columns=columns).to_csv(os.path.join(date_time_folder, f"ip_{ip}_call_times.csv"), index=False)
 
             # plot results
             plt.figure(figsize=(15, 8))

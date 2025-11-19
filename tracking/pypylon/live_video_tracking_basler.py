@@ -31,7 +31,7 @@ yaml_file = "/home/alberto/Documents/ActiveSensingCollectives_lab/Ro-BATs/tracki
 # )
 
 # subprocess.run(
-#     ["bash", "/home/alberto/Documents/ActiveSensingCollectives_lab/Ro-BATs/tracking/run_all_robots.sh"],
+#     ["bash", "/hoFalseme/alberto/Documents/ActiveSensingCollectives_lab/Ro-BATs/tracking/run_all_robots.sh"],
 #     check=True
 # )
 
@@ -401,9 +401,7 @@ def main():
                 h, w = frame.shape[:2]
 
                 corners, ids, _ = cv2.aruco.detectMarkers(frame, aruco_dict, parameters=aruco_params)
-                if ids is not None:
-                    noise_on = 200 in ids
-                    print(f"Noise on: {noise_on}")
+                print('IDS', np.sort(ids.flatten()) if ids is not None else [])
                 start_time = time.time()
                 marker_pairs = [(4, 5), (6, 7), (10, 11)]
                 robot_names = {(4, 5): "241", (6, 7): "240", (10, 11): "238"}
@@ -447,7 +445,7 @@ def main():
                         robot_name: float(heading_angle) if heading_angle is not None else None
                         for robot_name, heading_angle in heading_angle.items()
                     },
-                    'noise_on': noise_on
+
                 }
                 # print(f'diff: {time.time()-start_time}')
                 

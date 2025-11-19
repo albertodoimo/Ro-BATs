@@ -25,60 +25,14 @@ import numpy as np
 import os
 import cv2
 import sys
+from config import *
 
 #%%
 saving_bool = True # whether to save the output video with tracking
 
 ###############################################################
-# Experimental parameters
-# Threshold dB SPL levels for DOA 
-trigger_level =  70 # dB SPL attraction level
-critical_level = 75 # dB SPL repulsion level
-
-# Aruco markers pair corresponding to each robot
-marker_pairs = [(4, 5), (6, 7), (10, 11)]
-robot_names = {"241": (4, 5), "240": (6, 7), "238": (10, 11)}
-
-# Color map for different robot IDs
-color_map = {
-    "241": (255, 255, 0),    # Cyan
-    "240": (0, 255, 0),    # Green
-    "238": (0, 0, 255),    # Red
-            }
-
-# Arena dimensions in meters
-arena_w = 1.47 # m
-arena_l = 1.91 # m
-
-# List of robot IPs (IDs) to process
-ips = [238, 240, 241]
-
-# Set the project directory (three levels up from this script)
-project_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))) # project directory
-
-###############################################################
-# Directories
-# Intermediate data directory
-input_dir = "Data/IntermediateData/"
-
-# Date directory
-date_dir = '2025-10-02/'
-
-# Directory for robot recordings (date and time)
-robot_rec_dir = '2025-10-02_18-45-28/'
-
-# Base file name for video 
-file_name = '2025-10-02_18-45-28_upsampled'
-
-# Output video path
-output_video_path = os.path.join(project_dir, input_dir, file_name + '_tracked.mp4')
-
-# Video path 
-video_path = os.path.join(project_dir, input_dir, file_name) + '.mp4'
-
-###############################################################
 # Open the video file and get its properties
-cap = cv2.VideoCapture(video_path)
+cap = cv2.VideoCapture(output_video_path)
 video_fps = cap.get(cv2.CAP_PROP_FPS)
 print(f"Video FPS: {video_fps}")
 
@@ -92,11 +46,11 @@ aruco_dict = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_6X6_250)
 parameters = cv2.aruco.DetectorParameters()
 
 #################################################################
-# Read CSV files containing robot positions for all detected IDs
+# Read CSV files containing audio info for all detected IDs
 robot_call_times = {}
 robot_DOA_angle = {}
 robot_dB_SPL_level = {}
-csv_dir = os.path.join(project_dir, input_dir, date_dir, robot_rec_dir)
+csv_dir = os.path.join(date_time_folder)
 if os.path.exists(csv_dir):
     for robot_id in ips if 'ips' in locals() and ips is not None else []:
         csv_file = os.path.join(csv_dir, f"ip_{robot_id}_audio_tracking.csv")
@@ -120,7 +74,7 @@ else:
 
 ##########################################################################################################
 # Determine the pixel to meter ratio using the ArUco markers
-cap = cv2.VideoCapture(video_path)
+cap = cv2.VideoCapture(output_video_path)
 try:
     pixel_per_meters = 0
     while cap.isOpened():
@@ -152,7 +106,7 @@ try:
                 reference_position = corners_2[:, 2][0] # Use the bottom right corner of marker 2 as reference
                 print(f"Reference: {reference_position}")
                 corners_3 = corners_array[ind3]
-                pixel_per_meters = np.mean([np.linalg.norm(corners_1[:, 3] - corners_2[:, 0], axis=1)/arena_w, np.linalg.norm(corners_2[:, 0] - corners_3[:, 1], axis=1)/arena_l])
+                pixel_per_meters = np.mean([np.linalg.norm(corners_1[:, 1] - corners_2[:, 2], axis=1)/arena_height, np.linalg.norm(corners_2[:, 1] - corners_3[:, 3], axis=1)/arena_width])
                 print('Pixel per meters: %.2f' % pixel_per_meters)
             except ValueError as e:
                 print('Error:', e ,'\n')
@@ -174,23 +128,25 @@ cap.release()
 # Main processing loop for video tracking
 def main():
     # Open the video file for reading and create a VideoWriter for saving the tracked output
-    cap = cv2.VideoCapture(video_path)
-    out = cv2.VideoWriter(output_video_path, cv2.VideoWriter_fourcc(*'mp4v'), video_fps, (frame_width, frame_height))
+    cap = cv2.VideoCapture(output_video_path)
+    out = cv2.VideoWriter(tracked_video_path, cv2.VideoWriter_fourcc(*'mp4v'), video_fps, (frame_width, frame_height))
 
     # Check if the VideoWriter was successfully opened
     if not out.isOpened():
-        print(f"Error: Could not open video writer at {output_video_path}")
+        print(f"Error: Could not open video writer at {tracked_video_path}")
         cap.release()
         return
 
     frame_count = 0
+    # Persistent trajectory layer
+    traj_canvas = np.zeros((frame_height, frame_width, 3), dtype=np.uint8)
+    prev_centers = {}
+
     try:
         axis_length = 100  # pixels
         robot_radius = 100  # pixels
         DOA_arrow_length = 150  # pixels
-
         # Prepare CSV path and header
-        audio_csv_path = os.path.join(project_dir, input_dir, file_name + '_tracking_data.csv')
         # If file exists, rename it to avoid overwriting
         if os.path.exists(audio_csv_path):
             backup_path = audio_csv_path.replace('.csv', '_backup.csv')
@@ -198,8 +154,13 @@ def main():
             print(f"Existing tracking data CSV renamed to: {backup_path}")
         write_header = True  # Always write header for the new file
 
-        # Prepare columns for each robot: x_238, y_238, doa_238, spl_238, ...
+        # Prepare columns for each robot:
         columns = ['frame', 'frame_second', 'origin_x', 'origin_y']
+        if len(obst_ids) > 0:
+            for obst_id in obst_ids:
+                columns += [f'obst_x_{obst_id}', f'obst_y_{obst_id}'] # Obstacle positions
+        elif obst_ids is None:
+            pass
         for robot_id in ips:
             columns += [
                 f'x_{robot_id}', f'y_{robot_id}', f'doa_{robot_id}', f'spl_{robot_id}', f'call_time_{robot_id}'
@@ -210,8 +171,46 @@ def main():
             if not ret:
                 break
 
+            gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+
+            # Prepare data for this frame
+            frame_row = {
+                'frame': frame_count,
+                'frame_second': frame_count / video_fps,
+                'origin_x': reference_position[0],
+                'origin_y': reference_position[1],
+            }
+
             detector = cv2.aruco.ArucoDetector(aruco_dict, parameters)
             corners, ids, _ = detector.detectMarkers(frame)
+            # Calculate centers of all markers and add name labels
+            if obst_ids is not None and len(obst_ids) > 0:
+                # Initialize obstacle positions as empty by default
+                for obst_id in obst_ids:
+                    frame_row.setdefault(f'obst_x_{obst_id}', '')
+                    frame_row.setdefault(f'obst_y_{obst_id}', '')
+                if ids is not None and len(corners) > 0:
+                    id_list = ids.flatten().tolist()
+                    for obst_id in obst_ids:
+                        if obst_id in id_list:
+                            i = id_list.index(obst_id)
+                            # Get the four corners of the marker
+                            marker_corners = corners[i][0]
+                            # Calculate center as mean of corners
+                            center_x = int(np.mean(marker_corners[:, 0])- reference_position[0])/ pixel_per_meters
+                            center_y = int(np.mean(marker_corners[:, 1])- reference_position[1])/ pixel_per_meters
+                            
+                            # Draw a small circle at the center
+                            cv2.circle(frame, (int(center_x * pixel_per_meters + reference_position[0]), int(center_y * pixel_per_meters + reference_position[1])), 5, (0, 0, 255), -1)
+                            
+                            # Add marker ID as text label
+                            cv2.putText(frame, f"ID:{obst_id}", (int(center_x* pixel_per_meters + reference_position[0] + 10), int(center_y * pixel_per_meters + reference_position[1] - 10)),
+                                        cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
+                            
+                            # Save obstacle positions
+                            frame_row[f'obst_x_{obst_id}'] = center_x
+                            frame_row[f'obst_y_{obst_id}'] = center_y
+
             pair_centers = {}
             heading_vectors = {}
             heading_angle = {}
@@ -228,21 +227,19 @@ def main():
                 cv2.arrowedLine(frame, tuple(reference_position.astype(int)), y_axis_end, (0, 0, 255), 4, tipLength=0.2)
                 cv2.putText(frame, 'Y', (y_axis_end[0], y_axis_end[1] + 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
 
-                pair_centers = get_pair_centers(marker_pairs, centers_dict, corners, ids, reference_position, pixel_per_meters)
-                draw_and_label_pair_centers(frame, pair_centers, robot_names, reference_position, pixel_per_meters, robot_radius)
-                heading_vectors, heading_angle = draw_heading_arrows(frame, pair_centers, robot_names, corners, ids, reference_position, pixel_per_meters, robot_radius)
+                try:
+                    pair_centers = get_pair_centers(marker_pairs, centers_dict, corners, ids, reference_position, pixel_per_meters)
+                    draw_and_label_pair_centers(frame, pair_centers, robot_names, reference_position, pixel_per_meters, robot_radius)
+                    
+                    heading_vectors, heading_angle = draw_heading_arrows(frame, pair_centers, robot_names, corners, ids, reference_position, pixel_per_meters, robot_radius)
+                except Exception as e:
+                    print(f"Error processing frame {frame_count}: {e}")
+                    # Skip this frame and continue with next
+                    pass
                 # - Draw arrow to closest robot from reference
                 # draw_closest_robot_arrow(frame, reference_position, pixel_per_meters, heading_vectors, pair_centers, robot_names, robot_radius)
                 # - Draw line between closest robot pair
                 # draw_closest_pair_line(frame, pair_centers, robot_names, reference_position, pixel_per_meters, robot_radius)
-
-            # Prepare data for this frame
-            frame_row = {
-                'frame': frame_count,
-                'frame_second': frame_count / video_fps,
-                'origin_x': reference_position[0],
-                'origin_y': reference_position[1]
-            }
 
             for robot_id in ips:
                 robot_id_str = str(robot_id)
@@ -250,6 +247,15 @@ def main():
                 center = pair_centers.get(pair) if pair is not None else None
                 heading_deg = heading_angle.get(robot_id_str, None)
                 heading_vec = heading_vectors.get(pair) if pair is not None else None
+                color = color_map.get(robot_id_str, (255, 255, 0))
+
+                # Draw new segment onto persistent layer (per robot, using pixel coordinates)
+                if center is not None:
+                    curr_px = (int(reference_position[0] + center[0] * pixel_per_meters),
+                               int(reference_position[1] + center[1] * pixel_per_meters))
+                    if robot_id_str in prev_centers:
+                        cv2.line(traj_canvas, prev_centers[robot_id_str], curr_px, color, 2)
+                    prev_centers[robot_id_str] = curr_px
 
                 # Defaults
                 x_val = ''
@@ -314,6 +320,9 @@ def main():
             audio_df.to_csv(audio_csv_path, index=False, mode='a', header=write_header)
             write_header = False  # Only write header for first frame
 
+            # Overlay trajectory on current frame
+            frame = cv2.add(frame, traj_canvas)
+
             if saving_bool:
                 out.write(frame)
             cv2.namedWindow(f"{file_name}", cv2.WINDOW_NORMAL)
@@ -327,14 +336,20 @@ def main():
                 out.release()
                 cv2.destroyAllWindows()
                 break
+    
 
     finally:
         cap.release()
         out.release()
-        cv2.destroyAllWindows()
+        cv2.destroyAllWindows() 
+
+    extract_last_frame(tracked_video_path, os.path.join(interm_data_dir, f"{file_name}_last_frame.png"))
+
+    print(f"Last frame extracted and saved in {os.path.join(interm_data_dir, f'{file_name}_last_frame.png')}")
 
 if __name__ == "__main__":
     main()
+    
 
 
 # %%

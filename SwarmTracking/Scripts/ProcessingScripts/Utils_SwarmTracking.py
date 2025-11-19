@@ -50,15 +50,15 @@ def matched_filter(recording, chirp_template):
     filtered_output = np.roll(signal.correlate(recording, chirp_template, 'same', method='direct'), -len(chirp_template)//2)
     # filtered_output *= signal.windows.tukey(filtered_output.size, 0.1) # apply a Tukey window to reduce edge effects
     filtered_envelope = np.abs(signal.hilbert(filtered_output)) # compute the envelope of the matched filter output
-    return filtered_output
+    return filtered_envelope
 
 
 # Detect peaks in the matched filter output
-def detect_peaks(filtered_output, sample_rate):
+def detect_peaks(filtered_output, sample_rate, prominance=0.8):
     """
     Detect peaks in the matched filter output using prominence thresholding.
     """
-    peaks, properties = signal.find_peaks(filtered_output, prominence=0.8) # prominence is calculated on normalized signal
+    peaks, properties = signal.find_peaks(filtered_output, prominence=prominance) # prominence is calculated on normalized signal
     return peaks
 
 
@@ -109,10 +109,10 @@ def create_video_from_frames(orig_file_dir, frames_dir, output_video, fps):
     cmd = [
         "ffmpeg",
         "-y",
+        "-framerate", str(fps),
         "-i", os.path.join(frames_dir, f"frame_%06d{ext}"),
         "-c:v", "libx264",
-        "-pix_fmt", "yuv420p",
-        "-vf", f"fps={fps}",  # force exactly fps frames per second
+        "-pix_fmt", "yuv420p", 
         output_video,
     ]
 
@@ -324,6 +324,10 @@ def get_pair_centers(marker_pairs, centers_dict, corners, ids, reference_positio
             pair_centers[(a, b)] = rel_center
         else:
             pair_centers[(a, b)] = center
+            
+    if len(pair_centers) == 0:
+        raise RuntimeError("Error computing pair centers")
+
     return pair_centers
 
 def draw_heading_arrows(frame, pair_centers, robot_names, corners, ids, reference_position, pixel_per_meters, robot_radius):
@@ -395,6 +399,10 @@ def draw_heading_arrows(frame, pair_centers, robot_names, corners, ids, referenc
 
             # cv2.putText(frame, f"{heading_angle[robot_name[0]]:.1f} deg", (arrow_start[0] + robot_radius + 20, arrow_start[1] ), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
             cv2.arrowedLine(frame, tuple(arrow_start.astype(int)), tuple(arrow_end.astype(int)), (255, 255, 255), 4, tipLength=0.25)
+
+        if len(heading_vectors) == 0 or len(heading_angle) == 0:
+            raise RuntimeError("No heading vectors computed")
+
 
     return heading_vectors, heading_angle
 
@@ -542,6 +550,64 @@ def draw_closest_pair_line(frame, pair_centers, robot_names, reference_position,
             # cv2.putText(frame, dist_text, (midpoint[0]-20, midpoint[1]+10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 1)
 
     return name_pair, dist
+
+
+def extract_last_frame(video_path, output_path):
+    """
+    Extracts the last frame from a video file and saves it as an image.
+    Args:
+        video_path: Path to the input video file.
+        output_path: Path to save the extracted last frame image.
+    """
+    
+    # Check if file exists
+    if not os.path.exists(video_path):
+        print(f"Error: Video file not found at {video_path}")
+        return
+
+    # 1. Open the video file
+    cap = cv2.VideoCapture(video_path)
+
+    if not cap.isOpened():
+        print("Error: Could not open video.")
+        return
+
+    try:
+        # 2. Get the total number of frames in the video
+        total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+        
+        if total_frames <= 0:
+            print("Error: Could not determine frame count (video might be corrupted or stream format).")
+            return
+
+        print(f"Total frames detected: {total_frames}")
+
+        # 3. Set the video position to the last frame
+        # Frame indices are 0-based, so the last frame is total_frames - 1
+        cap.set(cv2.CAP_PROP_POS_FRAMES, total_frames - 1)
+
+        # 4. Read the frame
+        success, frame = cap.read()
+
+        # RETRY LOGIC: 
+        # Sometimes the reported frame count is slightly off by 1 or 2 frames 
+        # depending on the video codec. If reading the exact last index fails,
+        # we step back one frame and try again.
+        if not success:
+            print("Warning: Could not read exact last frame index. Trying previous frame...")
+            cap.set(cv2.CAP_PROP_POS_FRAMES, total_frames - 2)
+            success, frame = cap.read()
+
+        # 5. Save the result
+        if success:
+            cv2.imwrite(output_path, frame)
+            print(f"Success! Last frame saved to: {output_path}")
+        else:
+            print("Error: Failed to extract the frame.")
+
+    finally:
+        # 6. Clean up resources
+        cap.release()
 
 ##########################################################################################
 # AUDIO PROCESSING UTILS

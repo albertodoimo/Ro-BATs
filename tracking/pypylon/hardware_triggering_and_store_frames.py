@@ -9,8 +9,15 @@ import time
 import datetime
 import platform
 import os 
+import subprocess
 
 ###################################################################
+
+# # Run the check_pi_sync.sh script and wait for it to finish before continuing
+# subprocess.run(
+#     ["bash", "/home/alberto/Documents/ActiveSensingCollectives_lab/Ro-BATs/tracking/check_pi_sync.sh"],
+#     check=True
+# )
 
 # Setup the camera (model = ace2 R a2A4508-20umBAS; Max frame rate = 19.4 fps)
 
@@ -72,12 +79,13 @@ os.makedirs(folder_path, exist_ok=True)
 print('\nCamera is ready and waiting for a trigger signal on Line1...\n')
 
 def main():
-
+    i=0
     try:
-        while camera.IsGrabbing():
-            print('Recording ... (???)')
+        while camera.IsGrabbing():                      
             with camera.RetrieveResult(20000, pylon.TimeoutHandling_ThrowException) as result:
-                
+                if i == 0:
+                    print('Trigger received! Recording started...\n')
+                    i+=1
                 # Calling AttachGrabResultBuffer creates another reference to the
                 # grab result buffer. This prevents the buffer's reuse for grabbing.
                 img.AttachGrabResultBuffer(result)
